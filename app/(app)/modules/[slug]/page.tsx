@@ -47,10 +47,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
 
   switch (module.id) {
     case "tasks": {
-      const [{ new: openNew, view }, tasks] = await Promise.all([searchParams, listTasks()]);
-      return (
-        <TasksView user={user} tasks={tasks} autoOpen={openNew === "1"} view={view} />
-      );
+      const [{ view }, tasks] = await Promise.all([searchParams, listTasks()]);
+      return <TasksView user={user} tasks={tasks} view={view} />;
     }
 
     case "tickets":

@@ -1,16 +1,14 @@
+import { Clock, ListChecks, Lock, Plus } from "lucide-react";
 import Link from "next/link";
-import { Clock, ListChecks, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID, ROLE_GROUPS, VISIBLE_ROLES, type RoleId } from "@/lib/roles";
+import { ROLE_BY_ID, ROLE_GROUPS } from "@/lib/roles";
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
-import { createTaskAction } from "@/app/(app)/modules/tasks/actions";
 import { TaskActions } from "@/components/modules/task-actions";
 import { formatDayMonth } from "@/lib/format";
 
@@ -23,35 +21,6 @@ const COLUMNS: Column[] = [
   { key: "status", label: "Status", type: "status", align: "right", width: "120px" },
 ];
 
-function fields(): FieldDef[] {
-  return [
-    { name: "title", label: "Task title", type: "text", required: true, span: 2, placeholder: "What needs to happen?" },
-    { name: "description", label: "Description", type: "textarea", span: 2, placeholder: "Context, links and acceptance criteria" },
-    {
-      name: "assigneeRole",
-      label: "Assign to",
-      type: "select",
-      required: true,
-      options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
-      defaultValue: "l2_support_engineer",
-    },
-    {
-      name: "priority",
-      label: "Priority",
-      type: "select",
-      required: true,
-      options: [
-        { value: "low", label: "Low" },
-        { value: "medium", label: "Medium" },
-        { value: "high", label: "High" },
-        { value: "critical", label: "Critical" },
-      ],
-      defaultValue: "medium",
-    },
-    { name: "dueDate", label: "Due date", type: "date" },
-  ];
-}
-
 type TaskViewId = "requested" | "mine" | "group";
 
 const TASK_VIEWS: { id: TaskViewId; label: string }[] = [
@@ -63,12 +32,10 @@ const TASK_VIEWS: { id: TaskViewId; label: string }[] = [
 export function TasksView({
   user,
   tasks,
-  autoOpen = false,
   view = "requested",
 }: {
   user: SessionUser;
   tasks: TaskRecord[];
-  autoOpen?: boolean;
   /** Sub-module selected in the tab strip; unknown values fall back to the queue. */
   view?: string;
 }) {
@@ -106,7 +73,7 @@ export function TasksView({
       task.id,
       <TaskActions
         key={task.id}
-        task={task}
+        taskId={task.id}
         canEdit={canEdit}
         canContribute={canEdit || task.assigneeRole === user.role}
       />,
@@ -119,15 +86,13 @@ export function TasksView({
         title="Task Management"
         actions={
           canCreate ? (
-            <RecordDialog
-              title="New task"
-              triggerLabel="New task"
-              submitLabel="Create task"
-              fields={fields()}
-              action={createTaskAction}
-              defaultOpen={autoOpen}
-              size="lg"
-            />
+            <Link
+              href="/modules/tasks/new"
+              className={buttonClass({ variant: "primary", className: "gap-1.5" })}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              New task
+            </Link>
           ) : (
             <button
               type="button"
@@ -204,15 +169,12 @@ export function TasksView({
               description="Work raised by any team will show up here with its owner, priority and due date."
               action={
                 canCreate ? (
-                  <RecordDialog
-                    title="New task"
-                    description="Assigned work appears on the board immediately."
-                    triggerLabel="Create the first task"
-                    submitLabel="Create task"
-                    fields={fields()}
-                    action={createTaskAction}
-                    size="lg"
-                  />
+                  <Link
+                    href="/modules/tasks/new"
+                    className={buttonClass({ variant: "primary", size: "sm" })}
+                  >
+                    Create the first task
+                  </Link>
                 ) : undefined
               }
             />

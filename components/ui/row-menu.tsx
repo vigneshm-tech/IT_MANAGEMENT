@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -7,7 +8,9 @@ import { cn } from "@/lib/utils";
 
 export type RowMenuItem = {
   label: string;
-  onSelect: () => void;
+  /** Either navigate (href) or run a client callback (onSelect). */
+  href?: string;
+  onSelect?: () => void;
   icon?: ReactNode;
   tone?: "default" | "primary";
 };
@@ -96,24 +99,43 @@ export function RowMenu({
             style={{ top: position.top, left: position.left, width: MENU_WIDTH }}
             className="fixed z-[90] overflow-hidden rounded-md border border-line bg-surface py-1 shadow-[0_18px_40px_-22px_rgba(23,44,82,0.45)]"
           >
-            {items.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect();
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-[#f4f7fc]",
-                  item.tone === "primary" ? "font-medium text-navy" : "text-body hover:text-navy",
-                )}
-              >
-                <span className="text-muted">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
+            {items.map((item) => {
+              const className = cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] transition-colors hover:bg-[#f4f7fc]",
+                item.tone === "primary" ? "font-medium text-navy" : "text-body hover:text-navy",
+              );
+
+              if (item.href) {
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className={className}
+                  >
+                    <span className="text-muted">{item.icon}</span>
+                    {item.label}
+                  </Link>
+                );
+              }
+
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    item.onSelect?.();
+                  }}
+                  className={className}
+                >
+                  <span className="text-muted">{item.icon}</span>
+                  {item.label}
+                </button>
+              );
+            })}
           </div>,
           document.body,
         )}

@@ -8,9 +8,22 @@ import {
   listTasks as listMemoryTasks,
   updateTask as updateMemoryTask,
   updateTaskStatus as updateMemoryTaskStatus,
+  type PlanStatus,
   type TaskPriority,
   type TaskStatus,
 } from "./store";
+
+/** Request details captured on the task form, alongside the schedule fields. */
+export type TaskRequestDetails = {
+  clientName: string;
+  activityType: string;
+  requestedByName: string;
+  requestedByEmail: string;
+  serverDetails: string;
+  planStatus: PlanStatus;
+  communication: string;
+  referenceTicketNo: string;
+};
 
 export type TaskRecord = {
   id: string;
@@ -25,15 +38,18 @@ export type TaskRecord = {
   createdByRole: RoleId;
   createdAt: string;
   dueDate: string | null;
-};
+} & TaskRequestDetails;
 
-export type NewTaskInput = {
+export type TaskInput = TaskRequestDetails & {
   title: string;
   description: string;
   priority: TaskPriority;
   assigneeRole: RoleId;
   dueDate: string | null;
 };
+
+export type NewTaskInput = TaskInput;
+export type TaskEditInput = TaskInput;
 
 type TaskRow = {
   id: string;
@@ -47,7 +63,50 @@ type TaskRow = {
   created_by_role: RoleId;
   created_at: string;
   due_date: string | null;
+  client_name: string | null;
+  activity_type: string | null;
+  requested_by_name: string | null;
+  requested_by_email: string | null;
+  server_details: string | null;
+  plan_status: PlanStatus | null;
+  communication: string | null;
+  reference_ticket_no: string | null;
 };
+
+const COLUMNS = [
+  "id",
+  "title",
+  "description",
+  "notes",
+  "priority",
+  "status",
+  "assignee_role",
+  "created_by_name",
+  "created_by_role",
+  "created_at",
+  "due_date",
+  "client_name",
+  "activity_type",
+  "requested_by_name",
+  "requested_by_email",
+  "server_details",
+  "plan_status",
+  "communication",
+  "reference_ticket_no",
+].join(", ");
+
+function requestColumns(input: TaskRequestDetails) {
+  return {
+    client_name: input.clientName,
+    activity_type: input.activityType,
+    requested_by_name: input.requestedByName,
+    requested_by_email: input.requestedByEmail,
+    server_details: input.serverDetails,
+    plan_status: input.planStatus,
+    communication: input.communication,
+    reference_ticket_no: input.referenceTicketNo,
+  };
+}
 
 function fromRow(row: TaskRow): TaskRecord {
   return {
@@ -62,6 +121,14 @@ function fromRow(row: TaskRow): TaskRecord {
     createdByRole: row.created_by_role,
     createdAt: row.created_at,
     dueDate: row.due_date,
+    clientName: row.client_name ?? "",
+    activityType: row.activity_type ?? "",
+    requestedByName: row.requested_by_name ?? "",
+    requestedByEmail: row.requested_by_email ?? "",
+    serverDetails: row.server_details ?? "",
+    planStatus: row.plan_status ?? "unplanned",
+    communication: row.communication ?? "",
+    referenceTicketNo: row.reference_ticket_no ?? "",
   };
 }
 
@@ -78,6 +145,14 @@ function memoryTasks(): TaskRecord[] {
     createdByRole: task.createdBy.role,
     createdAt: task.createdAt,
     dueDate: task.dueDate,
+    clientName: task.clientName,
+    activityType: task.activityType,
+    requestedByName: task.requestedByName,
+    requestedByEmail: task.requestedByEmail,
+    serverDetails: task.serverDetails,
+    planStatus: task.planStatus,
+    communication: task.communication,
+    referenceTicketNo: task.referenceTicketNo,
   }));
 }
 
@@ -89,18 +164,20 @@ export async function listTasks(): Promise<TaskRecord[]> {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("tasks")
-      .select(
-        "id, title, description, notes, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
-      )
+      .select(COLUMNS)
       .order("created_at", { ascending: false })
       .limit(200);
 
     if (error) throw error;
-    return (data as TaskRow[]).map(fromRow);
+    return (data as unknown as TaskRow[]).map(fromRow);
   } catch (error) {
     console.error("[tasks] falling back to memory store", error);
     return memoryTasks();
   }
+}
+
+export async function getTask(id: string): Promise<TaskRecord | null> {
+  return (await listTasks()).find((task) => task.id === id) ?? null;
 }
 
 export async function createTask(
@@ -117,7 +194,16 @@ export async function createTask(
       assigneeRole: input.assigneeRole,
       createdBy: { name: user.name, role: user.role },
       dueDate: input.dueDate,
+      clientName: input.clientName,
+      activityType: input.activityType,
+      requestedByName: input.requestedByName,
+      requestedByEmail: input.requestedByEmail,
+      serverDetails: input.serverDetails,
+      planStatus: input.planStatus,
+      communication: input.communication,
+      referenceTicketNo: input.referenceTicketNo,
     });
+
     return {
       id: task.id,
       title: task.title,
@@ -130,6 +216,14 @@ export async function createTask(
       createdByRole: task.createdBy.role,
       createdAt: task.createdAt,
       dueDate: task.dueDate,
+      clientName: task.clientName,
+      activityType: task.activityType,
+      requestedByName: task.requestedByName,
+      requestedByEmail: task.requestedByEmail,
+      serverDetails: task.serverDetails,
+      planStatus: task.planStatus,
+      communication: task.communication,
+      referenceTicketNo: task.referenceTicketNo,
     };
   }
 
@@ -147,10 +241,9 @@ export async function createTask(
       created_by_name: user.name,
       created_by_role: user.role,
       due_date: input.dueDate,
+      ...requestColumns(input),
     })
-    .select(
-      "id, title, description, notes, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
-    )
+    .select(COLUMNS)
     .single();
 
   if (error || !data) {
@@ -158,7 +251,50 @@ export async function createTask(
     throw new Error("Task could not be saved. Please try again.");
   }
 
-  return fromRow(data as TaskRow);
+  return fromRow(data as unknown as TaskRow);
+}
+
+/** Edits the task body, request details, owner and due date. Notes are append-only. */
+export async function updateTask(id: string, input: TaskEditInput): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return (
+      updateMemoryTask(id, {
+        title: input.title,
+        description: input.description,
+        priority: input.priority,
+        assigneeRole: input.assigneeRole,
+        dueDate: input.dueDate,
+        clientName: input.clientName,
+        activityType: input.activityType,
+        requestedByName: input.requestedByName,
+        requestedByEmail: input.requestedByEmail,
+        serverDetails: input.serverDetails,
+        planStatus: input.planStatus,
+        communication: input.communication,
+        referenceTicketNo: input.referenceTicketNo,
+      }) !== null
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      title: input.title,
+      description: input.description,
+      priority: input.priority,
+      assignee_role: input.assigneeRole,
+      due_date: input.dueDate,
+      ...requestColumns(input),
+    })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    console.error("[tasks] edit failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 export async function setTaskStatus(id: string, status: TaskStatus): Promise<boolean> {
@@ -175,48 +311,6 @@ export async function setTaskStatus(id: string, status: TaskStatus): Promise<boo
 
   if (error) {
     console.error("[tasks] update failed", error);
-    return false;
-  }
-  return (data?.length ?? 0) > 0;
-}
-
-export type TaskEditInput = {
-  title: string;
-  description: string;
-  priority: TaskPriority;
-  assigneeRole: RoleId;
-  dueDate: string | null;
-};
-
-/** Edits the task body, owner and due date. Notes are append-only. */
-export async function updateTask(id: string, input: TaskEditInput): Promise<boolean> {
-  if (!isSupabaseConfigured) {
-    return (
-      updateMemoryTask(id, {
-        title: input.title,
-        description: input.description,
-        priority: input.priority,
-        assigneeRole: input.assigneeRole,
-        dueDate: input.dueDate,
-      }) !== null
-    );
-  }
-
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("tasks")
-    .update({
-      title: input.title,
-      description: input.description,
-      priority: input.priority,
-      assignee_role: input.assigneeRole,
-      due_date: input.dueDate,
-    })
-    .eq("id", id)
-    .select("id");
-
-  if (error) {
-    console.error("[tasks] edit failed", error);
     return false;
   }
   return (data?.length ?? 0) > 0;

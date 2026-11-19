@@ -163,7 +163,7 @@ export default async function OverviewPage() {
             <Link href="/modules/approvals" className={buttonClass({ variant: "secondary" })}>
               Approvals
             </Link>
-            <Link href="/modules/tasks?new=1" className={buttonClass()}>
+            <Link href="/modules/tasks/new" className={buttonClass()}>
               <Plus className="h-3.5 w-3.5" aria-hidden />
               New task
             </Link>
@@ -309,7 +309,7 @@ export default async function OverviewPage() {
         {tasks.length === 0 ? (
           <p className="mt-4 border-t border-line pt-5 text-[12.5px] text-muted">
             No tasks yet.{" "}
-            <Link href="/modules/tasks?new=1" className="font-medium text-navy hover:text-gold">
+            <Link href="/modules/tasks/new" className="font-medium text-navy hover:text-gold">
               Create the first one
             </Link>
             .

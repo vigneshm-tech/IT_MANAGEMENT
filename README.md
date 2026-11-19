@@ -129,12 +129,25 @@ Task Management carries three sub-views under its heading, selected with the
 role's group).
 
 Every row carries an options menu: **View task** (full record and notes),
-**Change status** (to do / in progress / done), **Edit task** (title,
-description, team, priority, due date) and **Update notes** (an append-only,
-timestamped log). View is open to anyone who can see the row; status and notes
-are allowed for the owning team or leadership; editing is leadership-only
-(`tasks.edit` in the registry). The notes column lives in
-`supabase/migrations/0008_task_notes.sql`.
+**Change status** (to do / in progress / done), **Edit task** and
+**Update notes** (an append-only, timestamped log). The menu only offers what
+the role may do: viewing is open to anyone who can see the row; status and notes
+belong to the owning team or leadership; editing is leadership-only (`tasks.edit`
+in the registry).
+
+Forms are **pages, not popups**. `/modules/tasks/new` renders the full create
+form and `/modules/tasks/<id>/edit` the edit form; the task page
+(`/modules/tasks/<id>`) carries the inline status control and note composer as
+anchored sections (`#status`, `#notes`). Nothing about a task opens in a dialog.
+
+The create form captures, in order: **Task ID** (generated on save, read only),
+**Task name**, **Task description**, **Client name**, **Activity type**,
+**Requested by** and **Requester email** (auto-captured from the session, read
+only), **Server details**, **Planned / unplanned**, **Communication**,
+**Reference ticket no.** and **Assigned to** (select grouped by team, with the
+priority and due date beside it). Schema:
+`supabase/migrations/0009_task_request_details.sql`; notes:
+`0008_task_notes.sql`.
 
 **Masters** is the index for the master registers — Clients, Renewals and
 Patching Plans. It lists only the registers the signed-in role may open, and the
@@ -251,6 +264,7 @@ app/
     modules/dashboard/   KPIs, task volume, attention list
     modules/[slug]/      Tasks, tickets, servers, clients, patching,
                          approvals, renewals, settings
+    modules/tasks/       Board views, /new, /<id>, /<id>/edit
 components/
   nav/top-nav.tsx        Two-zone header: wordmark, command palette, notifications
   ui/table.tsx           shadcn/ui table primitives (components.json included)

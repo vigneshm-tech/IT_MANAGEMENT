@@ -44,11 +44,13 @@ const LABELS: Record<string, string> = {
   todo: "To do",
 };
 
-export function humanise(value: string): string {
+export function humanise(value: string | null | undefined): string {
+  if (!value) return "—";
   return LABELS[value] ?? value.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
-export function toneFor(status: string): Tone {
+export function toneFor(status: string | null | undefined): Tone {
+  if (!status) return "neutral";
   return STATUS_TONE[status.toLowerCase()] ?? "neutral";
 }
 

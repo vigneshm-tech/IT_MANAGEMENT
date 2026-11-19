@@ -18,6 +18,14 @@ function seedTask(title: string) {
     assigneeRole: "it_engineer",
     createdBy: { name: "Test Runner", role: "it_manager" },
     dueDate: null,
+    clientName: "Acme",
+    activityType: "Patching",
+    requestedByName: "Test Runner",
+    requestedByEmail: "runner@tasktornado.dev",
+    serverDetails: "srv-01",
+    planStatus: "planned",
+    communication: "Email",
+    referenceTicketNo: "4821",
   });
 }
 

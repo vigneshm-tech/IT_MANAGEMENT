@@ -14,6 +14,11 @@ function humanise(segment: string): string {
   } catch {
     /* keep the raw segment */
   }
+  // Task ids stay verbatim; two route words read better expanded.
+  if (/^tsk-\d+$/i.test(value)) return value.toUpperCase();
+  if (value === "new") return "New task";
+  if (value === "edit") return "Edit";
+
   return value
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());

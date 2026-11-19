@@ -1,6 +1,7 @@
 import { VISIBLE_ROLES, type RoleId } from "../roles";
 
 export type TaskStatus = "todo" | "in_progress" | "done";
+export type PlanStatus = "planned" | "unplanned";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
 export type Task = {
@@ -9,6 +10,14 @@ export type Task = {
   description: string;
   /** Append-only working notes; entries are separated by a blank line. */
   notes: string;
+  clientName: string;
+  activityType: string;
+  requestedByName: string;
+  requestedByEmail: string;
+  serverDetails: string;
+  planStatus: PlanStatus;
+  communication: string;
+  referenceTicketNo: string;
   priority: TaskPriority;
   status: TaskStatus;
   assigneeRole: RoleId;
@@ -27,7 +36,7 @@ const globalForTasks = globalThis as unknown as { __taskTornadoTasks?: Task[] };
 function seed(): Task[] {
   const now = Date.now();
   const hour = 60 * 60 * 1000;
-  const tasks: Omit<Task, "notes">[] = [
+  const tasks: Omit<Task, "notes" | "clientName" | "activityType" | "requestedByName" | "requestedByEmail" | "serverDetails" | "planStatus" | "communication" | "referenceTicketNo">[] = [
     {
       id: "TSK-1042",
       title: "Patch Windows estate before Friday maintenance window",
@@ -86,7 +95,18 @@ function seed(): Task[] {
     },
   ];
 
-  return tasks.map((task) => ({ ...task, notes: "" }));
+  return tasks.map((task) => ({
+    ...task,
+    notes: "",
+    clientName: "",
+    activityType: "",
+    requestedByName: task.createdBy.name,
+    requestedByEmail: "",
+    serverDetails: "",
+    planStatus: "unplanned",
+    communication: "",
+    referenceTicketNo: "",
+  }));
 }
 
 export function listTasks(): Task[] {
@@ -110,7 +130,22 @@ export function addTask(input: Omit<Task, "id" | "createdAt">): Task {
 }
 
 export type TaskPatch = Partial<
-  Pick<Task, "title" | "description" | "priority" | "assigneeRole" | "dueDate">
+  Pick<
+    Task,
+    | "title"
+    | "description"
+    | "priority"
+    | "assigneeRole"
+    | "dueDate"
+    | "clientName"
+    | "activityType"
+    | "requestedByName"
+    | "requestedByEmail"
+    | "serverDetails"
+    | "planStatus"
+    | "communication"
+    | "referenceTicketNo"
+  >
 >;
 
 export function updateTask(id: string, patch: TaskPatch): Task | null {
