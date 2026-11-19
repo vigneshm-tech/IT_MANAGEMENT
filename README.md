@@ -32,9 +32,9 @@ containers.
 Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
 grid and dialog/popover transitions.
 
-**Brand:** the logo is a wordmark, not an icon — custom-set lettering shipped as
-fixed vectors (`public/brand/wordmark.svg` and the white `wordmark-inverse.svg`).
-The tab icon is the single gold "T" monogram.
+**Brand:** the logo is a wordmark, not an icon — the name set in **Audiowide**,
+outlined and shipped as fixed vectors (`public/brand/wordmark.svg` and the white
+`wordmark-inverse.svg`). The tab icon is the single gold "T" from the same face.
 
 **Navigation:** a 64px top bar with five mega-menu groups — Overview, Service
 desk, Infrastructure, Commercial, Governance — plus ⌘K search, approval

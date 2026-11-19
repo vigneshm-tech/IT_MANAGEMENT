@@ -1,9 +1,9 @@
 import Image from "next/image";
 
-const RATIO = 6357 / 790;
+const RATIO = 14965.96 / 1619.92;
 
 /**
- * TaskTornado wordmark — custom-set lettering shipped as a vector logo.
+ * TaskTornado wordmark — Audiowide lettering, outlined and shipped as a vector logo.
  * Two locked variants: navy for light surfaces, white for the navy panel.
  */
 export function Wordmark({
