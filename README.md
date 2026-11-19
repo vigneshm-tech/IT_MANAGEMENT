@@ -113,6 +113,7 @@ re-reads `profiles.status` and sends a non-active account through `/logout`.
 | Patching Plans | IT + managers + leads + management | IT | IT | Leadership | — |
 | Approvals | Everyone | Everyone | — | Leadership | — |
 | Renewals Master | Everyone | Leadership | IT + leadership | — | — |
+| Masters | Everyone | — | IT + leadership | — | — |
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
 | Users | Super Admin | Super Admin | Super Admin | — | Super Admin |
 
@@ -126,6 +127,11 @@ Task Management carries three sub-views under its heading, selected with the
 **Task Assigned To Me** (`?view=mine`, work routed to the signed-in role) and
 **Task Assigned To My Group** (`?view=group`, work routed to any role in that
 role's group).
+
+**Masters** is the index for the master registers — Clients, Renewals and
+Patching Plans. It lists only the registers the signed-in role may open, and the
+record counts beside each one come from the same repository that feeds the
+register itself.
 
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,

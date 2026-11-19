@@ -2,6 +2,7 @@ import {
   BadgeCheck,
   Building2,
   CalendarClock,
+  Layers,
   LayoutDashboard,
   ListChecks,
   Server,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 const GLYPHS: Record<string, LucideIcon> = {
+  Layers,
   LayoutDashboard,
   ListChecks,
   Ticket,

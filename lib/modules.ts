@@ -16,6 +16,7 @@ export type ModuleId =
   | "patching"
   | "approvals"
   | "renewals"
+  | "masters"
   | "settings"
   | "users";
 
@@ -134,6 +135,15 @@ export const MODULES: ModuleDefinition[] = [
     href: "/modules/renewals",
     summary: "Contracts, licences and due dates",
     icon: "CalendarClock",
+    navGroup: "commercial",
+    access: { view: "all", edit: [IT, ...LEADERSHIP] },
+  },
+  {
+    id: "masters",
+    title: "Masters",
+    href: "/modules/masters",
+    summary: "Clients, renewals and patching registers",
+    icon: "Layers",
     navGroup: "commercial",
     access: { view: "all", edit: [IT, ...LEADERSHIP] },
   },

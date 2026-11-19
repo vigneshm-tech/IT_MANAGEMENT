@@ -76,6 +76,7 @@ test("engineers can still view every module they need", () => {
     "tickets",
     "clients",
     "renewals",
+    "masters",
     "approvals",
     "settings",
   ]);
@@ -143,7 +144,7 @@ test("only the super admin can open the user directory", () => {
 });
 
 test("dashboard is available to all and every module declares a view rule", () => {
-  assert.equal(MODULES.length, 10);
+  assert.equal(MODULES.length, 11);
   for (const module of MODULES) {
     if (module.id === "users") continue; // super-admin only
     assert.equal(

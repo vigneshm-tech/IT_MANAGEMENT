@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { ApprovalsView } from "@/components/modules/approvals-view";
 import { ClientsView } from "@/components/modules/clients-view";
+import { MastersView } from "@/components/modules/masters-view";
 import { PatchingView } from "@/components/modules/patching-view";
 import { RenewalsView } from "@/components/modules/renewals-view";
 import { ServersView } from "@/components/modules/servers-view";
@@ -79,6 +80,24 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
 
     case "renewals":
       return <RenewalsView user={user} renewals={await listRenewals()} />;
+
+    case "masters": {
+      const [clients, renewals, plans] = await Promise.all([
+        listClients(),
+        listRenewals(),
+        listPatchPlans(),
+      ]);
+      return (
+        <MastersView
+          user={user}
+          counts={{
+            clients: clients.length,
+            renewals: renewals.length,
+            patching: plans.length,
+          }}
+        />
+      );
+    }
 
     case "users": {
       const directory = await listDirectory();
