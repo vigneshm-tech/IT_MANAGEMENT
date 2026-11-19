@@ -8,6 +8,7 @@ import {
   clearLoginFailures,
   recordLoginFailure,
 } from "@/lib/auth/rate-limit";
+import { markIntroPending } from "@/lib/auth/intro";
 import { setSessionCookie } from "@/lib/auth/session";
 
 export type LoginState = {
@@ -62,5 +63,6 @@ export async function loginAction(
 
   clearLoginFailures(email, ip);
   await setSessionCookie(result.user);
+  await markIntroPending();
   redirect(redirectTo);
 }

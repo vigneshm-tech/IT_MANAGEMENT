@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Heart } from "lucide-react";
+import { LaunchIntro } from "@/components/intro/launch-intro";
 import { Breadcrumbs } from "@/components/nav/breadcrumbs";
 import { TopNav, type NavGroup } from "@/components/nav/top-nav";
 import { requireUser } from "@/lib/auth";
+import { isIntroPending } from "@/lib/auth/intro";
 import { can, visibleModules } from "@/lib/access";
 import { NAV_GROUPS } from "@/lib/modules";
 import { ROLE_BY_ID } from "@/lib/roles";
@@ -18,6 +20,7 @@ export default async function WorkspaceLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const introPending = await isIntroPending();
   const role = ROLE_BY_ID[user.role];
   const allowed = visibleModules(user.role);
 
@@ -63,7 +66,7 @@ export default async function WorkspaceLayout({
       <Breadcrumbs />
 
       <main className="w-full flex-1 px-4 py-7 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
-        {children}
+        <LaunchIntro active={introPending}>{children}</LaunchIntro>
       </main>
 
       <footer className="border-t border-line">
