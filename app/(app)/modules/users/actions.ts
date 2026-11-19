@@ -6,6 +6,12 @@ import { EMAIL_PATTERN, type FormState } from "@/lib/forms";
 import { requireUser } from "@/lib/auth";
 import { isAssignableRole, ROLE_BY_ID } from "@/lib/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  createDemoUser,
+  demoEmailTaken,
+  removeDemoUser,
+  setDemoUserStatus,
+} from "@/lib/users/store";
 
 const USERS_PATH = "/modules/users";
 
@@ -29,10 +35,6 @@ export async function createUserAction(
     return { error: "Only a super admin can add users." };
   }
 
-  if (!isSupabaseConfigured) {
-    return { error: "User management needs the Supabase connection." };
-  }
-
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const title = String(formData.get("title") ?? "").trim();
@@ -50,6 +52,18 @@ export async function createUserAction(
   }
   if (password.length < 8) {
     return { error: "The temporary password needs at least 8 characters." };
+  }
+
+  if (!isSupabaseConfigured) {
+    if (demoEmailTaken(email)) {
+      return { error: "An account already uses this email address." };
+    }
+    createDemoUser({ name: fullName, email, title, role });
+    revalidatePath(USERS_PATH);
+    return {
+      ok: true,
+      message: `${fullName} was added as ${ROLE_BY_ID[role].label}.`,
+    };
   }
 
   try {
@@ -85,13 +99,25 @@ export async function createUserAction(
 export async function updateUserAction(formData: FormData): Promise<void> {
   const user = await requireUser();
 
-  if (user.role !== "super_admin" || !isSupabaseConfigured) {
+  if (user.role !== "super_admin") {
     return;
   }
 
   const id = String(formData.get("id") ?? "");
   const value = String(formData.get("value") ?? "");
-  if (!id) return;
+  if (!id || id === user.id) return;
+
+  if (!isSupabaseConfigured) {
+    if (value === "suspend" || value === "activate") {
+      setDemoUserStatus(id, value === "suspend" ? "suspended" : "active");
+    } else if (value === "delete") {
+      removeDemoUser(id);
+    } else {
+      return;
+    }
+    revalidatePath(USERS_PATH);
+    return;
+  }
 
   try {
     const supabase = await createSupabaseServerClient();

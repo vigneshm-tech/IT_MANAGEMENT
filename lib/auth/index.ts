@@ -5,6 +5,7 @@ import { isDemoMode, isSupabaseConfigured } from "../config";
 import { findDemoUser } from "../demo-users";
 import { getRole, isRoleId, type RoleId } from "../roles";
 import { createSupabaseServerClient } from "../supabase/server";
+import { findDemoDirectoryUser } from "../users/store";
 import { getSession, type SessionUser } from "./session";
 
 export type AuthResult =
@@ -115,6 +116,10 @@ export async function authenticate(
   const user = findDemoUser(email);
   if (!user || !samePassword(password, user.password)) {
     return { ok: false, error: "Those credentials do not match an account." };
+  }
+
+  if (findDemoDirectoryUser(user.id)?.status === "suspended") {
+    return { ok: false, error: "This account is suspended. Contact IT." };
   }
 
   return {

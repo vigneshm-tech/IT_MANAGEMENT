@@ -1,5 +1,5 @@
 import { isSupabaseConfigured } from "../config";
-import { DEMO_USERS } from "../demo-users";
+import { listDemoDirectory } from "./store";
 import { isRoleId, type RoleId } from "../roles";
 import { createSupabaseServerClient } from "../supabase/server";
 
@@ -70,17 +70,5 @@ export async function listDirectory(): Promise<DirectoryResult> {
     }
   }
 
-  const users = DEMO_USERS.filter((user) => user.role !== SUPER_ADMIN).map<DirectoryUser>(
-    (user) => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      title: user.title,
-      role: user.role,
-      status: "active",
-      lastLoginAt: null,
-    }),
-  );
-
-  return { users, error: null };
+  return { users: listDemoDirectory(), error: null };
 }

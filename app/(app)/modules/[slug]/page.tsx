@@ -11,7 +11,6 @@ import { TasksView } from "@/components/modules/tasks-view";
 import { UsersView } from "@/components/modules/users-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { canAccessModule } from "@/lib/access";
-import { isSupabaseConfigured } from "@/lib/config";
 import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
 import { getModule } from "@/lib/modules";
@@ -85,7 +84,6 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
         <UsersView
           users={directory.users}
           error={directory.error}
-          managed={isSupabaseConfigured}
           currentUserId={user.id}
         />
       );

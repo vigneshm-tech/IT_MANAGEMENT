@@ -86,13 +86,10 @@ function lastSeen(value: string | null): string {
 export function UsersView({
   users,
   error,
-  managed,
   currentUserId,
 }: {
   users: DirectoryUser[];
   error: string | null;
-  /** Account administration is only offered when Supabase is connected. */
-  managed: boolean;
   currentUserId: string;
 }) {
   const [viewing, setViewing] = useState<DirectoryUser | null>(null);
@@ -103,7 +100,7 @@ export function UsersView({
         const self = user.id === currentUserId;
         const actions: RowAction[] = [];
 
-        if (managed && !self) {
+        if (!self) {
           actions.push(
             user.status === "suspended"
               ? { label: "Reactivate", value: "activate", tone: "primary" }
@@ -129,7 +126,7 @@ export function UsersView({
           actions,
         };
       }),
-    [users, managed, currentUserId],
+    [users, currentUserId],
   );
 
   return (
@@ -137,17 +134,15 @@ export function UsersView({
       <PageHeader
         title="Users"
         actions={
-          managed ? (
-            <RecordDialog
-              title="Add user"
-              description="The account is active immediately and signs in with the temporary password."
-              triggerLabel="Add user"
-              submitLabel="Add user"
-              fields={ADD_FIELDS}
-              action={createUserAction}
-              size="lg"
-            />
-          ) : undefined
+          <RecordDialog
+            title="Add user"
+            description="The account is active immediately and signs in with the temporary password."
+            triggerLabel="Add user"
+            submitLabel="Add user"
+            fields={ADD_FIELDS}
+            action={createUserAction}
+            size="lg"
+          />
         }
       />
 
@@ -155,7 +150,7 @@ export function UsersView({
         columns={COLUMNS}
         rows={rows}
         pageSize={10}
-        rowAction={managed ? updateUserAction : undefined}
+        rowAction={updateUserAction}
         searchPlaceholder="Search people, emails or access levels"
         renderRowExtras={(row) => {
           const user = users.find((entry) => entry.id === row.id);
