@@ -44,6 +44,7 @@ export function DataTable({
   rows,
   rowAction,
   rowActions,
+  rowExtras,
   renderRowExtras,
   searchPlaceholder = "Search",
   emptyState,
@@ -53,6 +54,11 @@ export function DataTable({
   rows: TableRowData[];
   rowAction?: (formData: FormData) => Promise<void>;
   rowActions?: RowAction[];
+  /**
+   * Ready-rendered controls keyed by row id. Server components can pass client
+   * elements here — unlike a render prop, which cannot cross the RSC boundary.
+   */
+  rowExtras?: Record<string, ReactNode>;
   /** Extra client-side controls rendered in the actions cell, before the form buttons. */
   renderRowExtras?: (row: TableRowData) => ReactNode;
   searchPlaceholder?: string;
@@ -108,6 +114,7 @@ export function DataTable({
 
   const showsActions = Boolean(
     renderRowExtras ||
+      rowExtras ||
       (rowAction && (rowActions?.length || rows.some((row) => row.actions?.length))),
   );
 
@@ -210,6 +217,7 @@ export function DataTable({
               {showsActions && (
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-1">
+                    {rowExtras?.[row.id]}
                     {renderRowExtras?.(row)}
                     {rowAction && (
                       <form action={rowAction} className="inline-flex items-center gap-1">

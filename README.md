@@ -128,6 +128,14 @@ Task Management carries three sub-views under its heading, selected with the
 **Task Assigned To My Group** (`?view=group`, work routed to any role in that
 role's group).
 
+Every row carries an options menu: **View task** (full record and notes),
+**Change status** (to do / in progress / done), **Edit task** (title,
+description, team, priority, due date) and **Update notes** (an append-only,
+timestamped log). View is open to anyone who can see the row; status and notes
+are allowed for the owning team or leadership; editing is leadership-only
+(`tasks.edit` in the registry). The notes column lives in
+`supabase/migrations/0008_task_notes.sql`.
+
 **Masters** is the index for the master registers — Clients, Renewals and
 Patching Plans. It lists only the registers the signed-in role may open, and the
 record counts beside each one come from the same repository that feeds the

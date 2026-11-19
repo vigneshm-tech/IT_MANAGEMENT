@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Clock, ListChecks, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
-import { DataTable, type Column, type RowAction } from "@/components/ui/data-table";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
@@ -10,7 +10,8 @@ import { ROLE_BY_ID, ROLE_GROUPS, VISIBLE_ROLES, type RoleId } from "@/lib/roles
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
-import { createTaskAction, updateTaskStatusAction } from "@/app/(app)/modules/tasks/actions";
+import { createTaskAction } from "@/app/(app)/modules/tasks/actions";
+import { TaskActions } from "@/components/modules/task-actions";
 import { formatDayMonth } from "@/lib/format";
 
 const COLUMNS: Column[] = [
@@ -59,12 +60,6 @@ const TASK_VIEWS: { id: TaskViewId; label: string }[] = [
   { id: "group", label: "Task Assigned To My Group" },
 ];
 
-function nextAction(status: TaskRecord["status"]): RowAction {
-  if (status === "done") return { label: "Reopen", value: "todo" };
-  if (status === "in_progress") return { label: "Complete", value: "done" };
-  return { label: "Start", value: "in_progress" };
-}
-
 export function TasksView({
   user,
   tasks,
@@ -93,21 +88,30 @@ export function TasksView({
         ? tasks.filter((task) => ROLE_BY_ID[task.assigneeRole]?.group === roleGroup)
         : tasks;
 
-  const rows = visibleTasks.map((task) => {
-    const mayUpdate = canEdit || task.assigneeRole === user.role;
-    return {
+  const rows = visibleTasks.map((task) => ({
+    id: task.id,
+    cells: {
+      title: task.title,
       id: task.id,
-      cells: {
-        title: task.title,
-        id: task.id,
-        priority: task.priority,
-        team: ROLE_BY_ID[task.assigneeRole]?.label ?? "—",
-        due: task.dueDate ? formatDayMonth(task.dueDate) : "—",
-        status: task.status,
-      },
-      actions: mayUpdate ? [nextAction(task.status)] : [],
-    };
-  });
+      priority: task.priority,
+      team: ROLE_BY_ID[task.assigneeRole]?.label ?? "—",
+      due: task.dueDate ? formatDayMonth(task.dueDate) : "—",
+      status: task.status,
+    },
+  }));
+
+  // View · Change status · Edit · Update notes, per task.
+  const rowExtras = Object.fromEntries(
+    visibleTasks.map((task) => [
+      task.id,
+      <TaskActions
+        key={task.id}
+        task={task}
+        canEdit={canEdit}
+        canContribute={canEdit || task.assigneeRole === user.role}
+      />,
+    ]),
+  );
 
   return (
     <div className="space-y-5">
@@ -178,7 +182,7 @@ export function TasksView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
-        rowAction={updateTaskStatusAction}
+        rowExtras={rowExtras}
         searchPlaceholder="Search tasks, teams or references"
         emptyState={
           currentView === "mine" ? (

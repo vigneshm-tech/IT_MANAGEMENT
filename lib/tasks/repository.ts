@@ -4,7 +4,9 @@ import type { SessionUser } from "../auth/token";
 import type { RoleId } from "../roles";
 import {
   addTask as addMemoryTask,
+  appendTaskNote as appendMemoryTaskNote,
   listTasks as listMemoryTasks,
+  updateTask as updateMemoryTask,
   updateTaskStatus as updateMemoryTaskStatus,
   type TaskPriority,
   type TaskStatus,
@@ -14,6 +16,8 @@ export type TaskRecord = {
   id: string;
   title: string;
   description: string;
+  /** Append-only working notes; entries are separated by a blank line. */
+  notes: string;
   priority: TaskPriority;
   status: TaskStatus;
   assigneeRole: RoleId;
@@ -35,6 +39,7 @@ type TaskRow = {
   id: string;
   title: string;
   description: string | null;
+  notes: string | null;
   priority: TaskPriority;
   status: TaskStatus;
   assignee_role: RoleId;
@@ -49,6 +54,7 @@ function fromRow(row: TaskRow): TaskRecord {
     id: row.id,
     title: row.title,
     description: row.description ?? "",
+    notes: row.notes ?? "",
     priority: row.priority,
     status: row.status,
     assigneeRole: row.assignee_role,
@@ -64,6 +70,7 @@ function memoryTasks(): TaskRecord[] {
     id: task.id,
     title: task.title,
     description: task.description,
+    notes: task.notes,
     priority: task.priority,
     status: task.status,
     assigneeRole: task.assigneeRole,
@@ -83,7 +90,7 @@ export async function listTasks(): Promise<TaskRecord[]> {
     const { data, error } = await supabase
       .from("tasks")
       .select(
-        "id, title, description, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
+        "id, title, description, notes, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
       )
       .order("created_at", { ascending: false })
       .limit(200);
@@ -104,6 +111,7 @@ export async function createTask(
     const task = addMemoryTask({
       title: input.title,
       description: input.description,
+      notes: "",
       priority: input.priority,
       status: "todo",
       assigneeRole: input.assigneeRole,
@@ -114,6 +122,7 @@ export async function createTask(
       id: task.id,
       title: task.title,
       description: task.description,
+      notes: task.notes,
       priority: task.priority,
       status: task.status,
       assigneeRole: task.assigneeRole,
@@ -130,6 +139,7 @@ export async function createTask(
     .insert({
       title: input.title,
       description: input.description,
+      notes: "",
       priority: input.priority,
       status: "todo",
       assignee_role: input.assigneeRole,
@@ -139,7 +149,7 @@ export async function createTask(
       due_date: input.dueDate,
     })
     .select(
-      "id, title, description, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
+      "id, title, description, notes, priority, status, assignee_role, created_by_name, created_by_role, created_at, due_date",
     )
     .single();
 
@@ -165,6 +175,80 @@ export async function setTaskStatus(id: string, status: TaskStatus): Promise<boo
 
   if (error) {
     console.error("[tasks] update failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+export type TaskEditInput = {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  assigneeRole: RoleId;
+  dueDate: string | null;
+};
+
+/** Edits the task body, owner and due date. Notes are append-only. */
+export async function updateTask(id: string, input: TaskEditInput): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return (
+      updateMemoryTask(id, {
+        title: input.title,
+        description: input.description,
+        priority: input.priority,
+        assigneeRole: input.assigneeRole,
+        dueDate: input.dueDate,
+      }) !== null
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({
+      title: input.title,
+      description: input.description,
+      priority: input.priority,
+      assignee_role: input.assigneeRole,
+      due_date: input.dueDate,
+    })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    console.error("[tasks] edit failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/** Appends a stamped note block; existing notes are never rewritten. */
+export async function appendTaskNote(id: string, entry: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return appendMemoryTaskNote(id, entry) !== null;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: current, error: readError } = await supabase
+    .from("tasks")
+    .select("notes")
+    .eq("id", id)
+    .maybeSingle<{ notes: string | null }>();
+
+  if (readError) {
+    console.error("[tasks] note read failed", readError);
+    return false;
+  }
+
+  const existing = current?.notes ?? "";
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({ notes: existing ? `${existing}\n\n${entry}` : entry })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    console.error("[tasks] note write failed", error);
     return false;
   }
   return (data?.length ?? 0) > 0;

@@ -7,6 +7,8 @@ export type Task = {
   id: string;
   title: string;
   description: string;
+  /** Append-only working notes; entries are separated by a blank line. */
+  notes: string;
   priority: TaskPriority;
   status: TaskStatus;
   assigneeRole: RoleId;
@@ -25,7 +27,7 @@ const globalForTasks = globalThis as unknown as { __taskTornadoTasks?: Task[] };
 function seed(): Task[] {
   const now = Date.now();
   const hour = 60 * 60 * 1000;
-  return [
+  const tasks: Omit<Task, "notes">[] = [
     {
       id: "TSK-1042",
       title: "Patch Windows estate before Friday maintenance window",
@@ -83,6 +85,8 @@ function seed(): Task[] {
       dueDate: null,
     },
   ];
+
+  return tasks.map((task) => ({ ...task, notes: "" }));
 }
 
 export function listTasks(): Task[] {
@@ -102,6 +106,24 @@ export function addTask(input: Omit<Task, "id" | "createdAt">): Task {
     createdAt: new Date().toISOString(),
   };
   tasks.unshift(task);
+  return task;
+}
+
+export type TaskPatch = Partial<
+  Pick<Task, "title" | "description" | "priority" | "assigneeRole" | "dueDate">
+>;
+
+export function updateTask(id: string, patch: TaskPatch): Task | null {
+  const task = listTasks().find((item) => item.id === id);
+  if (!task) return null;
+  Object.assign(task, patch);
+  return task;
+}
+
+export function appendTaskNote(id: string, entry: string): Task | null {
+  const task = listTasks().find((item) => item.id === id);
+  if (!task) return null;
+  task.notes = task.notes ? `${task.notes}\n\n${entry}` : entry;
   return task;
 }
 
