@@ -6,16 +6,37 @@ plans, approvals, renewals and settings — behind one sign-in.
 **Live:** https://tasktornado-assetiqs-projects.vercel.app
 **Repo:** https://github.com/vigneshm-tech/IT_MANAGEMENT
 
-**Milestone 1 (this build): Login + role-based access + animated module grid.**
-
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
-- Supabase Auth + Postgres row-level security (already provisioned)
+- Supabase Auth + Postgres row-level security
 - Signed, HTTP-only session cookie; roles re-checked on every request
 - 22 unit tests covering the permission matrix, the task window and sessions
 
 ---
 
-## 1. Roles
+## 1. Design
+
+A light, open canvas — no cards around cards, no gradients, dividers over
+containers.
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `--color-canvas` | `#F5F7FB` | Page background |
+| `--color-surface` | `#FFFFFF` | Inputs, dialogs, raised rows |
+| `--color-navy` | `#172C52` | Headings, primary text, brand block |
+| `--color-navy-soft` | `#2A4470` | Secondary emphasis |
+| `--color-gold` | `#C6A96C` | Primary buttons, active nav, focus |
+| `--color-body` | `#44536D` | Body copy |
+| `--color-muted` | `#7B879C` | Meta, labels |
+| `--color-line` | `#E2E7F0` | Dividers and borders |
+
+Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
+grid and dialog/popover transitions.
+
+**Navigation:** a 64px top bar with five mega-menu groups — Overview, Service
+desk, Infrastructure, Commercial, Governance — plus ⌘K search, approval
+notifications and a user menu. Restricted pages never appear in the menu.
+
+## 2. Roles
 
 Fifteen roles in six groups. The role drives visible modules and allowed actions.
 
@@ -31,7 +52,7 @@ Fifteen roles in six groups. The role drives visible modules and allowed actions
 Tiers: **manager**, **lead**, **engineer**, **executive** (Management).
 Engineers are the only tier with a restricted task-creation window.
 
-## 2. Module access matrix
+## 3. Module access matrix
 
 `✓` = capability granted by default. Everything is enforced server-side.
 
@@ -41,10 +62,10 @@ Engineers are the only tier with a restricted task-creation window.
 | Task Management | Everyone | Everyone* | Leadership | — | — |
 | Ticket Portal | Everyone | Everyone | Everyone | — | — |
 | Servers | IT + managers + leads + management | — | IT | — | IT Manager |
-| Clients Master | Everyone | — | IT + leadership | — | — |
-| Patching Plans | IT + managers + leads + management | — | IT | Leadership | — |
+| Clients Master | Everyone | Leadership | IT + leadership | — | — |
+| Patching Plans | IT + managers + leads + management | IT | IT | Leadership | — |
 | Approvals | Everyone | Everyone | — | Leadership | — |
-| Renewals Master | Everyone | — | IT + leadership | — | — |
+| Renewals Master | Everyone | Leadership | IT + leadership | — | — |
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
 
 \* **Task creation window** — engineers may only raise new tasks between **09:00 and
@@ -56,7 +77,26 @@ The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](li
 edit those two files to change policy. `lib/access.ts` exposes `can()`,
 `canAccessModule()`, `visibleModules()` and `accessMap()`.
 
-## 3. Local development
+## 4. Data
+
+| Table | Rows in this build | Notes |
+| --- | --- | --- |
+| `tasks` | 5 seeded + runtime | Teams, priority, due date, status |
+| `clients` | 4 seeded | Contact, industry, owner, active flag |
+| `patch_plans` | 3 seeded | Window, ring, owner, status |
+| `approvals` | 4 seeded | Change/access/patch/purchase, decision trail |
+| `renewals` | 4 seeded | Value, currency, notice period, status |
+
+All four record tables (plus `tasks`) have RLS: any authenticated user can read,
+rows are inserted as the signed-in user, updates are limited to the creator or
+leadership, and approvals can only be decided by leadership. Schemas live in
+`supabase/migrations/0001_rbac.sql`, `0002_tasks.sql` and
+`0003_business_records.sql`.
+
+Redmine and Action1 have no sync worker yet: the portal and server inventory
+render honest empty states until a key is saved, rather than inventing metrics.
+
+## 5. Local development
 
 ```bash
 npm install
@@ -66,22 +106,20 @@ npm run dev                  # http://localhost:3000
 
 Without Supabase configured the app runs in **demo mode** with fifteen seeded
 accounts, one per role, all using the password `Tornado@123`. The login screen
-lists them and can sign in with one click. Demo mode is inert as soon as
+can fill any role's credentials from a picker. Demo mode is inert as soon as
 `NEXT_PUBLIC_SUPABASE_URL` and a publishable/anon key are present.
 
 ### Supabase mode (this is how the deployed build runs)
 
 1. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or
    `..._PUBLISHABLE_KEY`) and a strong `AUTH_SECRET`.
-2. Apply the RBAC schema — already applied to the `IT_MANAGEMENT` project in
-   `supabase/migrations/0001_rbac.sql`.
+2. Apply the migrations in `supabase/migrations/` in order.
 3. Create employees in Supabase Auth with `raw_user_meta_data` containing
    `role` (one of the fifteen ids) and `full_name`. A trigger creates the
    `profiles` row automatically. Accounts without a role are refused at login.
-4. `supabase/seed/demo_employees.sql` documents the fifteen demo accounts that
-   exist in the demo project. The shared password is **not** committed — it is
-   issued out-of-band and must be rotated before production. Public signups are
-   disabled on the project.
+4. `supabase/seed/demo_employees.sql` documents the fifteen demo accounts. The
+   shared password is **not** committed — it is issued out-of-band and must be
+   rotated before production. Public signups are disabled on the project.
 
 ### Scripts
 
@@ -92,12 +130,12 @@ lists them and can sign in with one click. Demo mode is inert as soon as
 | `npm run typecheck` | TypeScript |
 | `npm test` | Policy, window and session tests |
 
-## 4. Security notes
+## 6. Security notes
 
 - Session cookie is HMAC-SHA256 signed, HTTP-only, SameSite=Lax, 12-hour TTL.
 - Login is throttled to 5 attempts per email + IP per 10 minutes (in-memory).
 - Every protected route calls `requireUser()`; module pages call
-  `canAccessModule()` again before rendering, and return a 403 panel otherwise.
+  `canAccessModule()` again before rendering and show a plain refusal otherwise.
 - Supabase RLS: users read only their own profile; admins (IT Manager,
   Management) can read all profiles; the audit log is insert-self/select-admin.
 - Integration keys are masked and never returned to the browser in full.
@@ -118,32 +156,37 @@ The Vercel project `tasktornado` deploys this branch and reads these variables:
 | `DISABLE_DEMO_LOGIN` | `true` on the deployed project |
 | `TASK_WINDOW_TZ`, `TASK_WINDOW_START`, `TASK_WINDOW_END` | Window policy |
 
-## 5. Project layout
+## 7. Project layout
 
 ```
 app/
-  login/                 Sign-in (server action, rate limit, demo switcher)
-  (app)/                 Authenticated shell (sidebar, clock, guards)
-    modules/dashboard/   Role-aware overview + animated module grid
-    modules/[slug]/      All other modules, guarded per role
+  login/                 Sign-in (server action, rate limit, role picker)
+  (app)/                 Authenticated shell: top nav + canvas
+    modules/             Animated module grid
+    modules/dashboard/   KPIs, task volume, attention list
+    modules/[slug]/      Tasks, tickets, servers, clients, patching,
+                         approvals, renewals, settings
+components/
+  nav/top-nav.tsx        Mega menus, command palette, notifications
+  ui/                    Buttons, dialogs, data table, status pills
 lib/
   roles.ts               Role catalogue + groups + tiers
   modules.ts             Module registry + capability rules
   access.ts              Policy helpers
   task-window.ts         09:00–18:00 IST enforcement
+  records/repository.ts  Clients, patching, approvals, renewals
+  tasks/repository.ts    Tasks (Supabase with in-memory fallback)
   auth/                  Session token/cookie, Supabase + demo sign-in
-  integrations/store.ts  Per-user Redmine / Action1 key vault (milestone 1)
-  tasks/repository.ts    Supabase-backed tasks with in-memory fallback
-  tasks/store.ts         In-memory seed store (demo mode)
-supabase/migrations/     RBAC schema, RLS, triggers, audit log
+  integrations/store.ts  Per-user Redmine / Action1 key vault
+supabase/migrations/     RBAC, tasks, business records + RLS
 tests/                   node:test suites
 ```
 
-## 6. Roadmap after milestone 1
+## 8. Roadmap
 
-1. Task events/history table (`task_events`), comments and attachments.
-2. Redmine sync (assigned tickets, close with comment) using per-user keys.
-3. Action1 sync for the server inventory + patching compliance.
-4. Clients master, patching plans, approvals, renewals data models and screens.
-5. Notification jobs (renewal reminders, approval nudges) and an audit log viewer.
-6. Role administration UI for IT Manager backed by `profiles.role`.
+1. Redmine sync (assigned tickets, close with comment) using per-user keys.
+2. Action1 sync for the server inventory and patching compliance.
+3. Record history: comments, attachments and an audit log viewer.
+4. Notification jobs (renewal reminders, approval nudges).
+5. Role administration UI for IT Manager backed by `profiles.role`.
+6. Move integration keys to Supabase Vault with rotation.

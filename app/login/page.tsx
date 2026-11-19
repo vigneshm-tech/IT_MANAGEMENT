@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AmbientBackground } from "@/components/ambient-background";
 import { Wordmark } from "@/components/brand";
 import { BrandPanel } from "@/components/login/brand-panel";
 import { LoginForm } from "@/components/login/login-form";
@@ -32,42 +31,28 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     : [];
 
   return (
-    <main className="relative min-h-screen">
-      <AmbientBackground variant="login" />
+    <main className="min-h-screen bg-canvas">
+      <div className="grid min-h-screen lg:grid-cols-[1.02fr_0.98fr]">
+        <BrandPanel />
 
-      <div className="relative z-10 flex min-h-screen flex-col">
-        <div className="flex items-center justify-between px-6 pt-6 lg:hidden">
-          <Wordmark compact />
-          <span className="rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-brand-soft">
-            RBAC
-          </span>
-        </div>
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between px-6 pt-6 lg:hidden">
+            <Wordmark compact />
+          </div>
 
-        <div className="mx-auto grid w-full max-w-[1440px] flex-1 grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-          <BrandPanel />
-
-          <div className="flex flex-col items-center justify-center gap-6 px-5 py-10 sm:px-8">
-            <div className="w-full max-w-[460px]">
-              <LoginForm
-                demoAccounts={demoAccounts}
-                demoMode={demoMode}
-                redirectTo={redirectTo}
-              />
-
+          <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
+            <div className="w-full max-w-[384px]">
               {params.reason === "expired" && (
-                <p className="mt-4 text-center text-[12px] text-warning">
+                <p className="mb-5 rounded-md border border-[#ecd9b6] bg-warning-soft px-3 py-2.5 text-[12px] text-[#7b5c1d]">
                   Your session expired. Please sign in again.
                 </p>
               )}
-
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-muted">
-                <span>© {new Date().getFullYear()} TaskTornado</span>
-                <span className="h-1 w-1 rounded-full bg-line" aria-hidden />
-                <span>Need help? Contact your IT Manager</span>
-                <span className="h-1 w-1 rounded-full bg-line" aria-hidden />
-                <span>v0.1 · Login &amp; RBAC milestone</span>
-              </div>
+              <LoginForm demoAccounts={demoAccounts} redirectTo={redirectTo} />
             </div>
+          </div>
+
+          <div className="px-6 pb-6 text-center text-[11px] text-muted lg:hidden">
+            © {new Date().getFullYear()} TaskTornado · IT Management
           </div>
         </div>
       </div>
