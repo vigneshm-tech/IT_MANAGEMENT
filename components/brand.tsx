@@ -1,68 +1,77 @@
 import clsx from "clsx";
 
-export function TornadoMark({
+/**
+ * TaskTornado letter mark — the initials set as two "T" letterforms,
+ * one gold and one navy. Purely typographic: no pictorial icon.
+ */
+export function LetterMark({
   className,
   tone = "navy",
+  decorative = false,
 }: {
   className?: string;
-  tone?: "navy" | "gold" | "white";
+  tone?: "navy" | "light";
+  /** Hide from assistive tech when the wordmark sits next to it. */
+  decorative?: boolean;
 }) {
-  const stroke =
-    tone === "gold" ? "#c6a96c" : tone === "white" ? "#ffffff" : "currentColor";
+  const second = tone === "light" ? "#ffffff" : "#172c52";
   return (
     <svg
       viewBox="0 0 64 64"
-      fill="none"
-      role="img"
-      aria-label="TaskTornado"
+      {...(decorative
+        ? { "aria-hidden": true as const }
+        : { role: "img", "aria-label": "TaskTornado" })}
       className={clsx("h-8 w-8", className)}
+      fill="none"
     >
-      <g stroke={stroke} strokeLinecap="round" fill="none">
-        <path d="M11 14h42" strokeWidth="6" />
-        <path d="M17 25h30" strokeWidth="6" opacity="0.92" />
-        <path d="M23 36h18" strokeWidth="6" opacity="0.82" />
-        <path d="M28 47h8" strokeWidth="6" opacity="0.72" />
-        <path d="M31.5 56h1" strokeWidth="5" opacity="0.6" />
-      </g>
+      {/* Leading T */}
+      <rect x="4" y="14" width="26" height="9" rx="1.5" fill="#c6a96c" />
+      <rect x="12.75" y="23" width="8.5" height="27" rx="1.5" fill="#c6a96c" />
+      {/* Trailing T */}
+      <rect x="34" y="14" width="26" height="9" rx="1.5" fill={second} />
+      <rect x="42.75" y="23" width="8.5" height="27" rx="1.5" fill={second} />
     </svg>
   );
 }
 
-export function Wordmark({
+export function Logo({
   className,
   compact = false,
   tone = "navy",
+  markClassName,
+  nameClassName,
+  withLabel = false,
 }: {
   className?: string;
   compact?: boolean;
-  tone?: "navy" | "white";
+  tone?: "navy" | "light";
+  markClassName?: string;
+  nameClassName?: string;
+  withLabel?: boolean;
 }) {
   return (
     <span className={clsx("flex items-center gap-2.5", className)}>
-      <span
-        className={clsx(
-          "flex items-center justify-center rounded-md",
-          tone === "white" ? "bg-white/10" : "bg-navy",
-          compact ? "h-8 w-8" : "h-9 w-9",
-        )}
-      >
-        <TornadoMark className={compact ? "h-5 w-5" : "h-[22px] w-[22px]"} tone="gold" />
-      </span>
+      <LetterMark
+        tone={tone}
+        decorative
+        className={clsx(compact ? "h-8 w-8" : "h-9 w-9", markClassName)}
+      />
       <span className="flex flex-col leading-none">
         <span
           className={clsx(
-            "font-semibold tracking-[-0.01em]",
-            tone === "white" ? "text-white" : "text-navy",
-            compact ? "text-[14.5px]" : "text-[16px]",
+            "font-semibold tracking-[-0.02em]",
+            tone === "light" ? "text-white" : "text-navy",
+            compact ? "text-[15px]" : "text-[16.5px]",
+            nameClassName,
           )}
         >
           TaskTornado
         </span>
-        {!compact && (
+        {withLabel && (
           <span
             className={clsx(
-              "mt-1 text-[10px] font-medium uppercase tracking-[0.16em]",
-              tone === "white" ? "text-white/55" : "text-muted",
+              "mt-1 text-[9.5px] font-medium uppercase tracking-[0.18em]",
+              tone === "light" ? "text-white/55" : "text-muted",
             )}
           >
             IT Management

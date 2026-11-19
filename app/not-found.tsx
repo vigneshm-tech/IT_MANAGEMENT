@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Wordmark } from "@/components/brand";
+import { Logo } from "@/components/brand";
 import { buttonClass } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col bg-canvas">
       <div className="px-6 pt-6">
-        <Wordmark compact />
+        <Logo compact />
       </div>
       <div className="flex flex-1 items-center justify-center px-6 pb-16">
         <div className="max-w-md text-center">

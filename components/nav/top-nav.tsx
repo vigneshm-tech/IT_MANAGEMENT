@@ -17,7 +17,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ModuleGlyph } from "@/components/module-glyph";
-import { TornadoMark } from "@/components/brand";
+import { LetterMark } from "@/components/brand";
 import { logoutAction } from "@/lib/auth/actions";
 
 export type NavModule = {
@@ -110,9 +110,7 @@ export function TopNav({
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:gap-8 lg:px-8">
           {/* Brand */}
           <Link href="/modules" className="flex shrink-0 items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-navy">
-              <TornadoMark className="h-5 w-5" tone="gold" />
-            </span>
+            <LetterMark className="h-8 w-8" decorative />
             <span className="flex items-baseline gap-2">
               <span className="text-[15px] font-semibold tracking-[-0.01em] text-navy">
                 TaskTornado

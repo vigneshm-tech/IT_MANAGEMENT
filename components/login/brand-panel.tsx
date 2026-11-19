@@ -1,41 +1,36 @@
-import { TornadoMark, Wordmark } from "@/components/brand";
-
-const LINES = [
-  "Tasks, tickets and approvals in one queue",
-  "Server inventory and patching windows",
-  "Clients and renewals with real owners",
-];
+import Image from "next/image";
+import { LetterMark } from "@/components/brand";
 
 export function BrandPanel() {
   return (
-    <section className="relative hidden flex-col justify-between overflow-hidden bg-navy px-12 py-12 lg:flex xl:px-16">
-      <Wordmark tone="white" />
+    <section className="relative hidden overflow-hidden bg-navy lg:block">
+      <Image
+        src="/brand/login-panel.jpg"
+        alt=""
+        aria-hidden
+        fill
+        priority
+        sizes="(min-width: 1024px) 51vw, 0px"
+        className="object-cover"
+      />
+      <div className="absolute inset-0 bg-navy/55" aria-hidden />
 
-      <div className="max-w-[430px]">
-        <TornadoMark tone="gold" className="h-10 w-10" />
-        <h2 className="mt-6 text-[30px] font-semibold leading-[1.15] tracking-[-0.02em] text-white">
-          The IT desk,
-          <br />
-          in one place.
-        </h2>
-        <p className="mt-3 max-w-[360px] text-[13.5px] leading-relaxed text-white/60">
-          TaskTornado keeps service, infrastructure and commercial work on the same board.
-        </p>
+      <div className="relative flex h-full flex-col justify-between px-12 py-12 xl:px-16">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center">
+            <LetterMark tone="light" decorative className="h-[88px] w-[88px]" />
+            <p className="mt-7 text-[30px] font-semibold leading-none tracking-[-0.025em] text-white">
+              TaskTornado
+            </p>
+            <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.32em] text-gold">
+              IT Management
+            </p>
+          </div>
+        </div>
 
-        <ul className="mt-9 space-y-3.5">
-          {LINES.map((line) => (
-            <li key={line} className="flex items-start gap-3 text-[13px] text-white/75">
-              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-gold" aria-hidden />
-              {line}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="flex items-center gap-3 text-[11px] text-white/40">
-        <span>© {new Date().getFullYear()} TaskTornado</span>
-        <span className="h-1 w-1 rounded-full bg-white/25" aria-hidden />
-        <span>IT Management</span>
+        <div className="flex items-center gap-3 text-[11px] text-white/40">
+          <span>© {new Date().getFullYear()} TaskTornado</span>
+        </div>
       </div>
     </section>
   );

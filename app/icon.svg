@@ -1,16 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="g" x1="6" y1="8" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#c4b5fd"/>
-      <stop offset="0.45" stop-color="#7c5cff"/>
-      <stop offset="1" stop-color="#22d3ee"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="#05070f"/>
-  <g stroke="url(#g)" stroke-linecap="round" fill="none">
-    <path d="M13 16h38" stroke-width="6"/>
-    <path d="M19 27h26" stroke-width="6" opacity="0.92"/>
-    <path d="M24 38h16" stroke-width="6" opacity="0.82"/>
-    <path d="M29 49h6" stroke-width="6" opacity="0.72"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="TaskTornado">
+  <rect width="64" height="64" rx="14" fill="#172c52"/>
+  <rect x="7" y="18" width="23" height="7.5" rx="1.4" fill="#c6a96c"/>
+  <rect x="15.5" y="25.5" width="6" height="20" rx="1.4" fill="#c6a96c"/>
+  <rect x="34" y="18" width="23" height="7.5" rx="1.4" fill="#ffffff"/>
+  <rect x="42.5" y="25.5" width="6" height="20" rx="1.4" fill="#ffffff"/>
 </svg>
