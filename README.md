@@ -165,7 +165,7 @@ The Vercel project `tasktornado` deploys this branch and reads these variables:
 ```
 app/
   login/                 Sign-in (server action, rate limit, role picker) with
-                         a navy "why this exists" infographic panel
+                         full-bleed navy background, wordmark, © line
   (app)/                 Authenticated shell: top nav + canvas
     modules/             Animated module grid
     modules/dashboard/   KPIs, task volume, attention list
