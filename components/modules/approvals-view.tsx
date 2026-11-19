@@ -97,6 +97,8 @@ export function ApprovalsView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
+        tableId="approvals"
+        exportName="tasktornado-approvals"
         rowAction={decideApprovalAction}
         searchPlaceholder="Search requests, people or references"
         emptyState={

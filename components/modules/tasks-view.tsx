@@ -15,11 +15,18 @@ import { formatDayMonth } from "@/lib/format";
 const COLUMNS: Column[] = [
   { key: "title", label: "Task" },
   { key: "id", label: "Ref", type: "mono", width: "96px" },
+  { key: "clientName", label: "Client", type: "muted", width: "150px" },
+  { key: "activityType", label: "Activity", type: "muted", width: "150px" },
+  { key: "planStatus", label: "Planned", type: "muted", width: "105px" },
   { key: "priority", label: "Priority", type: "status", width: "110px" },
   { key: "team", label: "Team", width: "190px" },
   { key: "due", label: "Due", type: "muted", width: "110px" },
+  { key: "referenceTicketNo", label: "Ticket", type: "mono", width: "100px" },
   { key: "status", label: "Status", type: "status", align: "right", width: "120px" },
 ];
+
+/** Off by default to keep the board readable; one click in Columns brings them back. */
+const HIDDEN_BY_DEFAULT = ["activityType", "referenceTicketNo"];
 
 type TaskViewId = "requested" | "mine" | "group";
 
@@ -60,6 +67,10 @@ export function TasksView({
     cells: {
       title: task.title,
       id: task.id,
+      clientName: task.clientName || "—",
+      activityType: task.activityType || "—",
+      planStatus: task.planStatus === "planned" ? "Planned" : "Unplanned",
+      referenceTicketNo: task.referenceTicketNo || "—",
       priority: task.priority,
       team: ROLE_BY_ID[task.assigneeRole]?.label ?? "—",
       due: task.dueDate ? formatDayMonth(task.dueDate) : "—",
@@ -148,6 +159,9 @@ export function TasksView({
         columns={COLUMNS}
         rows={rows}
         rowExtras={rowExtras}
+        tableId={`tasks-${currentView}`}
+        exportName={`tasktornado-tasks-${currentView}`}
+        defaultHidden={HIDDEN_BY_DEFAULT}
         searchPlaceholder="Search tasks, teams or references"
         emptyState={
           currentView === "mine" ? (

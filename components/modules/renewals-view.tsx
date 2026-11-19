@@ -115,6 +115,8 @@ export function RenewalsView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
+        tableId="renewals"
+        exportName="tasktornado-renewals"
         rowAction={markRenewalRenewedAction}
         searchPlaceholder="Search items, vendors or clients"
         emptyState={

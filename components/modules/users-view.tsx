@@ -149,6 +149,8 @@ export function UsersView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
+        tableId="users"
+        exportName="tasktornado-users"
         pageSize={10}
         rowAction={updateUserAction}
         searchPlaceholder="Search people, emails or access levels"

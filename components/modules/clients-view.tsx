@@ -85,6 +85,8 @@ export function ClientsView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
+        tableId="clients"
+        exportName="tasktornado-clients"
         rowAction={updateClientStatusAction}
         searchPlaceholder="Search clients, contacts or owners"
         emptyState={

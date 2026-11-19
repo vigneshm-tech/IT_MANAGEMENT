@@ -149,6 +149,24 @@ priority and due date beside it). Schema:
 `supabase/migrations/0009_task_request_details.sql`; notes:
 `0008_task_notes.sql`.
 
+### Table tools
+
+Every table (`components/ui/data-table.tsx`) is customisable per operator and
+remembers the choices in `localStorage` under `tt.table.v1.<tableId>`:
+
+- **Search** across every column, **sort** by clicking a header (with `aria-sort`).
+- **Columns** panel — show or hide columns and move them left/right; the first
+  column can never be hidden and the panel shows how many are on screen.
+- **Rows** per page — 8 / 10 / 25 / 50 / all, with the pager hidden when a
+  single page fits.
+- **Density** — comfortable or compact row height.
+- **Export** — the current filter and sort downloaded as UTF-8 CSV.
+- **Reset** — back to the shipped defaults.
+
+Task Management additionally carries the request-detail columns (client,
+activity, planned/unplanned, reference ticket); activity and ticket start
+hidden so the board stays readable.
+
 **Masters** is the index for the master registers — Clients, Renewals and
 Patching Plans. It lists only the registers the signed-in role may open, and the
 record counts beside each one come from the same repository that feeds the

@@ -112,6 +112,8 @@ export function PatchingView({
       <DataTable
         columns={COLUMNS}
         rows={rows}
+        tableId="patching"
+        exportName="tasktornado-patching"
         rowAction={updatePatchPlanStatusAction}
         searchPlaceholder="Search plans, clients or owners"
         emptyState={
