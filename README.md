@@ -42,7 +42,9 @@ outlined and shipped as fixed vectors (`public/brand/wordmark.svg` and the white
 flush right — search (⌘K), approval notifications and the account menu. There is
 no mega-menu: the Modules launcher (a flat 3/2/1-column canvas with
 oversized watermark icons) is the hub and the palette jumps to any page.
-Restricted pages never appear in either.
+Restricted pages never appear in either. Once a module is open, a
+one-row breadcrumb under the header shows `Modules / <module>` (and any
+nested pages below it).
 
 ## 2. Roles
 

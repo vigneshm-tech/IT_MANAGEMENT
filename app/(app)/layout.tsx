@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Heart } from "lucide-react";
+import { Breadcrumbs } from "@/components/nav/breadcrumbs";
 import { TopNav, type NavGroup } from "@/components/nav/top-nav";
 import { requireUser } from "@/lib/auth";
 import { can, visibleModules } from "@/lib/access";
@@ -58,6 +59,8 @@ export default async function WorkspaceLayout({
         }}
         approvals={approvals}
       />
+
+      <Breadcrumbs />
 
       <main className="w-full flex-1 px-4 py-7 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {children}
