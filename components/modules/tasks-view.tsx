@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Clock, ListChecks, Lock } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
@@ -5,7 +6,7 @@ import { DataTable, type Column, type RowAction } from "@/components/ui/data-tab
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID, VISIBLE_ROLES, type RoleId } from "@/lib/roles";
+import { ROLE_BY_ID, ROLE_GROUPS, VISIBLE_ROLES, type RoleId } from "@/lib/roles";
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
@@ -50,6 +51,14 @@ function fields(): FieldDef[] {
   ];
 }
 
+type TaskViewId = "requested" | "mine" | "group";
+
+const TASK_VIEWS: { id: TaskViewId; label: string }[] = [
+  { id: "requested", label: "Requested Tasks" },
+  { id: "mine", label: "Task Assigned To Me" },
+  { id: "group", label: "Task Assigned To My Group" },
+];
+
 function nextAction(status: TaskRecord["status"]): RowAction {
   if (status === "done") return { label: "Reopen", value: "todo" };
   if (status === "in_progress") return { label: "Complete", value: "done" };
@@ -60,16 +69,31 @@ export function TasksView({
   user,
   tasks,
   autoOpen = false,
+  view = "requested",
 }: {
   user: SessionUser;
   tasks: TaskRecord[];
   autoOpen?: boolean;
+  /** Sub-module selected in the tab strip; unknown values fall back to the queue. */
+  view?: string;
 }) {
   const window = taskWindowFor(user.role);
   const canEdit = can(user.role, "tasks", "edit");
   const canCreate = window.canCreate;
 
-  const rows = tasks.map((task) => {
+  const currentView: TaskViewId = TASK_VIEWS.some((tab) => tab.id === view)
+    ? (view as TaskViewId)
+    : "requested";
+
+  const roleGroup = ROLE_BY_ID[user.role].group;
+  const visibleTasks =
+    currentView === "mine"
+      ? tasks.filter((task) => task.assigneeRole === user.role)
+      : currentView === "group"
+        ? tasks.filter((task) => ROLE_BY_ID[task.assigneeRole]?.group === roleGroup)
+        : tasks;
+
+  const rows = visibleTasks.map((task) => {
     const mayUpdate = canEdit || task.assigneeRole === user.role;
     return {
       id: task.id,
@@ -112,7 +136,34 @@ export function TasksView({
             </button>
           )
         }
-      />
+      >
+        <div
+          role="group"
+          aria-label="Task views"
+          className="flex flex-wrap items-center gap-1"
+        >
+          {TASK_VIEWS.map((tab) => {
+            const active = tab.id === currentView;
+            const href =
+              tab.id === "requested" ? "/modules/tasks" : `/modules/tasks?view=${tab.id}`;
+            return (
+              <Link
+                key={tab.id}
+                href={href}
+                scroll={false}
+                aria-current={active ? "page" : undefined}
+                className={`-mb-px border-b-2 px-3 py-2.5 text-[12.5px] font-medium transition-colors ${
+                  active
+                    ? "border-gold text-navy"
+                    : "border-transparent text-muted hover:text-navy"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
+      </PageHeader>
 
       {window.restricted && !canCreate && (
         <div className="flex items-start gap-3 rounded-md border border-[#ecd9b6] bg-warning-soft px-4 py-3">
@@ -130,24 +181,38 @@ export function TasksView({
         rowAction={updateTaskStatusAction}
         searchPlaceholder="Search tasks, teams or references"
         emptyState={
-          <EmptyState
-            icon={ListChecks}
-            title="No tasks on the board"
-            description="Work raised by any team will show up here with its owner, priority and due date."
-            action={
-              canCreate ? (
-                <RecordDialog
-                  title="New task"
-                  description="Assigned work appears on the board immediately."
-                  triggerLabel="Create the first task"
-                  submitLabel="Create task"
-                  fields={fields()}
-                  action={createTaskAction}
-                  size="lg"
-                />
-              ) : undefined
-            }
-          />
+          currentView === "mine" ? (
+            <EmptyState
+              icon={ListChecks}
+              title="Nothing assigned to your role"
+              description={`Tasks routed to ${ROLE_BY_ID[user.role].label} will appear here.`}
+            />
+          ) : currentView === "group" ? (
+            <EmptyState
+              icon={ListChecks}
+              title="Nothing assigned to your group"
+              description={`Tasks routed to any ${ROLE_GROUPS[roleGroup].label} role will appear here.`}
+            />
+          ) : (
+            <EmptyState
+              icon={ListChecks}
+              title="No tasks on the board"
+              description="Work raised by any team will show up here with its owner, priority and due date."
+              action={
+                canCreate ? (
+                  <RecordDialog
+                    title="New task"
+                    description="Assigned work appears on the board immediately."
+                    triggerLabel="Create the first task"
+                    submitLabel="Create task"
+                    fields={fields()}
+                    action={createTaskAction}
+                    size="lg"
+                  />
+                ) : undefined
+              }
+            />
+          )
         }
       />
     </div>

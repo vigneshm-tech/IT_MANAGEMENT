@@ -25,7 +25,7 @@ import { listDirectory } from "@/lib/users/repository";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ new?: string }>;
+  searchParams: Promise<{ new?: string; view?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -46,8 +46,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
 
   switch (module.id) {
     case "tasks": {
-      const [{ new: openNew }, tasks] = await Promise.all([searchParams, listTasks()]);
-      return <TasksView user={user} tasks={tasks} autoOpen={openNew === "1"} />;
+      const [{ new: openNew, view }, tasks] = await Promise.all([searchParams, listTasks()]);
+      return (
+        <TasksView user={user} tasks={tasks} autoOpen={openNew === "1"} view={view} />
+      );
     }
 
     case "tickets":

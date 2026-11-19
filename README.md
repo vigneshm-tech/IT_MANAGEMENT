@@ -103,6 +103,12 @@ re-reads `profiles.status` and sends a non-active account through `/logout`.
 The window is checked in the server action (`assertCanCreateTask`) against the
 server clock, never the browser. Boundary tests live in `tests/task-window.test.ts`.
 
+Task Management carries three sub-views under its heading, selected with the
+`view` query parameter: **Requested Tasks** (`/modules/tasks`, the full queue),
+**Task Assigned To Me** (`?view=mine`, work routed to the signed-in role) and
+**Task Assigned To My Group** (`?view=group`, work routed to any role in that
+role's group).
+
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,
 `canAccessModule()`, `visibleModules()` and `accessMap()`.
