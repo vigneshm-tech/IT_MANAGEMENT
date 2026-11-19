@@ -12,11 +12,6 @@ export function TicketsView({ status }: { status: IntegrationStatus }) {
     <div className="space-y-6">
       <PageHeader
         title="Ticket Portal"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {status.connected ? "Redmine · connected" : "Redmine · not connected"}
-          </span>
-        }
         actions={
           <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>
             {status.connected ? "Manage key" : "Add API key"}

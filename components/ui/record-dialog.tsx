@@ -9,7 +9,7 @@ import { Dialog } from "./dialog";
 export type FieldDef = {
   name: string;
   label: string;
-  type: "text" | "email" | "date" | "number" | "select" | "textarea";
+  type: "text" | "email" | "password" | "date" | "number" | "select" | "textarea";
   required?: boolean;
   placeholder?: string;
   options?: { value: string; label: string }[];

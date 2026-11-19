@@ -56,6 +56,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   Password updated. Sign in with your new password.
                 </p>
               )}
+              {params.reason === "suspended" && (
+                <p className="mb-5 rounded-md border border-[#eccfcd] bg-danger-soft px-3 py-2.5 text-[12px] text-danger">
+                  This account is suspended. Contact IT to restore access.
+                </p>
+              )}
               {params.reason === "link" && (
                 <p className="mb-5 rounded-md border border-[#ecd9b6] bg-warning-soft px-3 py-2.5 text-[12px] text-[#7b5c1d]">
                   That link is invalid or has expired.{" "}

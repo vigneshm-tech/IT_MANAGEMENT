@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { isDemoMode, isSupabaseConfigured } from "../config";
 import { findDemoUser } from "../demo-users";
 import { getRole, isRoleId, type RoleId } from "../roles";
@@ -134,9 +135,35 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   return getSession();
 }
 
-/** Use inside protected server components / actions. */
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Use inside protected server components / actions.
+ *
+ * Besides decoding the cookie, Supabase sessions are checked against
+ * `profiles.status` so a suspended or removed account loses access at once
+ * instead of when the 12-hour cookie expires.
+ */
+export const requireUser = cache(async (): Promise<SessionUser> => {
   const user = await getSession();
   if (!user) redirect("/login");
+
+  if (isSupabaseConfigured && user.provider === "supabase") {
+    let status: string | null = null;
+    try {
+      const supabase = await createSupabaseServerClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .maybeSingle();
+      status = data?.status ?? null;
+    } catch (error) {
+      console.error("[auth] profile status check failed", error);
+    }
+
+    if (status && status !== "active") {
+      redirect("/logout?reason=suspended");
+    }
+  }
+
   return user;
-}
+});

@@ -68,6 +68,16 @@ picker, the role catalogue or the directory itself — the account that holds it
 filtered out of the Users list too. Provision it by hand in the database; the
 sign-up trigger downgrades any request for `super_admin` to "unassigned".
 
+The super admin is also the only account that administers the directory: it adds
+employees from **Users → Add user**, suspends or reactivates them, deletes them,
+and opens a read-only profile with **View**. Creating an account, changing a
+status and deleting all run through `security definer` functions
+(`admin_create_user`, `admin_set_user_status`, `admin_delete_user` in
+`supabase/migrations/0007_user_administration.sql`) that re-check the caller's
+role, refuse the hidden `super_admin` role, and refuse to touch the super admin
+account itself. Suspension is enforced on the next request: `requireUser()`
+re-reads `profiles.status` and sends a non-active account through `/logout`.
+
 ## 3. Module access matrix
 
 `✓` = capability granted by default. Everything is enforced server-side.
@@ -83,7 +93,7 @@ sign-up trigger downgrades any request for `super_admin` to "unassigned".
 | Approvals | Everyone | Everyone | — | Leadership | — |
 | Renewals Master | Everyone | Leadership | IT + leadership | — | — |
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
-| Users | Super Admin | — | — | — | Super Admin |
+| Users | Super Admin | Super Admin | Super Admin | — | Super Admin |
 
 \* **Task creation window** — engineers may only raise new tasks between **09:00 and
 18:00 IST**; leads, managers, the IT Manager and management can raise tasks 24 hours a day.
@@ -110,7 +120,8 @@ leadership, and approvals can only be decided by leadership. Schemas live in
 `supabase/migrations/0001_rbac.sql`, `0002_tasks.sql` and
 `0003_business_records.sql`; the hidden role, its directory policy and the first
 super-admin account live in `0004_super_admin_role.sql` and
-`0005_super_admin_account.sql`.
+`0005_super_admin_account.sql`; user administration lives in
+`0007_user_administration.sql`.
 
 Redmine and Action1 have no sync worker yet: the portal and server inventory
 render honest empty states until a key is saved, rather than inventing metrics.
@@ -165,6 +176,9 @@ in production; the built-in mailer is rate-limited.
 - Login is throttled to 5 attempts per email + IP per 10 minutes (in-memory).
 - Every protected route calls `requireUser()`; module pages call
   `canAccessModule()` again before rendering and show a plain refusal otherwise.
+  Supabase sessions are re-checked against `profiles.status` on each request, so
+  a suspended or deleted account is signed out instead of waiting for the
+  12-hour cookie to expire.
 - Supabase RLS: users read only their own profile; admins (IT Manager,
   Management) can read all profiles; the audit log is insert-self/select-admin.
 - Integration keys are masked and never returned to the browser in full.

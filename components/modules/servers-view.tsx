@@ -22,11 +22,6 @@ export function ServersView({
     <div className="space-y-6">
       <PageHeader
         title="Servers"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {status.connected ? "Action1 · connected" : "Action1 · not configured"}
-          </span>
-        }
         actions={
           canConfigure ? (
             <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>

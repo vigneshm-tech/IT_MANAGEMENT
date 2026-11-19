@@ -44,7 +44,6 @@ export function ClientsView({
   clients: ClientRecord[];
 }) {
   const canEdit = can(user.role, "clients", "edit");
-  const active = clients.filter((client) => client.status === "active").length;
 
   const rows: TableRow[] = clients.map((client) => ({
     id: client.id,
@@ -69,16 +68,10 @@ export function ClientsView({
     <div className="space-y-5">
       <PageHeader
         title="Clients"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {active} active · {clients.length} total
-          </span>
-        }
         actions={
           canEdit ? (
             <RecordDialog
               title="Add client"
-              description="Accounts drive renewals, patching windows and ownership."
               triggerLabel="Add client"
               submitLabel="Save client"
               fields={fields()}

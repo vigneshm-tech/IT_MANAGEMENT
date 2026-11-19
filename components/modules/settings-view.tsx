@@ -36,7 +36,6 @@ export function SettingsView({
     <div className="space-y-8">
       <PageHeader
         title="Settings"
-        meta={<span className="text-[12.5px] text-muted">{role.label}</span>}
       />
 
       <section aria-labelledby="profile-heading">

@@ -65,12 +65,6 @@ export function RenewalsView({
   const ordered = [...renewals].sort(
     (a, b) => daysUntil(a.renewalDate, now) - daysUntil(b.renewalDate, now),
   );
-  const dueSoon = renewals.filter(
-    (renewal) =>
-      renewal.status !== "renewed" &&
-      renewal.status !== "expired" &&
-      daysUntil(renewal.renewalDate, now) <= 30,
-  ).length;
 
   const rows: TableRow[] = ordered.map((renewal) => {
     const days = daysUntil(renewal.renewalDate, now);
@@ -104,16 +98,10 @@ export function RenewalsView({
     <div className="space-y-5">
       <PageHeader
         title="Renewals"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {dueSoon} due within 30 days · {renewals.length} tracked
-          </span>
-        }
         actions={
           canEdit ? (
             <RecordDialog
               title="Add renewal"
-              description="Track the contract value, date and notice period."
               triggerLabel="Add renewal"
               submitLabel="Save renewal"
               fields={fields()}

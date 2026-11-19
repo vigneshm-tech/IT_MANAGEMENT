@@ -68,7 +68,6 @@ export function TasksView({
   const window = taskWindowFor(user.role);
   const canEdit = can(user.role, "tasks", "edit");
   const canCreate = window.canCreate;
-  const open = tasks.filter((task) => task.status !== "done").length;
 
   const rows = tasks.map((task) => {
     const mayUpdate = canEdit || task.assigneeRole === user.role;
@@ -90,17 +89,10 @@ export function TasksView({
     <div className="space-y-5">
       <PageHeader
         title="Task Management"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {open} open · {tasks.filter((task) => task.status === "in_progress").length} in
-            progress
-          </span>
-        }
         actions={
           canCreate ? (
             <RecordDialog
               title="New task"
-              description="Assigned work appears on the board immediately."
               triggerLabel="New task"
               submitLabel="Create task"
               fields={fields()}

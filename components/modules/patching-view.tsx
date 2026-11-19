@@ -71,7 +71,6 @@ export function PatchingView({
   clients: string[];
 }) {
   const canEdit = can(user.role, "patching", "edit");
-  const upcoming = plans.filter((plan) => plan.status !== "completed").length;
 
   const rows: TableRow[] = plans.map((plan) => ({
     id: plan.id,
@@ -96,16 +95,10 @@ export function PatchingView({
     <div className="space-y-5">
       <PageHeader
         title="Patching Plans"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {upcoming} upcoming · {plans.length} total
-          </span>
-        }
         actions={
           canEdit ? (
             <RecordDialog
               title="Schedule patching"
-              description="Plans track the maintenance window, ring and owner."
               triggerLabel="New plan"
               submitLabel="Schedule plan"
               fields={fields(clients)}

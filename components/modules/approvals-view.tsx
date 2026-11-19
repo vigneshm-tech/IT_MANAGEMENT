@@ -54,7 +54,6 @@ export function ApprovalsView({
   approvals: ApprovalRecord[];
 }) {
   const canApprove = can(user.role, "approvals", "approve");
-  const pending = approvals.filter((approval) => approval.status === "pending").length;
   const ordered = [
     ...approvals.filter((approval) => approval.status === "pending"),
     ...approvals.filter((approval) => approval.status !== "pending"),
@@ -83,15 +82,9 @@ export function ApprovalsView({
     <div className="space-y-5">
       <PageHeader
         title="Approvals"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {pending} pending · {approvals.length} total
-          </span>
-        }
         actions={
           <RecordDialog
             title="New request"
-            description="Requests route to managers, leads and management for a decision."
             triggerLabel="Raise request"
             submitLabel="Submit request"
             fields={fields()}

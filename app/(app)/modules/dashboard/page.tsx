@@ -69,7 +69,6 @@ function buildTrend(tasks: TaskRecord[], days = 14) {
 
 export default async function OverviewPage() {
   const user = await requireUser();
-  const role = ROLE_BY_ID[user.role];
   const [tasks, approvals, renewals] = await Promise.all([
     listTasks(),
     listApprovals(),
@@ -159,17 +158,6 @@ export default async function OverviewPage() {
     <div className="space-y-9">
       <PageHeader
         title="Overview"
-        meta={
-          <span className="text-[12.5px] text-muted">
-            {new Intl.DateTimeFormat("en-GB", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              timeZone: "Asia/Kolkata",
-            }).format(now)}
-          </span>
-        }
         actions={
           <>
             <Link href="/modules/approvals" className={buttonClass({ variant: "secondary" })}>

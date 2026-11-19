@@ -9,7 +9,7 @@ export type DirectoryUser = {
   email: string;
   title: string;
   role: RoleId | null;
-  status: "active" | "inactive" | "pending";
+  status: "active" | "inactive" | "pending" | "suspended";
   lastLoginAt: string | null;
 };
 
@@ -22,7 +22,9 @@ export type DirectoryResult = {
 const SUPER_ADMIN = "super_admin";
 
 function statusOf(value: unknown): DirectoryUser["status"] {
-  return value === "inactive" || value === "pending" ? value : "active";
+  return value === "inactive" || value === "pending" || value === "suspended"
+    ? value
+    : "active";
 }
 
 /**

@@ -44,6 +44,7 @@ export function DataTable({
   rows,
   rowAction,
   rowActions,
+  renderRowExtras,
   searchPlaceholder = "Search",
   emptyState,
   pageSize = 8,
@@ -52,6 +53,8 @@ export function DataTable({
   rows: TableRowData[];
   rowAction?: (formData: FormData) => Promise<void>;
   rowActions?: RowAction[];
+  /** Extra client-side controls rendered in the actions cell, before the form buttons. */
+  renderRowExtras?: (row: TableRowData) => ReactNode;
   searchPlaceholder?: string;
   emptyState: ReactNode;
   pageSize?: number;
@@ -104,7 +107,8 @@ export function DataTable({
   }
 
   const showsActions = Boolean(
-    rowAction && (rowActions?.length || rows.some((row) => row.actions?.length)),
+    renderRowExtras ||
+      (rowAction && (rowActions?.length || rows.some((row) => row.actions?.length))),
   );
 
   if (rows.length === 0) {
@@ -203,33 +207,38 @@ export function DataTable({
                 );
               })}
 
-              {showsActions && rowAction && (
+              {showsActions && (
                 <TableCell className="text-right">
-                  <form action={rowAction} className="inline-flex items-center gap-1">
-                    <input type="hidden" name="id" value={row.id} />
-                    {(row.actions ?? rowActions ?? []).map((action) => (
-                      <button
-                        key={action.value}
-                        type="submit"
-                        name="value"
-                        value={action.value}
-                        onClick={(event) => {
-                          if (action.confirm && !window.confirm(action.confirm)) {
-                            event.preventDefault();
-                          }
-                        }}
-                        className={cn(
-                          "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
-                          action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
-                          action.tone === "danger" && "text-danger hover:bg-danger-soft",
-                          (!action.tone || action.tone === "default") &&
-                            "text-muted hover:bg-[#eef2f8] hover:text-navy",
-                        )}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </form>
+                  <div className="inline-flex items-center gap-1">
+                    {renderRowExtras?.(row)}
+                    {rowAction && (
+                      <form action={rowAction} className="inline-flex items-center gap-1">
+                        <input type="hidden" name="id" value={row.id} />
+                        {(row.actions ?? rowActions ?? []).map((action) => (
+                          <button
+                            key={action.value}
+                            type="submit"
+                            name="value"
+                            value={action.value}
+                            onClick={(event) => {
+                              if (action.confirm && !window.confirm(action.confirm)) {
+                                event.preventDefault();
+                              }
+                            }}
+                            className={cn(
+                              "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
+                              action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
+                              action.tone === "danger" && "text-danger hover:bg-danger-soft",
+                              (!action.tone || action.tone === "default") &&
+                                "text-muted hover:bg-[#eef2f8] hover:text-navy",
+                            )}
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </form>
+                    )}
+                  </div>
                 </TableCell>
               )}
             </TableRow>

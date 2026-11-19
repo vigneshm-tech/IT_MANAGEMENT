@@ -28,6 +28,7 @@ const STATUS_TONE: Record<string, Tone> = {
   scheduled: "pending",
   attention: "pending",
   inactive: "neutral",
+  suspended: "danger",
   draft: "neutral",
   rejected: "danger",
   expired: "danger",
