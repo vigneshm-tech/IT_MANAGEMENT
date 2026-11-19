@@ -48,9 +48,10 @@ nested pages below it).
 
 **Launch screen:** a successful sign-in sets a one-shot `tt_intro` cookie
 (`lib/auth/intro.ts`, 90s TTL) that makes `components/intro/launch-intro.tsx`
-play a full-screen navy (`#101F40`) intro on the first page behind the login —
-wordmark entry, gold light sweep, progress ring and "Preparing your
-workspace...". It waits on real initialisation (server-rendered session and
+hold a clean white stage on the first page behind the login: the navy wordmark
+fades and scales in from a blur, one gold light sweep crosses the letterforms,
+and a thin gold progress ring tracks real initialisation. No copy, no other
+content. It waits on real initialisation (server-rendered session and
 data, `document.fonts.ready`, layout, brand art) with a 6s guard, honours
 `prefers-reduced-motion`, keeps the page `inert` while it runs, reveals the
 Modules page with a fade-up, then clears the cookie through

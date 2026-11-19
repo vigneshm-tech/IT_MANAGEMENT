@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "@/components/brand";
 import { dismissIntroAction } from "@/app/(app)/intro/actions";
 
-const NAVY = "#101f40";
+const CANVAS = "#ffffff";
 const GOLD = "#c6a96c";
 const GOLD_SOFT = "#e9ddc3";
 const RING_RADIUS = 22;
@@ -89,7 +89,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
         await nextFrame();
         await nextFrame();
         step(0.55);
-        await preloadAsset("/brand/wordmark-inverse.svg");
+        await preloadAsset("/brand/wordmark.svg");
         step(0.7);
         if (typeof document !== "undefined" && document.readyState !== "complete") {
           await new Promise<void>((resolve) => {
@@ -158,44 +158,26 @@ function IntroExperience({ children }: { children: ReactNode }) {
             key="launch-intro"
             role="status"
             aria-live="polite"
-            aria-label="Preparing your workspace"
+            aria-label="Loading TaskTornado"
             className="fixed inset-0 z-[120] flex flex-col items-center justify-center overflow-hidden px-6"
-            style={{ backgroundColor: NAVY }}
+            style={{ backgroundColor: CANVAS }}
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0.25 : 0.65, ease: "easeInOut" }}
           >
-            {/* ambient lighting */}
+            {/* a single soft halo keeps the white stage from going flat */}
             <motion.span
               aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-              style={{
-                background: `radial-gradient(circle, rgba(198,169,108,0.16) 0%, rgba(198,169,108,0.05) 40%, transparent 72%)`,
-              }}
-              animate={
-                reduced ? undefined : { scale: [1, 1.06, 1], opacity: [0.75, 1, 0.75] }
-              }
-              transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.span
-              aria-hidden
-              className="pointer-events-none absolute -left-40 top-1/3 h-[420px] w-[420px] rounded-full"
-              style={{
-                background: `radial-gradient(circle, rgba(42,68,112,0.55) 0%, transparent 70%)`,
-              }}
-              animate={reduced ? undefined : { x: [0, 40, 0], y: [0, -24, 0] }}
-              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[720px] w-[720px] -translate-x-1/2 -translate-y-[58%] rounded-full"
               style={{
                 background:
-                  "radial-gradient(120% 90% at 50% -10%, rgba(23,44,82,0.55) 0%, transparent 60%)",
+                  "radial-gradient(circle, rgba(198,169,108,0.10) 0%, rgba(198,169,108,0.03) 45%, transparent 72%)",
               }}
+              animate={reduced ? undefined : { scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
             />
 
-            {/* logo lockup */}
+            {/* logo lockup — nothing but the mark */}
             <motion.div
               className="relative z-10 flex flex-col items-center"
               initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.75, filter: "blur(14px)" }}
@@ -204,7 +186,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
               onAnimationComplete={() => setEntranceDone(true)}
             >
               <div className="relative inline-flex">
-                <Wordmark tone="light" height={48} priority className="h-9 w-auto sm:h-12" />
+                <Wordmark tone="navy" height={48} priority className="h-9 w-auto sm:h-12" />
 
                 {!reduced && (
                   <motion.span
@@ -214,8 +196,8 @@ function IntroExperience({ children }: { children: ReactNode }) {
                       background: `linear-gradient(100deg, transparent 34%, ${GOLD_SOFT} 50%, transparent 66%)`,
                       backgroundSize: "55% 100%",
                       backgroundRepeat: "no-repeat",
-                      WebkitMaskImage: "url(/brand/wordmark-inverse.svg)",
-                      maskImage: "url(/brand/wordmark-inverse.svg)",
+                      WebkitMaskImage: "url(/brand/wordmark.svg)",
+                      maskImage: "url(/brand/wordmark.svg)",
                       WebkitMaskSize: "100% 100%",
                       maskSize: "100% 100%",
                       WebkitMaskRepeat: "no-repeat",
@@ -227,66 +209,50 @@ function IntroExperience({ children }: { children: ReactNode }) {
                   />
                 )}
               </div>
-
-              <motion.p
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: reduced ? 0.15 : 0.85, ease: EASE }}
-                className="mt-5 flex items-center gap-3 text-[10px] font-medium uppercase tracking-[0.42em]"
-                style={{ color: `${GOLD_SOFT}99` }}
-              >
-                <span aria-hidden className="h-px w-6" style={{ backgroundColor: `${GOLD}66` }} />
-                IT Management
-                <span aria-hidden className="h-px w-6" style={{ backgroundColor: `${GOLD}66` }} />
-              </motion.p>
             </motion.div>
 
-            {/* circular loader */}
+            {/* quiet progress ring, no copy */}
             <motion.div
-              className="relative z-10 mt-12 flex flex-col items-center"
+              className="relative z-10 mt-14 h-11 w-11"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: reduced ? 0.2 : 1, ease: "easeOut" }}
             >
-              <div className="relative h-14 w-14">
-                {!reduced && (
-                  <motion.span
-                    aria-hidden
-                    className="absolute -inset-2 rounded-full"
-                    style={{
-                      background:
-                        "conic-gradient(from 0deg, transparent 0deg, rgba(198,169,108,0.55) 90deg, transparent 200deg)",
-                      filter: "blur(7px)",
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2.8, repeat: Infinity, ease: "linear" }}
-                  />
-                )}
-                <svg viewBox="0 0 52 52" className="relative h-14 w-14 -rotate-90">
-                  <circle
-                    cx="26"
-                    cy="26"
-                    r={RING_RADIUS}
-                    fill="none"
-                    stroke="rgba(255,255,255,0.14)"
-                    strokeWidth="1.5"
-                  />
-                  <motion.circle
-                    cx="26"
-                    cy="26"
-                    r={RING_RADIUS}
-                    fill="none"
-                    stroke={GOLD}
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeDasharray={RING_LENGTH}
-                    animate={{ strokeDashoffset: RING_LENGTH * (1 - progress) }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                  />
-                </svg>
-              </div>
-
-              <p className="mt-5 text-[12px] text-white/70">Preparing your workspace...</p>
+              {!reduced && (
+                <motion.span
+                  aria-hidden
+                  className="absolute -inset-2 rounded-full"
+                  style={{
+                    background:
+                      "conic-gradient(from 0deg, transparent 0deg, rgba(198,169,108,0.45) 90deg, transparent 200deg)",
+                    filter: "blur(7px)",
+                  }}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2.8, repeat: Infinity, ease: "linear" }}
+                />
+              )}
+              <svg viewBox="0 0 52 52" className="relative h-11 w-11 -rotate-90">
+                <circle
+                  cx="26"
+                  cy="26"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="rgba(23,44,82,0.12)"
+                  strokeWidth="1.5"
+                />
+                <motion.circle
+                  cx="26"
+                  cy="26"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke={GOLD}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeDasharray={RING_LENGTH}
+                  animate={{ strokeDashoffset: RING_LENGTH * (1 - progress) }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+              </svg>
             </motion.div>
           </motion.div>
         )}
