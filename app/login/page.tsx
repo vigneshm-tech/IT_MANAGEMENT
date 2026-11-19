@@ -17,13 +17,13 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await getSession();
-  if (session) redirect("/modules/dashboard");
+  if (session) redirect("/modules");
 
   const params = await searchParams;
   const redirectTo =
     params.next && params.next.startsWith("/") && !params.next.startsWith("//")
       ? params.next
-      : "/modules/dashboard";
+      : "/modules";
 
   const demoMode = isDemoMode && process.env.DISABLE_DEMO_LOGIN !== "true";
   const demoAccounts: DemoAccount[] = demoMode

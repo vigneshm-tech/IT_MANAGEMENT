@@ -27,7 +27,7 @@ async function clientIp(): Promise<string> {
 function safeRedirect(target: FormDataEntryValue | null): string {
   const value = typeof target === "string" ? target : "";
   if (value.startsWith("/") && !value.startsWith("//")) return value;
-  return "/modules/dashboard";
+  return "/modules";
 }
 
 export async function loginAction(

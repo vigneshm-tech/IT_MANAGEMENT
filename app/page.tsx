@@ -3,5 +3,5 @@ import { getSession } from "@/lib/auth/session";
 
 export default async function RootPage() {
   const session = await getSession();
-  redirect(session ? "/modules/dashboard" : "/login");
+  redirect(session ? "/modules" : "/login");
 }

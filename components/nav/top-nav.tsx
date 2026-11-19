@@ -109,7 +109,7 @@ export function TopNav({
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:gap-8 lg:px-8">
           {/* Brand */}
-          <Link href="/modules/dashboard" className="flex shrink-0 items-center gap-2.5">
+          <Link href="/modules" className="flex shrink-0 items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-navy">
               <TornadoMark className="h-5 w-5" tone="gold" />
             </span>
@@ -490,9 +490,19 @@ function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
-    const all = groups.flatMap((group) =>
-      group.modules.map((module) => ({ ...module, groupLabel: group.label })),
-    );
+    const all = [
+      {
+        id: "all-modules",
+        title: "All modules",
+        href: "/modules",
+        summary: "Every workspace on one grid",
+        icon: "LayoutDashboard",
+        groupLabel: "Workspace",
+      },
+      ...groups.flatMap((group) =>
+        group.modules.map((module) => ({ ...module, groupLabel: group.label })),
+      ),
+    ];
     const q = query.trim().toLowerCase();
     if (!q) return all;
     return all.filter(
