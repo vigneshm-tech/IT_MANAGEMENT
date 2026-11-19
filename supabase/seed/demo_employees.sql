@@ -1,9 +1,10 @@
 -- Demo employees for the IT_MANAGEMENT Supabase project.
 --
--- !! The shared password below is a TEMPORARY demo credential. Rotate it (or
--- !! delete these accounts) before production use:
--- !!   update auth.users set encrypted_password = crypt('<new-password>', gen_salt('bf'))
--- !!   where email like '%@tasktornado.dev';
+-- No password is stored in this file. Replace <DEMO_PASSWORD> with a generated
+-- secret before running, share it out-of-band, and rotate it (or delete these
+-- accounts) before production:
+--   update auth.users set encrypted_password = crypt('<new-password>', gen_salt('bf'))
+--   where email like '%@tasktornado.dev';
 --
 -- Each account carries role metadata; the handle_new_user trigger copies it
 -- into public.profiles. Accounts without a role are refused at login.
@@ -19,7 +20,7 @@ select
   'authenticated',
   'authenticated',
   s.email,
-  crypt('Tornado@2026', gen_salt('bf')),
+  crypt('<DEMO_PASSWORD>', gen_salt('bf')),
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   jsonb_build_object('full_name', s.full_name, 'title', s.title, 'role', s.role),

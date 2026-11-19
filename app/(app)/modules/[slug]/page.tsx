@@ -15,7 +15,7 @@ import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
 import { getModule, MODULES } from "@/lib/modules";
 import { ROLE_BY_ID, ROLES } from "@/lib/roles";
-import { listTasks } from "@/lib/tasks/store";
+import { listTasks } from "@/lib/tasks/repository";
 import { taskWindowFor } from "@/lib/task-window";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -83,15 +83,15 @@ export default async function ModulePage({ params }: PageProps) {
 
   switch (module.id) {
     case "tasks": {
-      const tasks: TaskCardData[] = listTasks().map((task) => ({
+      const tasks: TaskCardData[] = (await listTasks()).map((task) => ({
         id: task.id,
         title: task.title,
         description: task.description,
         priority: task.priority,
         status: task.status,
         assigneeRole: task.assigneeRole,
-        createdByName: task.createdBy.name,
-        createdByRole: task.createdBy.role,
+        createdByName: task.createdByName,
+        createdByRole: task.createdByRole,
         createdLabel: relativeLabel(task.createdAt, now, window.timeZone),
         dueLabel: task.dueDate ? dueLabel(task.dueDate, now, window.timeZone) : null,
         overdue: task.dueDate ? new Date(task.dueDate) < now : false,

@@ -3,6 +3,9 @@
 Role-based IT operations workspace: tasks, tickets, servers, clients, patching
 plans, approvals, renewals and settings — behind one sign-in.
 
+**Live:** https://tasktornado-assetiqs-projects.vercel.app
+**Repo:** https://github.com/vigneshm-tech/IT_MANAGEMENT
+
 **Milestone 1 (this build): Login + role-based access + animated module grid.**
 
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
@@ -66,7 +69,7 @@ accounts, one per role, all using the password `Tornado@123`. The login screen
 lists them and can sign in with one click. Demo mode is inert as soon as
 `NEXT_PUBLIC_SUPABASE_URL` and a publishable/anon key are present.
 
-### Supabase mode
+### Supabase mode (this is how the deployed build runs)
 
 1. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or
    `..._PUBLISHABLE_KEY`) and a strong `AUTH_SECRET`.
@@ -75,6 +78,10 @@ lists them and can sign in with one click. Demo mode is inert as soon as
 3. Create employees in Supabase Auth with `raw_user_meta_data` containing
    `role` (one of the fifteen ids) and `full_name`. A trigger creates the
    `profiles` row automatically. Accounts without a role are refused at login.
+4. `supabase/seed/demo_employees.sql` documents the fifteen demo accounts that
+   exist in the demo project. The shared password is **not** committed — it is
+   issued out-of-band and must be rotated before production. Public signups are
+   disabled on the project.
 
 ### Scripts
 
@@ -99,6 +106,18 @@ lists them and can sign in with one click. Demo mode is inert as soon as
 - Rotate the seeded demo credentials before any production use, and set
   `DISABLE_DEMO_LOGIN=true` once Supabase is configured.
 
+### Deployment
+
+The Vercel project `tasktornado` deploys this branch and reads these variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (safe to expose) |
+| `AUTH_SECRET` | HMAC key for the session cookie |
+| `DISABLE_DEMO_LOGIN` | `true` on the deployed project |
+| `TASK_WINDOW_TZ`, `TASK_WINDOW_START`, `TASK_WINDOW_END` | Window policy |
+
 ## 5. Project layout
 
 ```
@@ -114,14 +133,15 @@ lib/
   task-window.ts         09:00–18:00 IST enforcement
   auth/                  Session token/cookie, Supabase + demo sign-in
   integrations/store.ts  Per-user Redmine / Action1 key vault (milestone 1)
-  tasks/store.ts         Task store (milestone 1)
+  tasks/repository.ts    Supabase-backed tasks with in-memory fallback
+  tasks/store.ts         In-memory seed store (demo mode)
 supabase/migrations/     RBAC schema, RLS, triggers, audit log
 tests/                   node:test suites
 ```
 
 ## 6. Roadmap after milestone 1
 
-1. Persist tasks in Postgres (`tasks`, `task_events`) with RLS and wire the board.
+1. Task events/history table (`task_events`), comments and attachments.
 2. Redmine sync (assigned tickets, close with comment) using per-user keys.
 3. Action1 sync for the server inventory + patching compliance.
 4. Clients master, patching plans, approvals, renewals data models and screens.

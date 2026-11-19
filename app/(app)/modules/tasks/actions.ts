@@ -3,14 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { isRoleId, ROLE_BY_ID, type RoleId } from "@/lib/roles";
+import { isRoleId, ROLE_BY_ID } from "@/lib/roles";
 import { assertCanCreateTask } from "@/lib/task-window";
-import {
-  addTask,
-  updateTaskStatus,
-  type TaskPriority,
-  type TaskStatus,
-} from "@/lib/tasks/store";
+import { createTask, listTasks, setTaskStatus } from "@/lib/tasks/repository";
+import type { TaskPriority, TaskStatus } from "@/lib/tasks/store";
 
 export type CreateTaskState = {
   ok?: boolean;
@@ -59,23 +55,26 @@ export async function createTaskAction(
     };
   }
 
-  const task = addTask({
-    title,
-    description,
-    priority,
-    status: "todo",
-    assigneeRole: assignee,
-    createdBy: { name: user.name, role: user.role },
-    dueDate: dueDate ? new Date(`${dueDate}T18:00:00`).toISOString() : null,
-  });
+  try {
+    const task = await createTask(user, {
+      title,
+      description,
+      priority,
+      assigneeRole: assignee,
+      dueDate: dueDate ? new Date(`${dueDate}T18:00:00+05:30`).toISOString() : null,
+    });
 
-  revalidatePath("/modules/tasks");
-  revalidatePath("/modules/dashboard");
+    revalidatePath("/modules/tasks");
+    revalidatePath("/modules/dashboard");
 
-  return {
-    ok: true,
-    message: `${task.id} created and assigned to ${ROLE_BY_ID[assignee as RoleId].label}.`,
-  };
+    return {
+      ok: true,
+      message: `${task.id} created and assigned to ${ROLE_BY_ID[assignee].label}.`,
+    };
+  } catch (error) {
+    console.error("[tasks] create failed", error);
+    return { error: "The task could not be saved. Please try again." };
+  }
 }
 
 export async function updateTaskStatusAction(formData: FormData): Promise<void> {
@@ -85,14 +84,13 @@ export async function updateTaskStatusAction(formData: FormData): Promise<void> 
 
   if (!STATUSES.includes(status)) return;
 
-  const { listTasks } = await import("@/lib/tasks/store");
-  const task = listTasks().find((item) => item.id === id);
+  const task = (await listTasks()).find((item) => item.id === id);
   if (!task) return;
 
   const canManageAny = can(user.role, "tasks", "edit");
   const isOwnTeam = task.assigneeRole === user.role;
   if (!canManageAny && !isOwnTeam) return;
 
-  updateTaskStatus(id, status);
+  await setTaskStatus(id, status);
   revalidatePath("/modules/tasks");
 }
