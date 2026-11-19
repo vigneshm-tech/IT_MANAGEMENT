@@ -29,10 +29,12 @@ const GLYPHS: Record<string, LucideIcon> = {
 export function ModuleGlyph({
   name,
   className,
+  strokeWidth = 1.7,
 }: {
   name: string;
   className?: string;
+  strokeWidth?: number;
 }) {
   const Icon = GLYPHS[name] ?? LayoutDashboard;
-  return <Icon className={className} strokeWidth={1.7} aria-hidden />;
+  return <Icon className={className} strokeWidth={strokeWidth} aria-hidden />;
 }

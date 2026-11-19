@@ -40,7 +40,8 @@ outlined and shipped as fixed vectors (`public/brand/wordmark.svg` and the white
 
 **Navigation:** a 64px top bar with the wordmark flush left and the utilities
 flush right — search (⌘K), approval notifications and the account menu. There is
-no mega-menu: the Modules grid is the hub and the palette jumps to any page.
+no mega-menu: the Modules launcher (a flat 3/2/1-column canvas with
+oversized watermark icons) is the hub and the palette jumps to any page.
 Restricted pages never appear in either.
 
 ## 2. Roles
@@ -206,7 +207,7 @@ app/
   login/                 Sign-in (server action, rate limit, role picker) with
                          full-bleed navy background, wordmark, © line
   (app)/                 Authenticated shell: top nav + canvas
-    modules/             Animated module grid
+    modules/             Flat modular launcher
     modules/dashboard/   KPIs, task volume, attention list
     modules/[slug]/      Tasks, tickets, servers, clients, patching,
                          approvals, renewals, settings
