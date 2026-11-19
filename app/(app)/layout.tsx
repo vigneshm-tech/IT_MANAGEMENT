@@ -59,12 +59,12 @@ export default async function WorkspaceLayout({
         approvals={approvals}
       />
 
-      <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-7 sm:px-6 lg:px-8 lg:py-9">
+      <main className="w-full flex-1 px-4 py-7 sm:px-6 lg:px-8 lg:py-9 xl:px-10">
         {children}
       </main>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-4 text-[11.5px] text-muted sm:px-6 lg:px-8">
+        <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-4 text-[11.5px] text-muted sm:px-6 lg:px-8 xl:px-10">
           <span className="font-medium text-navy">TaskTornado</span>
           <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden />
           <span>IT Management</span>
