@@ -6,10 +6,7 @@ import { dismissIntroAction } from "@/app/(app)/intro/actions";
 import { IntroRevealContext } from "@/components/intro/intro-context";
 
 const CANVAS = "#ffffff";
-const GOLD = "#c6a96c";
 const GOLD_SOFT = "#e9ddc3";
-const RING_RADIUS = 22;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 const EASE = [0.22, 1, 0.36, 1] as const;
 const LOGO_RATIO = "14965.96 / 1619.92";
 
@@ -49,15 +46,11 @@ export function LaunchIntro({
 function IntroExperience({ children }: { children: ReactNode }) {
   const prefersReduced = useReducedMotion();
   const [mounted, setMounted] = useState(false);
-  const [progress, setProgress] = useState(0.06);
   const [ready, setReady] = useState(false);
   const [entranceDone, setEntranceDone] = useState(false);
   const [phase, setPhase] = useState<Phase>("loading");
 
-  const finish = useCallback(() => {
-    setProgress(1);
-    setReady(true);
-  }, []);
+  const finish = useCallback(() => setReady(true), []);
 
   // Media queries cannot be read during SSR, so the preference is applied after
   // hydration — the server and first client render stay identical.
@@ -73,8 +66,6 @@ function IntroExperience({ children }: { children: ReactNode }) {
   // resolved by the server render, then fonts, layout and brand art land.
   useEffect(() => {
     let cancelled = false;
-    const step = (value: number) =>
-      cancelled ? undefined : setProgress((current) => Math.max(current, value));
 
     const guard = window.setTimeout(() => {
       if (!cancelled) finish();
@@ -82,22 +73,17 @@ function IntroExperience({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        step(0.15);
         if (typeof document !== "undefined" && document.fonts?.ready) {
           await document.fonts.ready;
         }
-        step(0.4);
         await nextFrame();
         await nextFrame();
-        step(0.55);
         await preloadAsset("/brand/wordmark.svg");
-        step(0.7);
         if (typeof document !== "undefined" && document.readyState !== "complete") {
           await new Promise<void>((resolve) => {
             window.addEventListener("load", () => resolve(), { once: true });
           });
         }
-        step(0.9);
       } catch (error) {
         console.warn("[intro] readiness check failed", error);
       }
@@ -214,39 +200,18 @@ function IntroExperience({ children }: { children: ReactNode }) {
               </div>
             </motion.div>
 
-            {/* one thin ring — no track, no glow, no shadow */}
+            {/* three-plane orbit loader — gold on white, no glow, no shadow */}
             <motion.div
               className="relative z-10 mt-14"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: reduced ? 0.15 : 0.95, ease: "easeOut" }}
             >
-              <svg
-                viewBox="0 0 52 52"
-                aria-hidden
-                className={
-                  reduced || ready
-                    ? "h-10 w-10"
-                    : "h-10 w-10 animate-spin"
-                }
-                style={{ transformOrigin: "50% 50%" }}
-              >
-                <circle
-                  cx="26"
-                  cy="26"
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke={GOLD}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  style={{ transition: "stroke-dasharray 320ms ease" }}
-                  strokeDasharray={
-                    reduced || ready
-                      ? RING_LENGTH
-                      : `${RING_LENGTH * (0.18 + 0.12 * progress)} ${RING_LENGTH}`
-                  }
-                />
-              </svg>
+              <div className="tt-loader" aria-hidden>
+                <span className="tt-loader-ring" data-ring="one" />
+                <span className="tt-loader-ring" data-ring="two" />
+                <span className="tt-loader-ring" data-ring="three" />
+              </div>
             </motion.div>
           </motion.div>
         )}

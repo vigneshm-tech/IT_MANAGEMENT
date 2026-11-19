@@ -52,7 +52,8 @@ nested pages below it).
 hold a clean white stage on the first page behind the login: the wordmark,
 painted from the same `--color-navy` token as the page headings, fades and
 scales in from a blur, one gold light sweep crosses the letterforms, and a
-single thin gold ring spins while real initialisation finishes. No copy, no
+three-ring orbit loader (`.tt-loader` in `globals.css` — three 3px gold arcs on
+tilted planes, 1s linear) spins while real initialisation finishes. No copy, no
 halo, no glow, no shadow. It waits on real initialisation (server-rendered session and
 data, `document.fonts.ready`, layout, brand art) with a 6s guard, honours
 `prefers-reduced-motion`, keeps the page `inert` while it runs, reveals the

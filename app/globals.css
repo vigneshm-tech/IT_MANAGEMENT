@@ -164,3 +164,74 @@
     color: var(--color-muted);
   }
 }
+
+/* Launch-screen orbit loader — three 3D rings, brand gold on white. */
+.tt-loader {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  perspective: 800px;
+}
+
+.tt-loader-ring {
+  position: absolute;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.tt-loader-ring[data-ring="one"] {
+  left: 0;
+  top: 0;
+  border-bottom: 3px solid var(--color-gold);
+  animation: tt-rotate-one 1s linear infinite;
+}
+
+.tt-loader-ring[data-ring="two"] {
+  right: 0;
+  top: 0;
+  border-right: 3px solid var(--color-gold);
+  animation: tt-rotate-two 1s linear infinite;
+}
+
+.tt-loader-ring[data-ring="three"] {
+  right: 0;
+  bottom: 0;
+  border-top: 3px solid var(--color-gold);
+  animation: tt-rotate-three 1s linear infinite;
+}
+
+@keyframes tt-rotate-one {
+  0% {
+    transform: rotateX(35deg) rotateY(-45deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(35deg) rotateY(-45deg) rotateZ(360deg);
+  }
+}
+
+@keyframes tt-rotate-two {
+  0% {
+    transform: rotateX(50deg) rotateY(10deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(50deg) rotateY(10deg) rotateZ(360deg);
+  }
+}
+
+@keyframes tt-rotate-three {
+  0% {
+    transform: rotateX(35deg) rotateY(55deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(35deg) rotateY(55deg) rotateZ(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-loader-ring {
+    animation: none;
+  }
+}
