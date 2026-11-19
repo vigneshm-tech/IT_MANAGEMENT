@@ -16,7 +16,8 @@ export type ModuleId =
   | "patching"
   | "approvals"
   | "renewals"
-  | "settings";
+  | "settings"
+  | "users";
 
 export type NavGroupId =
   | "overview"
@@ -37,6 +38,7 @@ export type ModuleDefinition = {
     Partial<Record<Capability, "all" | RoleId[]>>;
 };
 
+export const SUPER = "super_admin" as RoleId;
 export const IT = "it_manager" as RoleId;
 export const IT_ENG = "it_engineer" as RoleId;
 const L2_M = "l2_support_manager" as RoleId;
@@ -153,6 +155,16 @@ export const MODULES: ModuleDefinition[] = [
     navGroup: "governance",
     access: { view: "all", edit: "all", admin: [IT, MGMT] },
   },
+  {
+    id: "users",
+    title: "Users",
+    href: "/modules/users",
+    summary: "Employee directory and access levels",
+    icon: "Users",
+    navGroup: "governance",
+    // Hidden role only. Every other role — IT Manager included — is denied.
+    access: { view: [SUPER], admin: [SUPER] },
+  },
 ];
 
 export const MODULE_BY_ID: Record<ModuleId, ModuleDefinition> = Object.fromEntries(
@@ -176,6 +188,10 @@ export function hasCapability(
   capability: Capability,
   role: RoleId,
 ): boolean {
+  // The hidden platform role is not enumerated in every access list; it holds
+  // every capability instead.
+  if (role === SUPER) return true;
+
   const allowed = access[capability];
   if (!allowed) return false;
   if (allowed === "all") return true;

@@ -5,7 +5,7 @@ import { DataTable, type Column, type RowAction } from "@/components/ui/data-tab
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID, ROLES, type RoleId } from "@/lib/roles";
+import { ROLE_BY_ID, VISIBLE_ROLES, type RoleId } from "@/lib/roles";
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
@@ -30,7 +30,7 @@ function fields(): FieldDef[] {
       label: "Assign to",
       type: "select",
       required: true,
-      options: ROLES.map((role) => ({ value: role.id, label: role.label })),
+      options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
       defaultValue: "l2_support_engineer",
     },
     {

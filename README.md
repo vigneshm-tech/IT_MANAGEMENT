@@ -3,13 +3,13 @@
 Role-based IT operations workspace: tasks, tickets, servers, clients, patching
 plans, approvals, renewals and settings — behind one sign-in.
 
-**Live:** https://tasktornado-assetiqs-projects.vercel.app
+**Live:** https://tasktornado.vercel.app
 **Repo:** https://github.com/vigneshm-tech/IT_MANAGEMENT
 
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
-- Supabase Auth + Postgres row-level security
+- Supabase Auth + Postgres row-level security (password reset by email)
 - Signed, HTTP-only session cookie; roles re-checked on every request
-- 22 unit tests covering the permission matrix, the task window and sessions
+- 24 unit tests covering the permission matrix, the task window and sessions
 
 ---
 
@@ -42,7 +42,8 @@ notifications and a user menu. Restricted pages never appear in the menu.
 
 ## 2. Roles
 
-Fifteen roles in six groups. The role drives visible modules and allowed actions.
+Sixteen roles in seven groups — fifteen public, one hidden. The role drives
+visible modules and allowed actions.
 
 | Group | Roles |
 | --- | --- |
@@ -52,9 +53,17 @@ Fifteen roles in six groups. The role drives visible modules and allowed actions
 | Development | Development Manager, Development Lead, Development Engineer |
 | Testing | Testing Manager, Testing Lead, Testing Engineer |
 | Management | Management |
+| Platform *(hidden)* | Super Admin — never listed in pickers, reports or the directory |
 
-Tiers: **manager**, **lead**, **engineer**, **executive** (Management).
+Tiers: **manager**, **lead**, **engineer**, **executive** (Management, Super Admin).
 Engineers are the only tier with a restricted task-creation window.
+
+**Super Admin** is the hidden platform role. It bypasses the access matrix (every
+capability, every module) and is the only role that can open **Users**. It is
+excluded from `VISIBLE_ROLES`, so it never appears in a task/client/patch owner
+picker, the role catalogue or the directory itself — the account that holds it is
+filtered out of the Users list too. Provision it by hand in the database; the
+sign-up trigger downgrades any request for `super_admin` to "unassigned".
 
 ## 3. Module access matrix
 
@@ -71,6 +80,7 @@ Engineers are the only tier with a restricted task-creation window.
 | Approvals | Everyone | Everyone | — | Leadership | — |
 | Renewals Master | Everyone | Leadership | IT + leadership | — | — |
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
+| Users | Super Admin | — | — | — | Super Admin |
 
 \* **Task creation window** — engineers may only raise new tasks between **09:00 and
 18:00 IST**; leads, managers, the IT Manager and management can raise tasks 24 hours a day.
@@ -95,7 +105,9 @@ All four record tables (plus `tasks`) have RLS: any authenticated user can read,
 rows are inserted as the signed-in user, updates are limited to the creator or
 leadership, and approvals can only be decided by leadership. Schemas live in
 `supabase/migrations/0001_rbac.sql`, `0002_tasks.sql` and
-`0003_business_records.sql`.
+`0003_business_records.sql`; the hidden role, its directory policy and the first
+super-admin account live in `0004_super_admin_role.sql` and
+`0005_super_admin_account.sql`.
 
 Redmine and Action1 have no sync worker yet: the portal and server inventory
 render honest empty states until a key is saved, rather than inventing metrics.
@@ -108,8 +120,9 @@ cp .env.example .env.local   # optional: leave Supabase blank for demo mode
 npm run dev                  # http://localhost:3000
 ```
 
-Without Supabase configured the app runs in **demo mode** with fifteen seeded
-accounts, one per role, all using the password `Tornado@123`. The login screen
+Without Supabase configured the app runs in **demo mode** with sixteen seeded
+accounts, one per role, all using the password `Tornado@123` (the super admin
+account is not offered in the role picker). The login screen
 can fill any role's credentials from a picker. Demo mode is inert as soon as
 `NEXT_PUBLIC_SUPABASE_URL` and a publishable/anon key are present.
 
@@ -119,11 +132,20 @@ can fill any role's credentials from a picker. Demo mode is inert as soon as
    `..._PUBLISHABLE_KEY`) and a strong `AUTH_SECRET`.
 2. Apply the migrations in `supabase/migrations/` in order.
 3. Create employees in Supabase Auth with `raw_user_meta_data` containing
-   `role` (one of the fifteen ids) and `full_name`. A trigger creates the
+   `role` (one of the fifteen public ids) and `full_name`. A trigger creates the
    `profiles` row automatically. Accounts without a role are refused at login.
-4. `supabase/seed/demo_employees.sql` documents the fifteen demo accounts. The
+4. `supabase/seed/demo_employees.sql` documents the fifteen public demo accounts. The
    shared password is **not** committed — it is issued out-of-band and must be
    rotated before production. Public signups are disabled on the project.
+
+### Password reset
+
+`/login/forgot-password` emails a single-use link through Supabase Auth; the link
+lands on `/auth/callback`, exchanges the one-time code for a session, and opens
+`/login/reset-password` where the new password is set. The request always returns
+the same confirmation, so it cannot be used to discover accounts. Delivery uses
+the project's SMTP settings — configure a sender in Supabase before relying on it
+in production; the built-in mailer is rate-limited.
 
 ### Scripts
 

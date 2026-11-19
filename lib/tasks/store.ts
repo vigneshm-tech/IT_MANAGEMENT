@@ -1,4 +1,4 @@
-import { ROLE_BY_ID, type RoleId } from "../roles";
+import { VISIBLE_ROLES, type RoleId } from "../roles";
 
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
@@ -113,7 +113,7 @@ export function updateTaskStatus(id: string, status: TaskStatus): Task | null {
 }
 
 export function assigneeOptions(): { value: RoleId; label: string; group: string }[] {
-  return Object.values(ROLE_BY_ID).map((role) => ({
+  return VISIBLE_ROLES.map((role) => ({
     value: role.id,
     label: role.label,
     group: role.group,

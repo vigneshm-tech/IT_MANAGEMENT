@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Wordmark } from "@/components/brand";
 import { BrandPanel } from "@/components/login/brand-panel";
 import { LoginForm } from "@/components/login/login-form";
 import { getSession } from "@/lib/auth/session";
 import { isDemoMode } from "@/lib/config";
+import { ROLE_BY_ID } from "@/lib/roles";
 import { DEMO_USERS, type DemoAccount } from "@/lib/demo-users";
 
 export const metadata: Metadata = {
@@ -27,7 +29,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   const demoMode = isDemoMode && process.env.DISABLE_DEMO_LOGIN !== "true";
   const demoAccounts: DemoAccount[] = demoMode
-    ? DEMO_USERS.map(({ email, password, name, role }) => ({ email, password, name, role }))
+    ? DEMO_USERS.filter((user) => !ROLE_BY_ID[user.role]?.hidden).map(
+        ({ email, password, name, role }) => ({ email, password, name, role }),
+      )
     : [];
 
   return (
@@ -45,6 +49,20 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               {params.reason === "expired" && (
                 <p className="mb-5 rounded-md border border-[#ecd9b6] bg-warning-soft px-3 py-2.5 text-[12px] text-[#7b5c1d]">
                   Your session expired. Please sign in again.
+                </p>
+              )}
+              {params.reason === "password-reset" && (
+                <p className="mb-5 rounded-md border border-[#cfe6d9] bg-success-soft px-3 py-2.5 text-[12px] text-success">
+                  Password updated. Sign in with your new password.
+                </p>
+              )}
+              {params.reason === "link" && (
+                <p className="mb-5 rounded-md border border-[#ecd9b6] bg-warning-soft px-3 py-2.5 text-[12px] text-[#7b5c1d]">
+                  That link is invalid or has expired.{" "}
+                  <Link href="/login/forgot-password" className="font-medium underline">
+                    Request a new one
+                  </Link>
+                  .
                 </p>
               )}
               <LoginForm demoAccounts={demoAccounts} redirectTo={redirectTo} />

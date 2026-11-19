@@ -4,7 +4,7 @@ import { DataTable, type Column, type TableRow } from "@/components/ui/data-tabl
 import { EmptyState } from "@/components/ui/empty-state";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { can } from "@/lib/access";
-import { ROLES } from "@/lib/roles";
+import { VISIBLE_ROLES } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { createClientAction, updateClientStatusAction } from "@/app/(app)/modules/clients/actions";
 import type { ClientRecord } from "@/lib/records/repository";
@@ -30,7 +30,7 @@ function fields(): FieldDef[] {
       label: "Account owner",
       type: "select",
       required: true,
-      options: ROLES.map((role) => ({ value: role.id, label: role.label })),
+      options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
       defaultValue: "implementation_lead",
     },
   ];
@@ -53,7 +53,7 @@ export function ClientsView({
       code: client.code,
       contact: [client.contactName, client.contactEmail].filter(Boolean).join(" · ") || "—",
       industry: client.industry || "—",
-      owner: ROLES.find((role) => role.id === client.ownerRole)?.label ?? "—",
+      owner: VISIBLE_ROLES.find((role) => role.id === client.ownerRole)?.label ?? "—",
       status: client.status,
     },
     actions: canEdit

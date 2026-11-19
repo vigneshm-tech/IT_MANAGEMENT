@@ -4,7 +4,7 @@ import { DataTable, type Column, type TableRow } from "@/components/ui/data-tabl
 import { EmptyState } from "@/components/ui/empty-state";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID, ROLES } from "@/lib/roles";
+import { ROLE_BY_ID, VISIBLE_ROLES } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import {
   createPatchPlanAction,
@@ -54,7 +54,7 @@ function fields(clients: string[]): FieldDef[] {
       label: "Owner",
       type: "select",
       required: true,
-      options: ROLES.map((role) => ({ value: role.id, label: role.label })),
+      options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
       defaultValue: "it_engineer",
     },
     { name: "notes", label: "Notes", type: "textarea", span: 2, placeholder: "Reboot approvals, exclusions, client contact" },

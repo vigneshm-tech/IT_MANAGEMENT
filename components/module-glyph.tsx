@@ -8,6 +8,7 @@ import {
   Settings,
   ShieldCheck,
   Ticket,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ const GLYPHS: Record<string, LucideIcon> = {
   BadgeCheck,
   CalendarClock,
   Settings,
+  Users,
 };
 
 export function ModuleGlyph({

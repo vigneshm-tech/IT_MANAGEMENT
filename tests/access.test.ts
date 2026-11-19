@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_BY_ID, ROLE_IDS, type RoleId } from "../lib/roles";
+import { ROLE_BY_ID, ROLE_IDS, VISIBLE_ROLES, type RoleId } from "../lib/roles";
 import { can, canAccessModule, visibleModules } from "../lib/access";
 import { MODULES } from "../lib/modules";
 
@@ -22,6 +22,7 @@ test("every role sees the shared modules", () => {
 
 test("servers are limited to IT plus managers, leads and management", () => {
   const expected = new Set([
+    "super_admin",
     "it_manager",
     "it_engineer",
     "l2_support_manager",
@@ -78,7 +79,7 @@ test("settings admin is reserved for IT Manager and Management", () => {
   for (const role of ALL_ROLES) {
     assert.equal(
       can(role, "settings", "admin"),
-      role === "it_manager" || role === "management",
+      role === "it_manager" || role === "management" || role === "super_admin",
       `settings admin for ${role}`,
     );
   }
@@ -112,12 +113,30 @@ test("task creation window restriction matches the role registry", () => {
     );
   }
   assert.equal(ENGINEERS.length, 5);
-  assert.equal(NON_ENGINEERS.length, 10);
+  assert.equal(NON_ENGINEERS.length, 11);
+});
+
+test("the super admin role stays hidden from every catalogue", () => {
+  assert.equal(VISIBLE_ROLES.some((role) => role.id === "super_admin"), false);
+  assert.equal(ROLE_BY_ID.super_admin.hidden, true);
+});
+
+test("only the super admin can open the user directory", () => {
+  for (const role of ALL_ROLES) {
+    assert.equal(
+      canAccessModule(role, "users"),
+      role === "super_admin",
+      `users module access for ${role}`,
+    );
+  }
+  assert.ok(visibleModules("super_admin").some((module) => module.id === "users"));
+  assert.ok(!visibleModules("it_manager").some((module) => module.id === "users"));
 });
 
 test("dashboard is available to all and every module declares a view rule", () => {
-  assert.equal(MODULES.length, 9);
+  assert.equal(MODULES.length, 10);
   for (const module of MODULES) {
+    if (module.id === "users") continue; // super-admin only
     assert.equal(
       canAccessModule("management", module.id),
       true,

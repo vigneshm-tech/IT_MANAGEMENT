@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { loginAction, type LoginState } from "@/app/login/actions";
 import type { DemoAccount } from "@/lib/demo-users";
@@ -63,6 +64,12 @@ export function LoginForm({
         <label className="block">
           <span className="field-label flex items-center justify-between">
             <span>Password</span>
+            <Link
+              href="/login/forgot-password"
+              className="text-[11.5px] font-medium normal-case tracking-normal text-navy hover:underline"
+            >
+              Forgot password?
+            </Link>
           </span>
           <span className="relative block">
             <input

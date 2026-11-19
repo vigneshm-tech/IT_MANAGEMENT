@@ -4,7 +4,7 @@ import { DataTable, type Column, type TableRow } from "@/components/ui/data-tabl
 import { EmptyState } from "@/components/ui/empty-state";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { can } from "@/lib/access";
-import { ROLES } from "@/lib/roles";
+import { VISIBLE_ROLES } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import {
   createRenewalAction,
@@ -47,7 +47,7 @@ function fields(): FieldDef[] {
       label: "Owner",
       type: "select",
       required: true,
-      options: ROLES.map((role) => ({ value: role.id, label: role.label })),
+      options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
       defaultValue: "it_manager",
     },
   ];

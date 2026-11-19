@@ -8,6 +8,7 @@ import { RenewalsView } from "@/components/modules/renewals-view";
 import { ServersView } from "@/components/modules/servers-view";
 import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
+import { UsersView } from "@/components/modules/users-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
@@ -20,6 +21,7 @@ import {
   listRenewals,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
+import { listDirectory } from "@/lib/users/repository";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -75,6 +77,11 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
 
     case "renewals":
       return <RenewalsView user={user} renewals={await listRenewals()} />;
+
+    case "users": {
+      const directory = await listDirectory();
+      return <UsersView users={directory.users} error={directory.error} />;
+    }
 
     case "settings":
       return (

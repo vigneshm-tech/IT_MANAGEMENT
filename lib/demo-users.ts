@@ -18,6 +18,8 @@ export type DemoUser = {
 export const DEMO_PASSWORD = "Tornado@123";
 
 export const DEMO_USERS: DemoUser[] = [
+  // Hidden platform account — deliberately absent from every role picker.
+  { id: "u-super-admin", email: "super.admin@tasktornado.dev", password: DEMO_PASSWORD, name: "Vignesh", role: "super_admin", title: "Super Admin", location: "Chennai" },
   { id: "u-it-manager", email: "it.manager@tasktornado.dev", password: DEMO_PASSWORD, name: "Meera Raghavan", role: "it_manager", title: "IT Manager", location: "Chennai" },
   { id: "u-it-engineer", email: "it.engineer@tasktornado.dev", password: DEMO_PASSWORD, name: "Arun Prakash", role: "it_engineer", title: "IT Engineer", location: "Chennai" },
   { id: "u-l2-manager", email: "l2.manager@tasktornado.dev", password: DEMO_PASSWORD, name: "Divya Suresh", role: "l2_support_manager", title: "L2 Support Manager", location: "Bengaluru" },

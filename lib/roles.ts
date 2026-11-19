@@ -8,6 +8,12 @@
  */
 
 export const ROLE_IDS = [
+  /**
+   * Platform owner. Hidden from every role catalogue, dropdown and report —
+   * only the holder sees the matching "Users" module. Never assign it from
+   * user metadata; it is provisioned by hand in the database.
+   */
+  "super_admin",
   "it_manager",
   "it_engineer",
   "l2_support_manager",
@@ -28,6 +34,7 @@ export const ROLE_IDS = [
 export type RoleId = (typeof ROLE_IDS)[number];
 
 export type RoleGroup =
+  | "platform"
   | "it"
   | "l2_support"
   | "implementation"
@@ -50,12 +57,19 @@ export type Role = {
   badgeClass: string;
   /** Can create tasks at any hour (false = 09:00–18:00 IST window). */
   unrestrictedTaskCreation: boolean;
+  /** Hidden roles never appear in pickers, catalogues or reports. */
+  hidden?: boolean;
 };
 
 export const ROLE_GROUPS: Record<
   RoleGroup,
   { label: string; accent: string; description: string }
 > = {
+  platform: {
+    label: "Platform",
+    accent: "#c6a96c",
+    description: "Service ownership. Never shown in the role catalogue.",
+  },
   it: {
     label: "IT",
     accent: "#7c5cff",
@@ -94,6 +108,18 @@ const role = (r: Omit<Role, "badgeClass"> & { badgeClass?: string }): Role => ({
 });
 
 export const ROLES: Role[] = [
+  role({
+    id: "super_admin",
+    label: "Super Admin",
+    shortLabel: "Super Admin",
+    group: "platform",
+    level: "executive",
+    description:
+      "Hidden platform owner. Full access to every module plus the user directory.",
+    accent: "#c6a96c",
+    unrestrictedTaskCreation: true,
+    hidden: true,
+  }),
   role({
     id: "it_manager",
     label: "IT Manager",
@@ -250,6 +276,13 @@ export const ROLE_BY_ID: Record<RoleId, Role> = Object.fromEntries(
   ROLES.map((r) => [r.id, r]),
 ) as Record<RoleId, Role>;
 
+/** Everything a role picker, catalogue or report is allowed to list. */
+export const VISIBLE_ROLES: Role[] = ROLES.filter((r) => !r.hidden);
+
+export function isHiddenRole(id: RoleId): boolean {
+  return ROLE_BY_ID[id]?.hidden === true;
+}
+
 export function isRoleId(value: unknown): value is RoleId {
   return typeof value === "string" && (ROLE_IDS as readonly string[]).includes(value);
 }
@@ -259,7 +292,7 @@ export function getRole(id: string | null | undefined): Role | null {
 }
 
 export function rolesInGroup(group: RoleGroup): Role[] {
-  return ROLES.filter((r) => r.group === group);
+  return VISIBLE_ROLES.filter((r) => r.group === group);
 }
 
 /** Manager, lead and executive tiers bypass time-based restrictions. */
