@@ -145,11 +145,11 @@ export async function updateTaskAction(
   const existing = (await listTasks()).find((item) => item.id === id);
   if (!existing) return { error: "That task no longer exists." };
 
+  // The requester is historical — it is never re-read from the form body.
   const saved = await updateTask(id, {
     ...parsed,
-    requestedByName: String(formData.get("requestedByName") ?? "").trim() || existing.requestedByName,
-    requestedByEmail:
-      String(formData.get("requestedByEmail") ?? "").trim() || existing.requestedByEmail,
+    requestedByName: existing.requestedByName || existing.createdByName,
+    requestedByEmail: existing.requestedByEmail,
   });
   if (!saved) return { error: "The task could not be updated. Please try again." };
 
