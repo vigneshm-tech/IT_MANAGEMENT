@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Heart } from "lucide-react";
 import { TopNav, type NavGroup } from "@/components/nav/top-nav";
 import { requireUser } from "@/lib/auth";
 import { can, visibleModules } from "@/lib/access";
@@ -65,14 +65,16 @@ export default async function WorkspaceLayout({
 
       <footer className="border-t border-line">
         <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-4 text-[11.5px] text-muted sm:px-6 lg:px-8 xl:px-10">
-          <span className="font-medium text-navy">TaskTornado</span>
+          <span className="font-logo text-[12px] leading-none tracking-[0.02em] text-navy">
+            TaskTornado
+          </span>
           <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden />
-          <span>IT Management</span>
-          <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden />
-          <span>{role.label}</span>
-          <Link href="/modules/settings" className="ml-auto hover:text-navy">
-            Settings
-          </Link>
+          <span>Developed by Infeara Technologies</span>
+          <span className="ml-auto inline-flex items-center gap-1.5">
+            Made with
+            <Heart className="h-3 w-3 text-gold" aria-hidden />
+            <span className="sr-only">love</span>
+          </span>
         </div>
       </footer>
     </div>
