@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { dismissIntroAction } from "@/app/(app)/intro/actions";
+import { IntroRevealContext } from "@/components/intro/intro-context";
 
 const CANVAS = "#ffffff";
 const GOLD = "#c6a96c";
@@ -142,7 +143,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
   const showPage = phase !== "loading";
 
   return (
-    <>
+    <IntroRevealContext.Provider value={showPage}>
       <motion.div
         inert={phase !== "done"}
         initial={{ opacity: 0, y: reduced ? 0 : 16 }}
@@ -165,18 +166,6 @@ function IntroExperience({ children }: { children: ReactNode }) {
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0.25 : 0.65, ease: "easeInOut" }}
           >
-            {/* a single soft halo keeps the white stage from going flat */}
-            <motion.span
-              aria-hidden
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[720px] w-[720px] -translate-x-1/2 -translate-y-[58%] rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle, rgba(198,169,108,0.10) 0%, rgba(198,169,108,0.03) 45%, transparent 72%)",
-              }}
-              animate={reduced ? undefined : { scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }}
-              transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-            />
-
             {/* logo lockup — nothing but the mark */}
             <motion.div
               className="relative z-10 flex flex-col items-center"
@@ -225,36 +214,24 @@ function IntroExperience({ children }: { children: ReactNode }) {
               </div>
             </motion.div>
 
-            {/* quiet progress ring, no copy */}
+            {/* one thin ring — no track, no glow, no shadow */}
             <motion.div
-              className="relative z-10 mt-14 h-11 w-11"
+              className="relative z-10 mt-14"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: reduced ? 0.2 : 1, ease: "easeOut" }}
+              transition={{ duration: 0.4, delay: reduced ? 0.15 : 0.95, ease: "easeOut" }}
             >
-              {!reduced && (
-                <motion.span
-                  aria-hidden
-                  className="absolute -inset-2 rounded-full"
-                  style={{
-                    background:
-                      "conic-gradient(from 0deg, transparent 0deg, rgba(198,169,108,0.45) 90deg, transparent 200deg)",
-                    filter: "blur(7px)",
-                  }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2.8, repeat: Infinity, ease: "linear" }}
-                />
-              )}
-              <svg viewBox="0 0 52 52" className="relative h-11 w-11 -rotate-90">
+              <svg
+                viewBox="0 0 52 52"
+                aria-hidden
+                className={
+                  reduced || ready
+                    ? "h-10 w-10"
+                    : "h-10 w-10 animate-spin"
+                }
+                style={{ transformOrigin: "50% 50%" }}
+              >
                 <circle
-                  cx="26"
-                  cy="26"
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke="rgba(23,44,82,0.12)"
-                  strokeWidth="1.5"
-                />
-                <motion.circle
                   cx="26"
                   cy="26"
                   r={RING_RADIUS}
@@ -262,15 +239,18 @@ function IntroExperience({ children }: { children: ReactNode }) {
                   stroke={GOLD}
                   strokeWidth="1.5"
                   strokeLinecap="round"
-                  strokeDasharray={RING_LENGTH}
-                  animate={{ strokeDashoffset: RING_LENGTH * (1 - progress) }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  style={{ transition: "stroke-dasharray 320ms ease" }}
+                  strokeDasharray={
+                    reduced || ready
+                      ? RING_LENGTH
+                      : `${RING_LENGTH * (0.18 + 0.12 * progress)} ${RING_LENGTH}`
+                  }
                 />
               </svg>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </IntroRevealContext.Provider>
   );
 }

@@ -51,12 +51,14 @@ nested pages below it).
 (`lib/auth/intro.ts`, 90s TTL) that makes `components/intro/launch-intro.tsx`
 hold a clean white stage on the first page behind the login: the wordmark,
 painted from the same `--color-navy` token as the page headings, fades and
-scales in from a blur, one gold light sweep crosses the letterforms,
-and a thin gold progress ring tracks real initialisation. No copy, no other
-content. It waits on real initialisation (server-rendered session and
+scales in from a blur, one gold light sweep crosses the letterforms, and a
+single thin gold ring spins while real initialisation finishes. No copy, no
+halo, no glow, no shadow. It waits on real initialisation (server-rendered session and
 data, `document.fonts.ready`, layout, brand art) with a 6s guard, honours
 `prefers-reduced-motion`, keeps the page `inert` while it runs, reveals the
-Modules page with a fade-up, then clears the cookie through
+Modules page — whose grid cascades tile by tile, because
+`ModulesGrid` waits on `IntroRevealContext` for the reveal rather than
+animating behind the overlay — then clears the cookie through
 `dismissIntroAction()`. Because the cookie is gone afterwards it never replays
 on internal navigation or a refresh. The login and Modules screens themselves
 are untouched.

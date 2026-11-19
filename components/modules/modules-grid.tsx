@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { ModuleGlyph } from "@/components/module-glyph";
+import { useIntroReveal } from "@/components/intro/intro-context";
 import type { NavGroupId } from "@/lib/modules";
 
 export type ModuleCard = {
@@ -22,7 +23,7 @@ const ITEM = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: EASE },
+    transition: { duration: 0.5, ease: EASE },
   },
 };
 
@@ -35,18 +36,23 @@ const ITEM = {
  * last row keep the canvas rectangular at 2 and 3 columns.
  */
 export function ModulesGrid({ modules }: { modules: ModuleCard[] }) {
+  // Held at `false` while the launch intro covers the page, so the tiles
+  // cascade as the workspace is revealed instead of finishing behind it.
+  const revealed = useIntroReveal();
   const desktopFillers = (3 - (modules.length % 3)) % 3;
   const tabletFillers = (2 - (modules.length % 2)) % 2;
 
   return (
     <motion.ul
       initial="hidden"
-      animate="visible"
+      animate={revealed ? "visible" : "hidden"}
       variants={{
         hidden: {},
-        visible: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+        visible: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } },
       }}
-      className="grid grid-cols-1 gap-px overflow-hidden rounded-[10px] bg-line sm:grid-cols-2 lg:grid-cols-3"
+      className={`grid grid-cols-1 gap-px overflow-hidden rounded-[10px] transition-colors duration-700 sm:grid-cols-2 lg:grid-cols-3 ${
+        revealed ? "bg-line" : "bg-transparent"
+      }`}
     >
       {modules.map((module) => (
         <motion.li key={module.id} variants={ITEM} className="bg-surface">
