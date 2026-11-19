@@ -17,7 +17,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ModuleGlyph } from "@/components/module-glyph";
-import { LetterMark } from "@/components/brand";
+import { Wordmark } from "@/components/brand";
 import { logoutAction } from "@/lib/auth/actions";
 
 export type NavModule = {
@@ -109,15 +109,10 @@ export function TopNav({
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:gap-8 lg:px-8">
           {/* Brand */}
-          <Link href="/modules" className="flex shrink-0 items-center gap-2.5">
-            <LetterMark className="h-8 w-8" decorative />
-            <span className="flex items-baseline gap-2">
-              <span className="text-[15px] font-semibold tracking-[-0.01em] text-navy">
-                TaskTornado
-              </span>
-              <span className="hidden border-l border-line pl-2 text-[11px] font-medium uppercase tracking-[0.1em] text-muted xl:inline">
-                IT Management
-              </span>
+          <Link href="/modules" className="flex shrink-0 items-center gap-3">
+            <Wordmark height={21} />
+            <span className="hidden border-l border-line pl-3 text-[10.5px] font-medium uppercase tracking-[0.12em] text-muted xl:inline">
+              IT Management
             </span>
           </Link>
 

@@ -32,6 +32,10 @@ containers.
 Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
 grid and dialog/popover transitions.
 
+**Brand:** the logo is a wordmark, not an icon — custom-set lettering shipped as
+fixed vectors (`public/brand/wordmark.svg` and the white `wordmark-inverse.svg`).
+The tab icon is the single gold "T" monogram.
+
 **Navigation:** a 64px top bar with five mega-menu groups — Overview, Service
 desk, Infrastructure, Commercial, Governance — plus ⌘K search, approval
 notifications and a user menu. Restricted pages never appear in the menu.
@@ -160,7 +164,8 @@ The Vercel project `tasktornado` deploys this branch and reads these variables:
 
 ```
 app/
-  login/                 Sign-in (server action, rate limit, role picker)
+  login/                 Sign-in (server action, rate limit, role picker) with
+                         a navy "why this exists" infographic panel
   (app)/                 Authenticated shell: top nav + canvas
     modules/             Animated module grid
     modules/dashboard/   KPIs, task volume, attention list

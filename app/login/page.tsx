@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/brand";
+import { Wordmark } from "@/components/brand";
 import { BrandPanel } from "@/components/login/brand-panel";
 import { LoginForm } from "@/components/login/login-form";
 import { getSession } from "@/lib/auth/session";
@@ -37,7 +37,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         <div className="flex flex-col">
           <div className="flex items-center justify-between px-6 pt-6 lg:hidden">
-            <Logo compact />
+            <Wordmark height={22} />
           </div>
 
           <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">

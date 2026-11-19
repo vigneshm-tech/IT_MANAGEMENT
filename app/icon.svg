@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="TaskTornado">
   <rect width="64" height="64" rx="14" fill="#172c52"/>
-  <rect x="7" y="18" width="23" height="7.5" rx="1.4" fill="#c6a96c"/>
-  <rect x="15.5" y="25.5" width="6" height="20" rx="1.4" fill="#c6a96c"/>
-  <rect x="34" y="18" width="23" height="7.5" rx="1.4" fill="#ffffff"/>
-  <rect x="42.5" y="25.5" width="6" height="20" rx="1.4" fill="#ffffff"/>
+  <g transform="translate(20 47) scale(0.0411 -0.0411)">
+    <path d="M220 0V568H20V730H606V568H406V0Z" fill="#c6a96c"/>
+  </g>
 </svg>
