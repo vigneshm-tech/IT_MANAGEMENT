@@ -72,7 +72,7 @@ export function ModulesGrid({ modules }: { modules: ModuleCard[] }) {
               />
             </span>
 
-            <h2 className="relative z-10 mt-10 max-w-[86%] text-[24px] font-semibold leading-[1.15] tracking-[-0.02em] text-navy transition-colors duration-300 group-hover:text-[#1f3e77] group-focus-visible:text-[#1f3e77] sm:text-[26px]">
+            <h2 className="relative z-10 mt-10 max-w-[90%] font-logo text-[21px] font-normal leading-[1.2] tracking-[0.005em] text-navy transition-colors duration-300 group-hover:text-[#1f3e77] group-focus-visible:text-[#1f3e77] sm:text-[23px]">
               {module.title}
             </h2>
           </Link>

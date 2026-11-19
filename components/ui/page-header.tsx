@@ -18,7 +18,7 @@ export function PageHeader({
     <header className="border-b border-line pb-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em] text-navy">
+          <h1 className="font-logo text-[21px] font-normal leading-tight tracking-[0.005em] text-navy sm:text-[24px]">
             {title}
           </h1>
         </div>

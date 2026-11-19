@@ -4,6 +4,8 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  /* The wordmark typeface — reserved for page titles and module names. */
+  --font-logo: "Audiowide", ui-sans-serif, system-ui, sans-serif;
 
   /* Brand palette */
   --color-navy: #172c52;

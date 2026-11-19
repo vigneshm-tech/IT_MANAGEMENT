@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource/audiowide/latin-400.css";
 import "./globals.css";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/config";
 
