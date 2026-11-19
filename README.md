@@ -48,7 +48,7 @@ Engineers are the only tier with a restricted task-creation window.
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
 
 \* **Task creation window** — engineers may only raise new tasks between **09:00 and
-18:00 IST**; leads, managers, IT and management can raise tasks 24 hours a day.
+18:00 IST**; leads, managers, the IT Manager and management can raise tasks 24 hours a day.
 The window is checked in the server action (`assertCanCreateTask`) against the
 server clock, never the browser. Boundary tests live in `tests/task-window.test.ts`.
 

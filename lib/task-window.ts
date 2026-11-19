@@ -120,7 +120,7 @@ export function taskWindowFor(role: RoleId, now: Date = new Date()): TaskWindow 
       opensAt: openToday.toISOString(),
       closesAt: closeToday.toISOString(),
       nextChangeAt: null,
-      message: "24-hour access — leadership and IT roles can raise tasks any time.",
+      message: "24-hour access — leads, managers and management can raise tasks any time.",
       localTime,
       timeZone,
     };

@@ -100,7 +100,7 @@ export const ROLES: Role[] = [
     shortLabel: "IT Manager",
     group: "it",
     level: "manager",
-    description: "Administers TaskTornado, infrastructure integrations and access.",
+    description: "Administers TaskTornado, infrastructure integrations and access. Unrestricted task creation.",
     accent: "#a78bfa",
     unrestrictedTaskCreation: true,
   }),

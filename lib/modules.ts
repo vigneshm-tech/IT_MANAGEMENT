@@ -85,7 +85,7 @@ export const MODULES: ModuleDefinition[] = [
     href: "/modules/tasks",
     tagline: "Everyone tracks, engineers log 9AM–6PM",
     description:
-      "Shared task board for every team. Engineers can raise new tasks between 09:00 and 18:00 IST; leads, managers, IT and management can raise tasks 24 hours a day.",
+      "Shared task board for every team. Engineers can raise new tasks between 09:00 and 18:00 IST; leads, managers, the IT Manager and management can raise tasks 24 hours a day.",
     icon: "ListChecks",
     accent: "#22d3ee",
     access: {
@@ -96,7 +96,7 @@ export const MODULES: ModuleDefinition[] = [
     highlights: [
       "Everyone can view and work the board",
       "New task window enforced 09:00–18:00 IST for engineers",
-      "Leads, managers, IT and management are unrestricted",
+      "Leads, managers, the IT Manager and management are unrestricted",
     ],
   },
   {
