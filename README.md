@@ -29,7 +29,9 @@ containers.
 | `--color-muted` | `#7B879C` | Meta, labels |
 | `--color-line` | `#E2E7F0` | Dividers and borders |
 
-Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
+Tables are built on the [shadcn/ui](https://ui.shadcn.com) `Table` primitives
+(`components/ui/table.tsx`, `npx shadcn add …` works via `components.json`),
+retuned to the tokens below. Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
 grid and dialog/popover transitions.
 
 **Brand:** the logo is a wordmark, not an icon — the name set in **Audiowide**,
@@ -195,7 +197,8 @@ app/
     modules/[slug]/      Tasks, tickets, servers, clients, patching,
                          approvals, renewals, settings
 components/
-  nav/top-nav.tsx        Mega menus, command palette, notifications
+  nav/top-nav.tsx        Two-zone header: wordmark, command palette, notifications
+  ui/table.tsx           shadcn/ui table primitives (components.json included)
   ui/                    Buttons, dialogs, data table, status pills
 lib/
   roles.ts               Role catalogue + groups + tiers

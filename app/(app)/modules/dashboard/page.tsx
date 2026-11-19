@@ -21,6 +21,14 @@ import { can, visibleModules } from "@/lib/access";
 import { integrationStatus } from "@/lib/integrations/store";
 import { ROLE_BY_ID } from "@/lib/roles";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   daysUntil,
   listApprovals,
   listRenewals,
@@ -319,41 +327,39 @@ export default async function OverviewPage() {
             .
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-left">
-              <thead>
-                <tr className="border-y border-line">
-                  <th className="table-head py-2.5 pr-4 font-medium">Task</th>
-                  <th className="table-head py-2.5 pr-4 font-medium">Team</th>
-                  <th className="table-head py-2.5 pr-4 font-medium">Due</th>
-                  <th className="table-head py-2.5 text-right font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.slice(0, 6).map((task) => (
-                  <tr key={task.id} className="border-b border-line/80 last:border-0">
-                    <td className="py-3 pr-4">
-                      <span className="block text-[12.5px] font-medium text-navy">
-                        {task.title}
-                      </span>
-                      <span className="mt-0.5 block font-mono text-[10.5px] text-muted">
-                        {task.id}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-[12px] text-body">
-                      {ROLE_BY_ID[task.assigneeRole]?.label ?? "—"}
-                    </td>
-                    <td className="py-3 pr-4 text-[12px] text-body">
-                      {task.dueDate ? formatDayMonth(task.dueDate, now) : "—"}
-                    </td>
-                    <td className="py-3 text-right">
-                      <StatusPill status={task.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="mt-3 min-w-[640px] border-collapse">
+            <TableHeader>
+              <TableRow className="border-y border-line hover:bg-transparent">
+                <TableHead className="py-2.5 pl-0 pr-4">Task</TableHead>
+                <TableHead className="py-2.5 pl-0 pr-4">Team</TableHead>
+                <TableHead className="py-2.5 pl-0 pr-4">Due</TableHead>
+                <TableHead className="py-2.5 pl-0 text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tasks.slice(0, 6).map((task) => (
+                <TableRow key={task.id}>
+                  <TableCell className="py-3 pl-0 pr-4">
+                    <span className="block text-[12.5px] font-medium text-navy">
+                      {task.title}
+                    </span>
+                    <span className="mt-0.5 block font-mono text-[10.5px] text-muted">
+                      {task.id}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-3 pl-0 pr-4 text-[12px] text-body">
+                    {ROLE_BY_ID[task.assigneeRole]?.label ?? "—"}
+                  </TableCell>
+                  <TableCell className="py-3 pl-0 pr-4 text-[12px] text-body">
+                    {task.dueDate ? formatDayMonth(task.dueDate, now) : "—"}
+                  </TableCell>
+                  <TableCell className="py-3 pl-0 text-right">
+                    <StatusPill status={task.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </section>
 

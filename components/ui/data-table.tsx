@@ -2,8 +2,16 @@
 
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import clsx from "clsx";
-import { StatusPill, humanise, toneFor } from "./status-pill";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./table";
+import { StatusPill, humanise } from "./status-pill";
 
 export type Column = {
   key: string;
@@ -14,12 +22,15 @@ export type Column = {
   width?: string;
 };
 
-export type TableRow = {
+export type TableRowData = {
   id: string;
   cells: Record<string, string | number | null>;
   /** Overrides the table-level actions for this row. */
   actions?: RowAction[];
 };
+
+/** Back-compat alias: `TableRow` now names the shadcn primitive. */
+export type TableRow = TableRowData;
 
 export type RowAction = {
   label: string;
@@ -38,7 +49,7 @@ export function DataTable({
   pageSize = 8,
 }: {
   columns: Column[];
-  rows: TableRow[];
+  rows: TableRowData[];
   rowAction?: (formData: FormData) => Promise<void>;
   rowActions?: RowAction[];
   searchPlaceholder?: string;
@@ -124,121 +135,113 @@ export function DataTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-line">
-              {columns.map((column) => (
-                <th
-                  key={column.key}
-                  scope="col"
-                  style={{ width: column.width }}
-                  className={clsx(
-                    "table-head whitespace-nowrap px-4 py-2.5",
-                    column.align === "right" && "text-right",
+      <Table className="min-w-[760px] border-collapse">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            {columns.map((column) => (
+              <TableHead
+                key={column.key}
+                scope="col"
+                style={{ width: column.width }}
+                className={cn(column.align === "right" && "text-right")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSort(column.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1 transition hover:text-navy",
+                    column.align === "right" && "flex-row-reverse",
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleSort(column.key)}
-                    className={clsx(
-                      "inline-flex items-center gap-1 transition hover:text-navy",
-                      column.align === "right" && "flex-row-reverse",
-                    )}
-                  >
-                    {column.label}
-                    {sortKey === column.key &&
-                      (sortDir === "asc" ? (
-                        <ArrowUp className="h-3 w-3" aria-hidden />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" aria-hidden />
-                      ))}
-                  </button>
-                </th>
-              ))}
-              {showsActions && (
-                <th scope="col" className="table-head px-4 py-2.5 text-right">
-                  Actions
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-line/80 last:border-0 transition-colors hover:bg-[#fafbfd]"
-              >
-                {columns.map((column, index) => {
-                  const value = row.cells[column.key];
-                  const isFirst = index === 0;
-                  return (
-                    <td
-                      key={column.key}
-                      className={clsx(
-                        "px-4 py-3 align-middle",
-                        column.align === "right" && "text-right",
-                      )}
-                    >
-                      {column.type === "status" ? (
-                        <StatusPill status={String(value ?? "")} label={humanise(String(value ?? ""))} />
-                      ) : (
-                        <span
-                          className={clsx(
-                            column.type === "muted" && "text-muted",
-                            column.type === "mono" && "font-mono text-[12px] text-muted",
-                            column.type === "money" && "tabular-nums",
-                            isFirst ? "font-medium text-navy" : "text-body",
-                          )}
-                        >
-                          {value ?? "—"}
-                        </span>
-                      )}
-                      {isFirst && column.type !== "status" && (
-                        <span className="sr-only">, {row.id}</span>
-                      )}
-                    </td>
-                  );
-                })}
-
-                {showsActions && rowAction && (
-                  <td className="px-4 py-3 text-right">
-                    <form action={rowAction} className="inline-flex items-center gap-1">
-                      <input type="hidden" name="id" value={row.id} />
-                      {(row.actions ?? rowActions ?? []).map((action) => (
-                        <button
-                          key={action.value}
-                          type="submit"
-                          name="value"
-                          value={action.value}
-                          onClick={(event) => {
-                            if (action.confirm && !window.confirm(action.confirm)) {
-                              event.preventDefault();
-                            }
-                          }}
-                          className={clsx(
-                            "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
-                            action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
-                            action.tone === "danger" && "text-danger hover:bg-danger-soft",
-                            (!action.tone || action.tone === "default") &&
-                              "text-muted hover:bg-[#eef2f8] hover:text-navy",
-                          )}
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </form>
-                  </td>
-                )}
-              </tr>
+                  {column.label}
+                  {sortKey === column.key &&
+                    (sortDir === "asc" ? (
+                      <ArrowUp className="h-3 w-3" aria-hidden />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" aria-hidden />
+                    ))}
+                </button>
+              </TableHead>
             ))}
-          </tbody>
-        </table>
-      </div>
+            {showsActions && (
+              <TableHead scope="col" className="text-right">
+                Actions
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {visible.map((row) => (
+            <TableRow key={row.id}>
+              {columns.map((column, index) => {
+                const value = row.cells[column.key];
+                const isFirst = index === 0;
+                return (
+                  <TableCell
+                    key={column.key}
+                    className={cn(column.align === "right" && "text-right")}
+                  >
+                    {column.type === "status" ? (
+                      <StatusPill status={String(value ?? "")} label={humanise(String(value ?? ""))} />
+                    ) : (
+                      <span
+                        className={cn(
+                          column.type === "muted" && "text-muted",
+                          column.type === "mono" && "font-mono text-[12px] text-muted",
+                          column.type === "money" && "tabular-nums",
+                          isFirst ? "font-medium text-navy" : "text-body",
+                        )}
+                      >
+                        {value ?? "—"}
+                      </span>
+                    )}
+                    {isFirst && column.type !== "status" && (
+                      <span className="sr-only">, {row.id}</span>
+                    )}
+                  </TableCell>
+                );
+              })}
+
+              {showsActions && rowAction && (
+                <TableCell className="text-right">
+                  <form action={rowAction} className="inline-flex items-center gap-1">
+                    <input type="hidden" name="id" value={row.id} />
+                    {(row.actions ?? rowActions ?? []).map((action) => (
+                      <button
+                        key={action.value}
+                        type="submit"
+                        name="value"
+                        value={action.value}
+                        onClick={(event) => {
+                          if (action.confirm && !window.confirm(action.confirm)) {
+                            event.preventDefault();
+                          }
+                        }}
+                        className={cn(
+                          "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
+                          action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
+                          action.tone === "danger" && "text-danger hover:bg-danger-soft",
+                          (!action.tone || action.tone === "default") &&
+                            "text-muted hover:bg-[#eef2f8] hover:text-navy",
+                        )}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </form>
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-[12px] text-muted">
         <span>
-          {filtered.length === 1 ? "1 record" : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
+          {filtered.length === 1
+            ? "1 record"
+            : `${start + 1}–${Math.min(start + pageSize, filtered.length)} of ${filtered.length}`}
         </span>
         <div className="flex items-center gap-1">
           <button
@@ -266,8 +269,4 @@ export function DataTable({
       </div>
     </div>
   );
-}
-
-export function StatusCell({ value }: { value: string }) {
-  return <StatusPill status={value} tone={toneFor(value)} />;
 }
