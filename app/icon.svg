@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TaskTornado"><rect width="64" height="64" rx="14" fill="#172C52"/><g transform="translate(16.446 47.000) scale(0.020921 -0.020921)"><path d="M1447 1174H874V0H614V1174H40V1434H1447Z" fill="#C6A96C"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TaskTornado">
+  <style>
+    path {
+      fill: #172c52;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      path {
+        fill: #e9ddc3;
+      }
+    }
+  </style>
+  <g transform="translate(9.32 53.87) scale(0.0305 -0.0305)">
+    <path d="M1447 1174H874V0H614V1174H40V1434H1447Z" />
+  </g>
+</svg>

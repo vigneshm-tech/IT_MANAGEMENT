@@ -36,7 +36,8 @@ grid and dialog/popover transitions.
 
 **Brand:** the logo is a wordmark, not an icon — the name set in **Audiowide**,
 outlined and shipped as fixed vectors (`public/brand/wordmark.svg` and the white
-`wordmark-inverse.svg`). The tab icon is the single gold "T" from the same face.
+`wordmark-inverse.svg`). The tab icon is the bare "T" from the same face — no
+container, no box, no shadow: navy on light tab strips, warm gold in dark mode.
 
 **Navigation:** a 64px top bar with the wordmark flush left and the utilities
 flush right — search (⌘K), approval notifications and the account menu. There is
