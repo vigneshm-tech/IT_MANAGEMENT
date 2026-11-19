@@ -2,7 +2,6 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Wordmark } from "@/components/brand";
 import { dismissIntroAction } from "@/app/(app)/intro/actions";
 
 const CANVAS = "#ffffff";
@@ -11,6 +10,7 @@ const GOLD_SOFT = "#e9ddc3";
 const RING_RADIUS = 22;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 const EASE = [0.22, 1, 0.36, 1] as const;
+const LOGO_RATIO = "14965.96 / 1619.92";
 
 /** Anything that never resolves must not strand the user on the launch screen. */
 const READINESS_GUARD_MS = 6000;
@@ -185,8 +185,22 @@ function IntroExperience({ children }: { children: ReactNode }) {
               transition={{ duration: reduced ? 0.3 : 1.15, ease: EASE }}
               onAnimationComplete={() => setEntranceDone(true)}
             >
-              <div className="relative inline-flex">
-                <Wordmark tone="navy" height={48} priority className="h-9 w-auto sm:h-12" />
+              <div className="relative inline-flex h-9 sm:h-12" style={{ aspectRatio: LOGO_RATIO }}>
+                {/* Painted from the same token the page headings use, so the
+                    launch mark can never drift away from the type. */}
+                <span
+                  aria-hidden
+                  className="h-full w-full"
+                  style={{
+                    backgroundColor: "var(--color-navy)",
+                    WebkitMaskImage: "url(/brand/wordmark.svg)",
+                    maskImage: "url(/brand/wordmark.svg)",
+                    WebkitMaskSize: "100% 100%",
+                    maskSize: "100% 100%",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskRepeat: "no-repeat",
+                  }}
+                />
 
                 {!reduced && (
                   <motion.span
