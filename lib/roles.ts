@@ -283,6 +283,11 @@ export function isHiddenRole(id: RoleId): boolean {
   return ROLE_BY_ID[id]?.hidden === true;
 }
 
+/** A role that may own work: visible to pickers, safe to store on a record. */
+export function isAssignableRole(value: unknown): value is RoleId {
+  return isRoleId(value) && !isHiddenRole(value);
+}
+
 export function isRoleId(value: unknown): value is RoleId {
   return typeof value === "string" && (ROLE_IDS as readonly string[]).includes(value);
 }

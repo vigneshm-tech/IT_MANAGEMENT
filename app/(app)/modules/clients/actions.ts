@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import { EMAIL_PATTERN, requiredText, type FormState } from "@/lib/forms";
 import { createClientRecord, setClientStatus } from "@/lib/records/repository";
-import { isRoleId } from "@/lib/roles";
+import { isAssignableRole } from "@/lib/roles";
 
 export async function createClientAction(
   _previous: FormState,
@@ -27,7 +27,7 @@ export async function createClientAction(
   if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
     return { error: "Enter a valid contact email address." };
   }
-  if (!isRoleId(ownerRole)) return { error: "Select an account owner." };
+  if (!isAssignableRole(ownerRole)) return { error: "Select an account owner." };
 
   try {
     const record = await createClientRecord(user, {

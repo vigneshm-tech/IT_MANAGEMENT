@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_BY_ID, ROLE_IDS, VISIBLE_ROLES, type RoleId } from "../lib/roles";
+import {
+  ROLE_BY_ID,
+  ROLE_IDS,
+  VISIBLE_ROLES,
+  isAssignableRole,
+  type RoleId,
+} from "../lib/roles";
 import { can, canAccessModule, visibleModules } from "../lib/access";
 import { MODULES } from "../lib/modules";
 
@@ -119,6 +125,9 @@ test("task creation window restriction matches the role registry", () => {
 test("the super admin role stays hidden from every catalogue", () => {
   assert.equal(VISIBLE_ROLES.some((role) => role.id === "super_admin"), false);
   assert.equal(ROLE_BY_ID.super_admin.hidden, true);
+  assert.equal(isAssignableRole("super_admin"), false);
+  assert.equal(isAssignableRole("it_manager"), true);
+  assert.equal(isAssignableRole("nonsense"), false);
 });
 
 test("only the super admin can open the user directory", () => {

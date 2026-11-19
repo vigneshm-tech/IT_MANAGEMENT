@@ -9,7 +9,7 @@ import {
   markRenewalRenewed,
   type RenewalRecord,
 } from "@/lib/records/repository";
-import { isRoleId } from "@/lib/roles";
+import { isAssignableRole } from "@/lib/roles";
 
 const CURRENCIES = ["INR", "USD", "EUR"] as const;
 
@@ -40,7 +40,7 @@ export async function createRenewalAction(
   if (!CURRENCIES.includes(currency as (typeof CURRENCIES)[number])) {
     return { error: "Select a currency." };
   }
-  if (!isRoleId(ownerRole)) return { error: "Select an owner." };
+  if (!isAssignableRole(ownerRole)) return { error: "Select an owner." };
 
   try {
     const record = await createRenewal(user, {

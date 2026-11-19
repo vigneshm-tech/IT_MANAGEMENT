@@ -9,7 +9,7 @@ import {
   setPatchPlanStatus,
   type PatchStatus,
 } from "@/lib/records/repository";
-import { isRoleId } from "@/lib/roles";
+import { isAssignableRole } from "@/lib/roles";
 
 const RINGS = ["A", "B", "C"] as const;
 
@@ -32,7 +32,7 @@ export async function createPatchPlanAction(
   if (!title) return { error: "Enter a plan name." };
   if (!windowDate) return { error: "Choose the maintenance window date." };
   if (!RINGS.includes(ring as (typeof RINGS)[number])) return { error: "Select a patch ring." };
-  if (!isRoleId(ownerRole)) return { error: "Select an owner." };
+  if (!isAssignableRole(ownerRole)) return { error: "Select an owner." };
 
   try {
     const record = await createPatchPlan(user, {

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { isRoleId, ROLE_BY_ID } from "@/lib/roles";
+import { isAssignableRole, ROLE_BY_ID } from "@/lib/roles";
 import { assertCanCreateTask } from "@/lib/task-window";
 import { createTask, listTasks, setTaskStatus } from "@/lib/tasks/repository";
 import type { TaskPriority, TaskStatus } from "@/lib/tasks/store";
@@ -36,7 +36,7 @@ export async function createTaskAction(
   if (title.length < 4) {
     return { error: "Give the task a title of at least 4 characters." };
   }
-  if (!isRoleId(assignee)) {
+  if (!isAssignableRole(assignee)) {
     return { error: "Choose a team to assign the task to." };
   }
   if (!PRIORITIES.includes(priority)) {
