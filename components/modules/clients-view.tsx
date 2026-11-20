@@ -96,10 +96,8 @@ export function ClientsView({
           ) : undefined
         }
       >
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          {clients.length} {clients.length === 1 ? "account" : "accounts"} with a primary and a
-          secondary contact. Created and last-updated dates are stamped by the database — the
-          Columns control hides any of them if the table gets too wide.
+        <p className="text-[12.5px] text-muted">
+          {clients.length} {clients.length === 1 ? "account" : "accounts"}
         </p>
       </PageHeader>
 

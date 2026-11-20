@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, ExternalLink, RefreshCw, Server, Settings2 } from "lucide-react";
+import { AlertTriangle, RefreshCw, Server } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusPill } from "@/components/ui/status-pill";
 import { buttonClass } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { can } from "@/lib/access";
-import type { IntegrationStatus } from "@/lib/integrations/store";
 import type { SessionUser } from "@/lib/auth/token";
-import { formatDateTime } from "@/lib/format";
 import {
   describeLastSeen,
   describeMissingUpdates,
@@ -33,118 +31,43 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
   );
 }
 
-function ConnectionStrip({
-  status,
-  inventory,
-}: {
-  status: IntegrationStatus;
-  inventory?: ServersInventory;
-}) {
-  const ready = inventory?.kind === "ready" ? inventory : undefined;
-
-  return (
-    <dl className="flex flex-wrap items-center gap-x-10 gap-y-3 border-y border-line py-3.5">
-      <div>
-        <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-          Connection
-        </dt>
-        <dd className="mt-1">
-          <StatusPill status={status.connected ? "connected" : "pending"} />
-        </dd>
-      </div>
-      <div>
-        <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-          Client secret
-        </dt>
-        <dd className="mt-1 font-mono text-[12px] text-body">{status.masked || "—"}</dd>
-      </div>
-      {status.config?.clientId && (
-        <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-            Client ID
-          </dt>
-          <dd className="mt-1 font-mono text-[12px] text-body">{status.config.clientId}</dd>
-        </div>
-      )}
-      {(ready?.organizationId || status.config?.orgId) && (
-        <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-            Organization
-          </dt>
-          <dd className="mt-1 font-mono text-[11.5px] text-body">
-            {ready?.organizationId || status.config?.orgId}
-          </dd>
-        </div>
-      )}
-      {ready && (
-        <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-            Read from
-          </dt>
-          <dd className="mt-1 font-mono text-[11.5px] text-body">{ready.apiHost}</dd>
-        </div>
-      )}
-      {ready && (
-        <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-            Fetched
-          </dt>
-          <dd className="mt-1 text-[12.5px] text-body">{formatDateTime(ready.fetchedAt)}</dd>
-        </div>
-      )}
-    </dl>
-  );
-}
-
 export function ServersView({
   user,
-  status,
   inventory,
   filter = "all",
 }: {
   user: SessionUser;
-  status: IntegrationStatus;
   inventory: ServersInventory;
   filter?: ServersFilter;
 }) {
   const canConfigure = can(user.role, "servers", "edit");
   const settingsHref = "/modules/settings";
 
-  const actions = (
-    <>
-      {inventory.kind !== "not_connected" && (
-        <form action={refreshServersAction}>
-          <button type="submit" className={buttonClass({ variant: "secondary", size: "sm" })}>
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Refresh
-          </button>
-        </form>
-      )}
-      {canConfigure && (
-        <Link href={settingsHref} className={buttonClass({ variant: "secondary", size: "sm" })}>
-          <Settings2 className="h-3.5 w-3.5" aria-hidden />
-          {status.connected ? "Manage connection" : "Configure Action1"}
-        </Link>
-      )}
-    </>
+  const refresh = (
+    <form action={refreshServersAction}>
+      <button type="submit" className={buttonClass({ variant: "secondary", size: "sm" })}>
+        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+        Refresh
+      </button>
+    </form>
   );
 
   if (inventory.kind === "not_connected") {
     return (
       <div className="space-y-6">
-        <PageHeader title="Servers" actions={actions} />
+        <PageHeader title="Servers" />
         <EmptyState
           icon={Server}
           title="Action1 isn’t connected"
           description={
             canConfigure
-              ? "Add the organisation’s Action1 API credentials to bring the managed server inventory into TaskTornado."
-              : "IT manages the Action1 connection for the organisation. The server inventory will appear here once it is configured."
+              ? "Connect Action1 in Settings to load the endpoint inventory."
+              : "IT manages the Action1 connection for the organisation."
           }
           action={
             canConfigure ? (
               <Link href={settingsHref} className={buttonClass()}>
-                Configure Action1
+                Connect Action1
               </Link>
             ) : undefined
           }
@@ -156,42 +79,14 @@ export function ServersView({
   if (inventory.kind === "unconfigured") {
     return (
       <div className="space-y-6">
-        <PageHeader title="Servers" actions={actions} />
-        <ConnectionStrip status={status} />
-        <div className="border border-[#f0dfb4] bg-warning-soft px-4 py-3.5">
+        <PageHeader title="Servers" />
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-[#f0dfb4] bg-warning-soft px-4 py-3">
           <p className="flex items-center gap-2 text-[13px] font-medium text-warning">
             <AlertTriangle className="h-4 w-4" aria-hidden />
-            {`The Action1 connection is missing ${inventory.missing.join(" and ")}.`}
-          </p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-body">
-            Action1 signs API calls with an OAuth client id and secret. Add both in Settings, and the
-            endpoint inventory will load here.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (inventory.kind === "error") {
-    return (
-      <div className="space-y-6">
-        <PageHeader title="Servers" actions={actions} />
-        <ConnectionStrip status={status} />
-        <div className="border border-[#f2c9c9] bg-danger-soft px-4 py-3.5">
-          <p className="flex items-center gap-2 text-[13px] font-medium text-danger">
-            <AlertTriangle className="h-4 w-4" aria-hidden />
-            {`Action1 could not be read${inventory.status ? ` (HTTP ${inventory.status})` : ""}.`}
-          </p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-body">{inventory.message}</p>
-          <p className="mt-2 text-[12px] leading-relaxed text-muted">
-            {inventory.status === 401 || inventory.status === 403
-              ? "Check the client id, client secret and organization id in Settings."
-              : inventory.status === 404
-                ? "Check the organization id in Settings."
-                : "Check the API address in Settings, then refresh."}
+            {`Missing ${inventory.missing.join(" and ")}`}
           </p>
           {canConfigure && (
-            <Link href={settingsHref} className={`${buttonClass({ variant: "secondary", size: "sm" })} mt-3`}>
+            <Link href={settingsHref} className={buttonClass({ variant: "secondary", size: "sm" })}>
               Open settings
             </Link>
           )}
@@ -200,9 +95,36 @@ export function ServersView({
     );
   }
 
+  if (inventory.kind === "error") {
+    const hint =
+      inventory.status === 401 || inventory.status === 403
+        ? "Check the client ID, client secret and organization ID."
+        : inventory.status === 404
+          ? "Check the organization ID."
+          : "Check the API address.";
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Servers" actions={canConfigure ? refresh : undefined} />
+        <div className="border border-[#f2c9c9] bg-danger-soft px-4 py-3">
+          <p className="flex items-center gap-2 text-[13px] font-medium text-danger">
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+            {`Action1 could not be read${inventory.status ? ` (HTTP ${inventory.status})` : ""}.`}
+          </p>
+          <p className="mt-1 text-[12.5px] text-body">{inventory.message}</p>
+          {canConfigure && (
+            <p className="mt-2 flex flex-wrap items-center gap-3 text-[12px] text-body">
+              {hint}
+              <Link href={settingsHref} className="font-medium text-navy hover:underline">
+                Open settings
+              </Link>
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const summary = summariseEndpoints(inventory.endpoints);
-  // An empty inventory has nothing to report; a populated one that came back
-  // without patch fields should say so rather than claim "0".
   const patchReported = inventory.endpoints.length === 0 || inventory.patchData;
   const visible = inventory.endpoints.filter((endpoint) => {
     if (filter === "connected") return endpoint.status.toLowerCase() === "connected";
@@ -222,18 +144,9 @@ export function ServersView({
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Servers" actions={actions}>
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          {`${inventory.total} ${inventory.total === 1 ? "endpoint" : "endpoints"} managed in Action1${
-            inventory.truncated ? `, showing the first ${inventory.endpoints.length}` : ""
-          }.`}{" "}
-          Patch level and check-in times come straight from the Action1 API.
-        </p>
-      </PageHeader>
+      <PageHeader title="Servers" actions={refresh} />
 
-      <ConnectionStrip status={status} inventory={inventory} />
-
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 border-y border-line py-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Endpoints" value={String(summary.total)} />
         <Stat label="Connected" value={String(summary.connected)} tone="text-success" />
         <Stat
@@ -255,9 +168,8 @@ export function ServersView({
       </dl>
 
       {!patchReported && (
-        <p className="border border-[#f0dfb4] bg-warning-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-body">
-          Action1 returned these endpoints without patch counts, so the patch figures show “—”.
-          This usually means the API key is not allowed to read update data for this organization.
+        <p className="border border-[#f0dfb4] bg-warning-soft px-3.5 py-2.5 text-[12px] text-body">
+          Action1 returned no patch data for these endpoints.
         </p>
       )}
 
@@ -288,8 +200,8 @@ export function ServersView({
           title={inventory.endpoints.length === 0 ? "No endpoints reported" : "Nothing in this filter"}
           description={
             inventory.endpoints.length === 0
-              ? "Action1 returned an empty inventory for this organization. Install the agent on a device, then refresh."
-              : "No endpoint matches the selected status. Switch back to all endpoints to see the full inventory."
+              ? "Action1 has no endpoints for this organization yet."
+              : undefined
           }
           compact
         />
@@ -362,23 +274,9 @@ export function ServersView({
 
       {inventory.truncated && (
         <p className="text-[11.5px] text-muted">
-          Showing {inventory.endpoints.length} of {inventory.total} endpoints. Narrow the inventory in
-          the Action1 console to see the rest here.
+          Showing {inventory.endpoints.length} of {inventory.total} endpoints.
         </p>
       )}
-
-      <p className="text-[11.5px] text-muted">
-        Endpoint names open the Action1 record for that device.{" "}
-        <a
-          href={`https://${inventory.apiHost}/console/endpoints`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-navy hover:underline"
-        >
-          Open Action1 console
-          <ExternalLink className="h-3 w-3" aria-hidden />
-        </a>
-      </p>
     </div>
   );
 }

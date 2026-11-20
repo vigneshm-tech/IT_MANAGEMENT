@@ -68,15 +68,13 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "servers": {
-      const [{ view }, status, inventory] = await Promise.all([
+      const [{ view }, inventory] = await Promise.all([
         searchParams,
-        integrationStatus(user.id, "action1"),
         loadServersInventory(user.id),
       ]);
       return (
         <ServersView
           user={user}
-          status={status}
           inventory={inventory}
           filter={isServersFilter(view) ? view : "all"}
         />

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { AlertTriangle, PackageOpen } from "lucide-react";
 import { StatusPill, toneFor } from "@/components/ui/status-pill";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -321,18 +320,8 @@ export function EndpointTabs({
 
                 <p className="text-[11.5px] text-muted">
                   {updates.length < updateTotal
-                    ? `Showing ${updates.length} of ${updateTotal} missing updates. `
-                    : `${updates.length} ${updates.length === 1 ? "update" : "updates"} missing. `}
-                  Deploy from the{" "}
-                  <Link
-                    href={endpoint.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-navy hover:underline"
-                  >
-                    Action1 console
-                  </Link>
-                  .
+                    ? `Showing ${updates.length} of ${updateTotal} missing updates.`
+                    : `${updates.length} ${updates.length === 1 ? "update" : "updates"} missing.`}
                 </p>
               </>
             )}
