@@ -201,6 +201,9 @@ export function ServersView({
   }
 
   const summary = summariseEndpoints(inventory.endpoints);
+  // An empty inventory has nothing to report; a populated one that came back
+  // without patch fields should say so rather than claim "0".
+  const patchReported = inventory.endpoints.length === 0 || inventory.patchData;
   const visible = inventory.endpoints.filter((endpoint) => {
     if (filter === "connected") return endpoint.status.toLowerCase() === "connected";
     if (filter === "disconnected") return endpoint.status.toLowerCase() !== "connected";
@@ -245,11 +248,18 @@ export function ServersView({
         />
         <Stat
           label="Critical patches"
-          value={String(summary.missingCritical)}
-          tone={summary.missingCritical > 0 ? "text-danger" : undefined}
+          value={patchReported ? String(summary.missingCritical) : "—"}
+          tone={patchReported && summary.missingCritical > 0 ? "text-danger" : undefined}
         />
-        <Stat label="Other patches" value={String(summary.missingOther)} />
+        <Stat label="Other patches" value={patchReported ? String(summary.missingOther) : "—"} />
       </dl>
+
+      {!patchReported && (
+        <p className="border border-[#f0dfb4] bg-warning-soft px-3.5 py-2.5 text-[12px] leading-relaxed text-body">
+          Action1 returned these endpoints without patch counts, so the patch figures show “—”.
+          This usually means the API key is not allowed to read update data for this organization.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-1 border-b border-line pb-1">
         {filters.map((item) => {

@@ -120,6 +120,9 @@ function str(value: unknown, fallback = ""): string {
   return fallback;
 }
 
+/** Action1 documents these two as the extended patch fields. */
+export const ACTION1_PATCH_FIELDS = "missing_critical_updates,missing_other_updates";
+
 /** Counts arrive as numbers, "3" or "" depending on the field set. */
 function count(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -128,6 +131,31 @@ function count(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+/**
+ * Counts as documented, with a nested `missing_updates` object as a fallback.
+ *
+ * Action1 answers with an empty string when nothing is missing, so that reads
+ * as 0; a field that is absent altogether stays `null` ("not reported").
+ */
+function firstCount(primary: unknown, nested: unknown, key: string): number | null {
+  const direct = count(primary);
+  if (direct !== null) return direct;
+  if (typeof primary === "string" && primary.trim() === "") return 0;
+  const object = (nested ?? {}) as Record<string, unknown>;
+  const nestedValue = count(object[key]);
+  if (nestedValue !== null) return nestedValue;
+  return typeof object[key] === "string" && String(object[key]).trim() === "" ? 0 : null;
+}
+
+/** True once a payload actually carries the extended patch fields. */
+export function carriesPatchData(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const record = item as Record<string, unknown>;
+  if ("missing_critical_updates" in record || "missing_other_updates" in record) return true;
+  const nested = record.missing_updates;
+  return !!nested && typeof nested === "object";
 }
 
 export function mapEndpoint(raw: unknown, baseUrl: string): Action1Endpoint {
@@ -150,8 +178,8 @@ export function mapEndpoint(raw: unknown, baseUrl: string): Action1Endpoint {
     subscriptionStatus: str(endpoint.subscription_status),
     user: str(endpoint.user),
     comment: str(endpoint.comment),
-    missingCritical: count(endpoint.missing_critical_updates),
-    missingOther: count(endpoint.missing_other_updates),
+    missingCritical: firstCount(endpoint.missing_critical_updates, endpoint.missing_updates, "critical"),
+    missingOther: firstCount(endpoint.missing_other_updates, endpoint.missing_updates, "other"),
     rebootRequired: str(endpoint.reboot_required),
     updateStatus: str(endpoint.update_status),
     vulnerabilityStatus: str(endpoint.vulnerability_status),
@@ -176,6 +204,11 @@ export type Action1EndpointPage = {
   limit: number;
   /** Absolute URL of the next page, as the API supplies it. */
   nextPage: string | null;
+  /**
+   * False when the response came back without the extended patch fields, i.e.
+   * `fields=*` did not unlock them for this organization.
+   */
+  extended: boolean;
 };
 
 export function mapEndpointPage(payload: unknown, baseUrl: string): Action1EndpointPage {
@@ -187,6 +220,7 @@ export function mapEndpointPage(payload: unknown, baseUrl: string): Action1Endpo
     totalCount: count(page.total_items) ?? items.length,
     limit: count(page.limit) ?? items.length,
     nextPage: typeof page.next_page === "string" && page.next_page ? page.next_page : null,
+    extended: items.some(carriesPatchData),
   };
 }
 
@@ -336,7 +370,19 @@ async function resolveToken(
  */
 export async function fetchEndpoints(
   config: Action1Config,
-  params: { orgId: string; from?: number; limit?: number; status?: string; sortBy?: string },
+  params: {
+    orgId: string;
+    from?: number;
+    limit?: number;
+    status?: string;
+    sortBy?: string;
+    /**
+     * `fields` asks Action1 to add extended data on top of the default fields.
+     * `*` is the documented "everything" value; naming the two patch fields is
+     * the fallback when a tenant ignores the star.
+     */
+    fields?: string;
+  },
   options: { fetchImpl?: typeof fetch; token?: string } = {},
 ): Promise<Action1EndpointPage> {
   const token = options.token ?? (await resolveToken(config, options));
@@ -345,7 +391,7 @@ export async function fetchEndpoints(
   const query = new URLSearchParams({
     from: String(params.from ?? 0),
     limit: String(limit),
-    fields: "*",
+    fields: params.fields ?? "*",
   });
   if (params.status) query.set("status", params.status);
   if (params.sortBy) query.set("sortby", params.sortBy);
@@ -367,12 +413,25 @@ export async function fetchEndpoint(
   options: { fetchImpl?: typeof fetch; token?: string } = {},
 ): Promise<Action1Endpoint> {
   const token = options.token ?? (await resolveToken(config, options));
-  const payload = await request<unknown>(
-    config,
-    `/endpoints/managed/${encodeURIComponent(params.orgId)}/${encodeURIComponent(params.endpointId)}?fields=*`,
-    token,
-    options,
-  );
+  const path = `/endpoints/managed/${encodeURIComponent(params.orgId)}/${encodeURIComponent(params.endpointId)}`;
+
+  let payload = await request<unknown>(config, `${path}?fields=*`, token, options);
+
+  // Same fallback as the list: if the star did not unlock the patch fields,
+  // ask for them by name.
+  if (!carriesPatchData(payload)) {
+    try {
+      const retry = await request<unknown>(
+        config,
+        `${path}?fields=${encodeURIComponent(ACTION1_PATCH_FIELDS)}`,
+        token,
+        options,
+      );
+      if (carriesPatchData(retry)) payload = retry;
+    } catch {
+      // Keep the first answer when the tenant rejects the explicit list.
+    }
+  }
 
   const endpoint = mapEndpoint(payload, config.baseUrl);
   if (!endpoint.id) throw new Action1Error("Action1 returned no endpoint for that id.", 0);

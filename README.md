@@ -377,7 +377,14 @@ Notes taken from the reference:
 - Collections are `ResultPage` objects — `items`, `total_items`, `limit` and
   `next_page` — and the module pages them with `from`/`limit` until the
   inventory is complete, capped at 200 endpoints so one huge tenant cannot stall
-  the page. `fields=*` asks for the extended field set (patch counts, hardware).
+  the page. `fields=*` asks for the extended field set; the two patch counts are
+  the documented extras (`missing_critical_updates`, `missing_other_updates`).
+- Patch counts are read defensively: if a tenant ignores `fields=*`, the first
+  page (and the endpoint detail call) is re-read with those two fields named
+  explicitly. If they still come back absent the patch figures show **“—”**
+  rather than a misleading 0, with a note that the API key may not be allowed to
+  read update data — Action1 sends `""` when an endpoint simply has nothing
+  missing, and that reads as 0.
 - Action1 dates arrive as `YYYY-MM-DD_HH-mm-ss` in UTC and are normalised
   before formatting in IST.
 - Failures are translated into advice: `401` → “Action1 rejected the

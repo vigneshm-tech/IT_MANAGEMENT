@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { after, test } from "node:test";
 import {
+  ACTION1_PATCH_FIELDS,
   Action1Error,
   action1ConsoleUrl,
   action1EndpointUrl,
@@ -140,6 +141,7 @@ test("a result page keeps the total and the next-page link", () => {
   );
 
   assert.equal(page.items.length, 2);
+  assert.equal(page.extended, false, "no patch fields in this payload");
   assert.equal(page.totalCount, 120);
   assert.equal(page.limit, 2);
   assert.match(String(page.nextPage), /from=2$/);
@@ -148,6 +150,46 @@ test("a result page keeps the total and the next-page link", () => {
   assert.deepEqual(empty.items, []);
   assert.equal(empty.totalCount, 0);
   assert.equal(empty.nextPage, null);
+  assert.equal(empty.extended, false);
+});
+
+test("patch fields are detected, and a nested missing_updates object is accepted", () => {
+  const withFields = mapEndpointPage(
+    {
+      items: [
+        {
+          id: "e-1",
+          name: "A",
+          missing_critical_updates: "4",
+          missing_other_updates: "9",
+        },
+      ],
+    },
+    "https://app.action1.com/api/3.0",
+  );
+  assert.equal(withFields.extended, true);
+  assert.equal(withFields.items[0].missingCritical, 4);
+  assert.equal(withFields.items[0].missingOther, 9);
+
+  // Action1 answers "" when nothing is missing; an absent field means "not
+  // reported" and must not be mistaken for zero.
+  const reportedZero = mapEndpoint(
+    { id: "e-2", missing_critical_updates: "", missing_other_updates: "" },
+    "https://app.action1.com/api/3.0",
+  );
+  assert.equal(reportedZero.missingCritical, 0);
+  assert.equal(reportedZero.missingOther, 0);
+
+  const notReported = mapEndpoint({ id: "e-4" }, "https://app.action1.com/api/3.0");
+  assert.equal(notReported.missingCritical, null);
+
+  // Some payloads nest the counts instead of flattening them.
+  const nested = mapEndpoint(
+    { id: "e-3", missing_updates: { critical: 2, other: 7 } },
+    "https://app.action1.com/api/3.0",
+  );
+  assert.equal(nested.missingCritical, 2);
+  assert.equal(nested.missingOther, 7);
 });
 
 test("organizations are read from a result page or a bare array", () => {
@@ -327,6 +369,21 @@ const ENDPOINTS = Array.from({ length: 3 }, (_, index) => ({
   reboot_required: index === 1,
 }));
 
+/**
+ * The test server mimics a tenant that ignores `fields=*` but answers when the
+ * two patch fields are named explicitly — the case that used to leave the
+ * Critical/Other patch figures stuck at 0.
+ */
+function namesPatchFields(url: string): boolean {
+  const fields = new URL(url, "http://localhost").searchParams.get("fields") ?? "";
+  return fields !== "*" && (fields.includes("missing_critical_updates") || fields.includes("missing_other_updates"));
+}
+
+function endpointPayload(url: string) {
+  if (namesPatchFields(url)) return ENDPOINTS;
+  return ENDPOINTS.map(({ missing_critical_updates: _critical, missing_other_updates: _other, ...rest }) => rest);
+}
+
 function startServer(): Promise<void> {
   server = http.createServer((request, response) => {
     let body = "";
@@ -371,7 +428,7 @@ function startServer(): Promise<void> {
 
       if (url.startsWith("/endpoints/managed/org-1/")) {
         const id = url.split("?")[0].split("/").pop();
-        const endpoint = ENDPOINTS.find((item) => item.id === id);
+        const endpoint = endpointPayload(url).find((item) => item.id === id);
         return endpoint ? json(200, endpoint) : json(404, { message: "Not found" });
       }
 
@@ -379,12 +436,13 @@ function startServer(): Promise<void> {
         const params = new URL(url, "http://localhost").searchParams;
         const from = Number(params.get("from") ?? 0);
         const limit = Number(params.get("limit") ?? 25);
-        const slice = ENDPOINTS.slice(from, from + limit);
+        const all = endpointPayload(url);
+        const slice = all.slice(from, from + limit);
         const next = from + limit < ENDPOINTS.length;
         return json(200, {
           type: "ResultPage",
           items: slice,
-          total_items: ENDPOINTS.length,
+          total_items: all.length,
           limit,
           next_page: next ? `${baseUrl}/endpoints/managed/org-1?from=${from + limit}` : null,
         });
@@ -478,6 +536,27 @@ test("endpoints are paged with from, limit and fields=*", async () => {
   assert.equal(seen[0].authorization, "Bearer token-abc");
 });
 
+test("patch fields come back when they are named explicitly", async () => {
+  await serverReady;
+
+  const starred = await fetchEndpoints(
+    config(),
+    { orgId: "org-1", limit: 3 },
+    { token: "token-abc" },
+  );
+  assert.equal(starred.extended, false, "this tenant ignores fields=*");
+
+  const explicit = await fetchEndpoints(
+    config(),
+    { orgId: "org-1", limit: 3, fields: ACTION1_PATCH_FIELDS },
+    { token: "token-abc" },
+  );
+  assert.equal(explicit.extended, true);
+  assert.equal(explicit.items[0].missingCritical, 0);
+  assert.equal(explicit.items[1].missingCritical, 1);
+  assert.equal(explicit.items[1].missingOther, 2);
+});
+
 test("limits are clamped to the documented 1..50 range", async () => {
   await serverReady;
   seen.length = 0;
@@ -510,7 +589,7 @@ test("a configured organization id skips /organizations", async () => {
   assert.equal(seen.length, 0);
 });
 
-test("one endpoint is read from its detail route", async () => {
+test("one endpoint is read from its detail route, retrying for patch fields", async () => {
   await serverReady;
   seen.length = 0;
 
@@ -522,6 +601,8 @@ test("one endpoint is read from its detail route", async () => {
 
   assert.equal(endpoint.name, "ACME-SRV02");
   assert.equal(endpoint.missingOther, 2);
+  assert.equal(seen.length, 2, "the star response carried no patch fields, so it is re-read");
+  assert.match(decodeURIComponent(seen[1].url), /fields=missing_critical_updates/);
   assert.equal(new URL(seen[0].url, "http://localhost").pathname, "/endpoints/managed/org-1/e-2");
   assert.equal(new URL(seen[0].url, "http://localhost").searchParams.get("fields"), "*");
 

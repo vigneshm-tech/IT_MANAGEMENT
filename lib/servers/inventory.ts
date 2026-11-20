@@ -1,4 +1,5 @@
 import {
+  ACTION1_PATCH_FIELDS,
   Action1Error,
   fetchAccessToken,
   fetchEndpoint,
@@ -42,6 +43,8 @@ export type ServersInventory =
       endpoints: Action1Endpoint[];
       total: number;
       truncated: boolean;
+      /** False when Action1 returned no patch fields at all. */
+      patchData: boolean;
       organizationId: string;
       apiHost: string;
       fetchedAt: string;
@@ -93,20 +96,58 @@ export async function loadServersInventory(
     const endpoints: Action1Endpoint[] = [];
     let total = 0;
     let from = 0;
+    // Start with the documented `fields=*`. Some tenants ignore it and answer
+    // with default fields only, which used to leave every patch count at zero —
+    // so the first page is re-read with the patch fields named explicitly.
+    let fields = "*";
+    let patchFieldsReturned = false;
+
+    let page = await fetchEndpoints(
+      config,
+      { orgId: organizationId, from, limit: Math.min(PAGE_SIZE, limit) },
+      { token },
+    );
+
+    if (page.items.length > 0 && !page.extended) {
+      try {
+        const retry = await fetchEndpoints(
+          config,
+          {
+            orgId: organizationId,
+            from: 0,
+            limit: Math.min(PAGE_SIZE, limit),
+            fields: ACTION1_PATCH_FIELDS,
+          },
+          { token },
+        );
+        if (retry.extended) {
+          page = retry;
+          fields = ACTION1_PATCH_FIELDS;
+        }
+      } catch {
+        // A tenant that rejects the explicit list keeps the default fields.
+      }
+    }
 
     while (endpoints.length < limit) {
-      const page = await fetchEndpoints(
-        config,
-        { orgId: organizationId, from, limit: Math.min(PAGE_SIZE, limit - endpoints.length) },
-        { token },
-      );
-
+      patchFieldsReturned = patchFieldsReturned || page.extended;
       total = Math.max(page.totalCount, endpoints.length + page.items.length);
       endpoints.push(...page.items);
       from += page.items.length;
 
       // An empty page means the API has nothing more to give, whatever the total says.
       if (page.items.length === 0 || endpoints.length >= total) break;
+
+      page = await fetchEndpoints(
+        config,
+        {
+          orgId: organizationId,
+          from,
+          limit: Math.min(PAGE_SIZE, limit - endpoints.length),
+          fields,
+        },
+        { token },
+      );
     }
 
     return {
@@ -114,6 +155,7 @@ export async function loadServersInventory(
       endpoints,
       total,
       truncated: endpoints.length < total,
+      patchData: patchFieldsReturned,
       organizationId,
       apiHost: new URL(config.baseUrl).host,
       fetchedAt: new Date().toISOString(),
