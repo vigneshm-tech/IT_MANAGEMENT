@@ -227,3 +227,31 @@ export async function loadEndpointDetail(
     return state.kind === "error" ? state : { kind: "error", message: "Unknown error", status: 0 };
   }
 }
+
+/** One entry of the server picker on the task form. */
+export type ServerOption = {
+  /** The value stored on the task — the endpoint name as Action1 reports it. */
+  value: string;
+  label: string;
+  hint: string;
+};
+
+/**
+ * Endpoint names for the task form's "Server details" dropdown.
+ *
+ * Names only — the task form is open to every role, so it gets no patch,
+ * severity or agent data. An unconfigured or failing Action1 connection returns
+ * an empty list and the form falls back to free text.
+ */
+export async function listServerOptions(userId: string): Promise<ServerOption[]> {
+  const inventory = await loadServersInventory(userId, { limit: MAX_ENDPOINTS });
+  if (inventory.kind !== "ready") return [];
+
+  return inventory.endpoints
+    .map((endpoint) => ({
+      value: endpoint.name,
+      label: endpoint.name,
+      hint: [endpoint.os, endpoint.ipAddress].filter(Boolean).join(" · "),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}

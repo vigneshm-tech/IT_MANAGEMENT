@@ -5,7 +5,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID, ROLE_GROUPS } from "@/lib/roles";
+import { ROLE_BY_ID } from "@/lib/roles";
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
@@ -19,7 +19,7 @@ const COLUMNS: Column[] = [
   { key: "activityType", label: "Activity", type: "muted", width: "150px" },
   { key: "planStatus", label: "Planned", type: "muted", width: "105px" },
   { key: "priority", label: "Priority", type: "status", width: "110px" },
-  { key: "team", label: "Team", width: "190px" },
+  { key: "assignee", label: "Assigned to", width: "190px" },
   { key: "due", label: "Due", type: "muted", width: "110px" },
   { key: "referenceTicketNo", label: "Ticket", type: "mono", width: "100px" },
   { key: "status", label: "Status", type: "status", align: "right", width: "120px" },
@@ -55,9 +55,12 @@ export function TasksView({
     : "requested";
 
   const roleGroup = ROLE_BY_ID[user.role].group;
+  const mine = (task: TaskRecord) =>
+    task.assigneeId ? task.assigneeId === user.id : task.assigneeRole === user.role;
+
   const visibleTasks =
     currentView === "mine"
-      ? tasks.filter((task) => task.assigneeRole === user.role)
+      ? tasks.filter(mine)
       : currentView === "group"
         ? tasks.filter((task) => ROLE_BY_ID[task.assigneeRole]?.group === roleGroup)
         : tasks;
@@ -72,7 +75,7 @@ export function TasksView({
       planStatus: task.planStatus === "planned" ? "Planned" : "Unplanned",
       referenceTicketNo: task.referenceTicketNo || "—",
       priority: task.priority,
-      team: ROLE_BY_ID[task.assigneeRole]?.label ?? "—",
+      assignee: task.assigneeName || ROLE_BY_ID[task.assigneeRole]?.label || "—",
       due: task.dueDate ? formatDayMonth(task.dueDate) : "—",
       status: task.status,
     },
@@ -86,7 +89,7 @@ export function TasksView({
         key={task.id}
         taskId={task.id}
         canEdit={canEdit}
-        canContribute={canEdit || task.assigneeRole === user.role}
+        canContribute={canEdit || task.assigneeRole === user.role || task.assigneeId === user.id}
       />,
     ]),
   );
@@ -162,25 +165,19 @@ export function TasksView({
         tableId={`tasks-${currentView}`}
         exportName={`tasktornado-tasks-${currentView}`}
         defaultHidden={HIDDEN_BY_DEFAULT}
-        searchPlaceholder="Search tasks, teams or references"
+        searchPlaceholder="Search tasks, people or references"
         emptyState={
           currentView === "mine" ? (
-            <EmptyState
-              icon={ListChecks}
-              title="Nothing assigned to your role"
-              description={`Tasks routed to ${ROLE_BY_ID[user.role].label} will appear here.`}
-            />
+            <EmptyState icon={ListChecks} title="Nothing assigned to you" />
           ) : currentView === "group" ? (
             <EmptyState
               icon={ListChecks}
               title="Nothing assigned to your group"
-              description={`Tasks routed to any ${ROLE_GROUPS[roleGroup].label} role will appear here.`}
             />
           ) : (
             <EmptyState
               icon={ListChecks}
               title="No tasks on the board"
-              description="Work raised by any team will show up here with its owner, priority and due date."
               action={
                 canCreate ? (
                   <Link

@@ -33,6 +33,9 @@ export type TaskRecord = {
   notes: string;
   priority: TaskPriority;
   status: TaskStatus;
+  /** Person the work sits with; empty for tasks raised before people were assignable. */
+  assigneeId: string;
+  assigneeName: string;
   assigneeRole: RoleId;
   createdByName: string;
   createdByRole: RoleId;
@@ -44,6 +47,9 @@ export type TaskInput = TaskRequestDetails & {
   title: string;
   description: string;
   priority: TaskPriority;
+  status: TaskStatus;
+  assigneeId: string;
+  assigneeName: string;
   assigneeRole: RoleId;
   dueDate: string | null;
 };
@@ -58,6 +64,8 @@ type TaskRow = {
   notes: string | null;
   priority: TaskPriority;
   status: TaskStatus;
+  assignee_id: string | null;
+  assignee_name: string | null;
   assignee_role: RoleId;
   created_by_name: string | null;
   created_by_role: RoleId;
@@ -80,6 +88,8 @@ const COLUMNS = [
   "notes",
   "priority",
   "status",
+  "assignee_id",
+  "assignee_name",
   "assignee_role",
   "created_by_name",
   "created_by_role",
@@ -116,6 +126,8 @@ function fromRow(row: TaskRow): TaskRecord {
     notes: row.notes ?? "",
     priority: row.priority,
     status: row.status,
+    assigneeId: row.assignee_id ?? "",
+    assigneeName: row.assignee_name ?? "",
     assigneeRole: row.assignee_role,
     createdByName: row.created_by_name ?? "TaskTornado",
     createdByRole: row.created_by_role,
@@ -140,6 +152,8 @@ function memoryTasks(): TaskRecord[] {
     notes: task.notes,
     priority: task.priority,
     status: task.status,
+    assigneeId: task.assigneeId,
+    assigneeName: task.assigneeName,
     assigneeRole: task.assigneeRole,
     createdByName: task.createdBy.name,
     createdByRole: task.createdBy.role,
@@ -190,7 +204,9 @@ export async function createTask(
       description: input.description,
       notes: "",
       priority: input.priority,
-      status: "todo",
+      status: input.status,
+      assigneeId: input.assigneeId,
+      assigneeName: input.assigneeName,
       assigneeRole: input.assigneeRole,
       createdBy: { name: user.name, role: user.role },
       dueDate: input.dueDate,
@@ -211,6 +227,8 @@ export async function createTask(
       notes: task.notes,
       priority: task.priority,
       status: task.status,
+      assigneeId: task.assigneeId,
+      assigneeName: task.assigneeName,
       assigneeRole: task.assigneeRole,
       createdByName: task.createdBy.name,
       createdByRole: task.createdBy.role,
@@ -235,7 +253,9 @@ export async function createTask(
       description: input.description,
       notes: "",
       priority: input.priority,
-      status: "todo",
+      status: input.status,
+      assignee_id: input.assigneeId || null,
+      assignee_name: input.assigneeName,
       assignee_role: input.assigneeRole,
       created_by: user.id,
       created_by_name: user.name,
@@ -262,6 +282,9 @@ export async function updateTask(id: string, input: TaskEditInput): Promise<bool
         title: input.title,
         description: input.description,
         priority: input.priority,
+        status: input.status,
+        assigneeId: input.assigneeId,
+        assigneeName: input.assigneeName,
         assigneeRole: input.assigneeRole,
         dueDate: input.dueDate,
         clientName: input.clientName,
@@ -283,6 +306,9 @@ export async function updateTask(id: string, input: TaskEditInput): Promise<bool
       title: input.title,
       description: input.description,
       priority: input.priority,
+      status: input.status,
+      assignee_id: input.assigneeId || null,
+      assignee_name: input.assigneeName,
       assignee_role: input.assigneeRole,
       due_date: input.dueDate,
       ...requestColumns(input),

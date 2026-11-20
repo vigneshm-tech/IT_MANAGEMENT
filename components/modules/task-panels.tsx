@@ -1,9 +1,9 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { TASK_STATUS_OPTIONS } from "@/lib/tasks/options";
+import { TASK_STATUS_OPTIONS, taskStatusHint } from "@/lib/tasks/options";
 import type { FormState } from "@/lib/forms";
 import type { TaskStatus } from "@/lib/tasks/store";
 import { changeTaskStatusAction, updateTaskNoteAction } from "@/app/(app)/modules/tasks/actions";
@@ -42,16 +42,12 @@ export function TaskStatusPanel({
   canMove: boolean;
 }) {
   const [state, formAction, pending] = useActionState(changeTaskStatusAction, {} as FormState);
+  const [status, setStatus] = useState<TaskStatus>(current);
 
   return (
     <section id="status" className="scroll-mt-24 border border-line bg-surface">
       <div className="border-b border-line px-4 py-3 sm:px-5">
         <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-navy">Status</h2>
-        <p className="mt-1 text-[11.5px] text-muted">
-          {canMove
-            ? "Move this task as the owning team or leadership."
-            : "Only the owning team or leadership can move this task."}
-        </p>
       </div>
 
       {canMove ? (
@@ -61,13 +57,21 @@ export function TaskStatusPanel({
             <label htmlFor="task-status" className="field-label">
               Set status
             </label>
-            <select id="task-status" name="status" defaultValue={current} className="field">
+            <select
+              id="task-status"
+              name="status"
+              required
+              value={status}
+              onChange={(event) => setStatus(event.target.value as TaskStatus)}
+              className="field"
+            >
               {TASK_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label} — {option.hint}
+                  {option.label}
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-[11.5px] text-muted">{taskStatusHint(status)}</p>
           </div>
 
           <Feedback state={state} />
@@ -102,9 +106,6 @@ export function TaskNotesPanel({
     <section id="notes" className="scroll-mt-24 border border-line bg-surface">
       <div className="border-b border-line px-4 py-3 sm:px-5">
         <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-navy">Notes</h2>
-        <p className="mt-1 text-[11.5px] text-muted">
-          Every entry is stamped with the author and time; nothing is overwritten.
-        </p>
       </div>
 
       <div className="px-4 py-4 sm:px-5">

@@ -15,6 +15,8 @@ function seedTask(title: string) {
     notes: "",
     priority: "medium",
     status: "todo",
+    assigneeId: "u-it-engineer",
+    assigneeName: "Arun Prakash",
     assigneeRole: "it_engineer",
     createdBy: { name: "Test Runner", role: "it_manager" },
     dueDate: null,
@@ -77,5 +79,5 @@ test("status moves independently of notes", () => {
 test("unknown ids are refused", () => {
   assert.equal(updateTask("TSK-DOES-NOT-EXIST", { title: "Nowhere" }), null);
   assert.equal(appendTaskNote("TSK-DOES-NOT-EXIST", "Nowhere"), null);
-  assert.equal(updateTaskStatus("TSK-DOES-NOT-EXIST", "done"), null);
+  assert.equal(updateTaskStatus("TSK-DOES-NOT-EXIST", "completed"), null);
 });

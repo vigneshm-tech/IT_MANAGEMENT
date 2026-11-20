@@ -4,7 +4,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TaskForm } from "@/components/modules/task-form";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listActiveActivityTypes, listClients } from "@/lib/records/repository";
+import {
+  listActiveActivityTypes,
+  listAssignableUsers,
+  listClients,
+} from "@/lib/records/repository";
+import { peopleOptions } from "@/lib/tasks/options";
+import { listServerOptions } from "@/lib/servers/inventory";
 import { getTask } from "@/lib/tasks/repository";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -24,11 +30,13 @@ export default async function EditTaskPage({ params }: PageProps) {
   const task = await getTask(id);
   if (!task) notFound();
 
-  const [clients, activityTypes] = await Promise.all([
+  const [clients, activityTypes, people, servers] = await Promise.all([
     listClients().then((items) =>
       items.filter((client) => client.status === "active").map((client) => client.name),
     ),
     listActiveActivityTypes("tasks"),
+    listAssignableUsers(),
+    listServerOptions(user.id),
   ]);
 
   return (
@@ -40,6 +48,8 @@ export default async function EditTaskPage({ params }: PageProps) {
         requester={{ name: user.name, email: user.email }}
         clients={clients}
         activityTypes={activityTypes}
+        people={peopleOptions(people)}
+        servers={servers}
       />
     </div>
   );

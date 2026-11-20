@@ -46,7 +46,8 @@ export default async function TaskPage({ params, searchParams }: PageProps) {
 
   const { created, updated } = await searchParams;
   const canEdit = can(user.role, "tasks", "edit");
-  const canMove = canEdit || task.assigneeRole === user.role;
+  const canMove =
+    canEdit || task.assigneeRole === user.role || task.assigneeId === user.id;
 
   return (
     <div className="space-y-4">
@@ -94,7 +95,9 @@ export default async function TaskPage({ params, searchParams }: PageProps) {
           <Detail label="Client">{task.clientName || "—"}</Detail>
           <Detail label="Activity type">{task.activityType || "—"}</Detail>
           <Detail label="Planned">{humanise(task.planStatus)}</Detail>
-          <Detail label="Assigned to">{ROLE_BY_ID[task.assigneeRole]?.label ?? "—"}</Detail>
+          <Detail label="Assigned to">
+            {task.assigneeName || ROLE_BY_ID[task.assigneeRole]?.label || "—"}
+          </Detail>
           <Detail label="Due">{task.dueDate ? formatDate(task.dueDate) : "—"}</Detail>
           <Detail label="Reference ticket">{task.referenceTicketNo || "—"}</Detail>
           <Detail label="Requested by">{task.requestedByName || task.createdByName}</Detail>

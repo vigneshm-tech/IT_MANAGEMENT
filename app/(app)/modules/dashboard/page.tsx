@@ -18,6 +18,7 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { buttonClass } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { can, visibleModules } from "@/lib/access";
+import { isOpenStatus } from "@/lib/tasks/options";
 import { integrationStatus } from "@/lib/integrations/store";
 import { ROLE_BY_ID } from "@/lib/roles";
 import {
@@ -81,7 +82,7 @@ export default async function OverviewPage() {
   ]);
   const now = new Date();
 
-  const openTasks = tasks.filter((task) => task.status !== "done");
+  const openTasks = tasks.filter((task) => isOpenStatus(task.status));
   const inProgress = tasks.filter((task) => task.status === "in_progress");
   const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
   const renewalsDue = renewals.filter(
@@ -132,7 +133,7 @@ export default async function OverviewPage() {
     {
       label: "Open tasks",
       value: openTasks.length,
-      foot: `${tasks.filter((task) => task.status === "done").length} completed`,
+      foot: `${tasks.filter((task) => task.status === "completed").length} completed`,
       icon: ListChecks,
     },
     {

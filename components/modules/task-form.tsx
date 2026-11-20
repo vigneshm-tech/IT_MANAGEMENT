@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
-import { ROLE_GROUPS, VISIBLE_ROLES } from "@/lib/roles";
-import { NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { TASK_STATUS_OPTIONS, NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
+import type { TaskStatus } from "@/lib/tasks/store";
 import type { FormState } from "@/lib/forms";
 import type { TaskRecord } from "@/lib/tasks/repository";
 import { createTaskAction, updateTaskAction } from "@/app/(app)/modules/tasks/actions";
@@ -66,6 +67,8 @@ export function TaskForm({
   requester,
   clients,
   activityTypes,
+  people,
+  servers,
   task,
 }: {
   mode: "create" | "edit";
@@ -73,6 +76,10 @@ export function TaskForm({
   clients: string[];
   /** Masters → Activity types; the form offers nothing else. */
   activityTypes: string[];
+  /** Active staff from the Users & Groups directory. */
+  people: SearchSelectOption[];
+  /** Endpoint names from the Servers module; empty when Action1 is unreachable. */
+  servers: SearchSelectOption[];
   task?: TaskRecord;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -81,7 +88,8 @@ export function TaskForm({
   );
 
   const cancelHref = mode === "edit" && task ? `/modules/tasks/${task.id}` : "/modules/tasks";
-  const roleGroups = Object.keys(ROLE_GROUPS) as (keyof typeof ROLE_GROUPS)[];
+
+  const [status, setStatus] = useState<TaskStatus>(task?.status ?? "todo");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -199,7 +207,7 @@ export function TaskForm({
         </div>
       </Section>
 
-      <Section title="Requested by" hint="Captured automatically from the signed-in account.">
+      <Section title="Requested by">
         <div>
           <label htmlFor="requestedByName" className="field-label">
             Requested by
@@ -235,14 +243,31 @@ export function TaskForm({
           <label htmlFor="serverDetails" className="field-label">
             Server details
           </label>
-          <textarea
-            id="serverDetails"
-            name="serverDetails"
-            rows={2}
-            defaultValue={task?.serverDetails ?? ""}
-            placeholder="Hostnames, environment or asset tags"
-            className="field resize-none"
-          />
+          {servers.length > 0 ? (
+            <SearchSelect
+              name="serverDetails"
+              options={servers}
+              placeholder="Select a server"
+              emptyLabel="Select a server"
+              ariaLabel="Server details"
+              defaultValue={task?.serverDetails ?? ""}
+              searchPlaceholder="Search servers"
+            />
+          ) : (
+            <>
+              <input
+                id="serverDetails"
+                name="serverDetails"
+                defaultValue={task?.serverDetails ?? ""}
+                placeholder="Hostname or asset tag"
+                className="field"
+              />
+              <p className="mt-1 text-[11.5px] text-muted">
+                The server list is unavailable, so this stays free text. IT can connect
+                Action1 in Settings.
+              </p>
+            </>
+          )}
         </Full>
 
         <div>
@@ -292,30 +317,41 @@ export function TaskForm({
         </Full>
 
         <div>
-          <label htmlFor="assigneeRole" className="field-label">
+          <span className="field-label">
             Assigned to<span className="ml-0.5 text-danger">*</span>
+          </span>
+          <SearchSelect
+            name="assigneeId"
+            options={people}
+            placeholder="Select a person"
+            emptyLabel="No active staff available"
+            ariaLabel="Assigned to"
+            defaultValue={task?.assigneeId ?? ""}
+            searchPlaceholder="Search people"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="status" className="field-label">
+            Status<span className="ml-0.5 text-danger">*</span>
           </label>
           <select
-            id="assigneeRole"
-            name="assigneeRole"
+            id="status"
+            name="status"
             required
-            defaultValue={task?.assigneeRole ?? "l2_support_engineer"}
+            value={status}
+            onChange={(event) => setStatus(event.target.value as TaskStatus)}
             className="field"
           >
-            {roleGroups.map((group) => {
-              const roles = VISIBLE_ROLES.filter((role) => role.group === group);
-              if (roles.length === 0) return null;
-              return (
-                <optgroup key={group} label={ROLE_GROUPS[group].label}>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.label}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
+            {TASK_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
+          <p className="mt-1 text-[11.5px] text-muted">
+            {TASK_STATUS_OPTIONS.find((option) => option.value === status)?.hint}
+          </p>
         </div>
 
         <div>

@@ -141,16 +141,33 @@ Users & Groups carries two sub-module tabs under its heading —
 
 Task Management carries three sub-views under its heading, selected with the
 `view` query parameter: **Requested Tasks** (`/modules/tasks`, the full queue),
-**Task Assigned To Me** (`?view=mine`, work routed to the signed-in role) and
-**Task Assigned To My Group** (`?view=group`, work routed to any role in that
-role's group).
+**Task Assigned To Me** (`?view=mine`, work where the signed-in account is the
+assignee) and **Task Assigned To My Group** (`?view=group`, work whose assignee's
+access level sits in the same role group).
 
 Every row carries an options menu: **View task** (full record and notes),
-**Change status** (to do / in progress / done), **Edit task** and
-**Update notes** (an append-only, timestamped log). The menu only offers what
-the role may do: viewing is open to anyone who can see the row; status and notes
-belong to the owning team or leadership; editing is leadership-only (`tasks.edit`
-in the registry).
+**Change status**, **Edit task** and **Update notes** (an append-only,
+timestamped log). The menu only offers what the role may do: viewing is open to
+anyone who can see the row; status and notes belong to the assignee, their team
+or leadership; editing is leadership-only (`tasks.edit` in the registry).
+
+**Status is a required field** with six workflow states, each carrying its
+meaning on the form and in the status panel:
+
+| Status | Meaning |
+| --- | --- |
+| To Do | Yet to start. |
+| In Progress | Work has started. |
+| Completed | The task is done. |
+| Feedback | The assignee has finished; the requester has not confirmed it yet. |
+| Failed | The deployment went live but did not work, so a rollback has started. |
+| Reopen | Work reported complete hit a new issue; it comes back to this task. |
+
+Only **Completed** closes a task; Feedback, Failed and Reopen stay open on the
+dashboard. The states live in `lib/tasks/options.ts` and are enforced twice — in
+the server action and by `tasks_status_check`
+(`supabase/migrations/0019_task_assignee_status.sql`, which also rewrote the old
+`done` rows to `completed`).
 
 Forms are **pages, not popups**. `/modules/tasks/new` renders the full create
 form and `/modules/tasks/<id>/edit` the edit form; the task page
@@ -162,10 +179,22 @@ The create form captures, in order: **Task ID** (generated on save, read only),
 Masters, see below),
 **Requested by** and **Requester email** (auto-captured from the session, read
 only), **Server details**, **Planned / unplanned**, **Communication**,
-**Reference ticket no.** and **Assigned to** (select grouped by team, with the
-priority and due date beside it). Schema:
-`supabase/migrations/0009_task_request_details.sql`; notes:
-`0008_task_notes.sql`.
+**Reference ticket no.**, **Assigned to**, **Status** and **Priority**.
+
+Two of those fields are search dropdowns, not free text:
+
+- **Server details** lists the endpoints the Servers module reads from Action1
+  (name, with OS and IP as the second line). One pick is stored by name in
+  `tasks.server_details`. When Action1 is not connected the field falls back to
+  a text input and says why, so a task can still be raised.
+- **Assigned to** lists active people from Users & Groups (name, with their
+  access level beneath). The chosen profile id is stored in `tasks.assignee_id`
+  with a name snapshot in `assignee_name`; `assignee_role` is derived from that
+  person server-side, never from the posted body. The list comes from the
+  `assignable_users()` RPC, so no profile policy had to be widened.
+
+Schema: `supabase/migrations/0009_task_request_details.sql` and
+`0019_task_assignee_status.sql`; notes: `0008_task_notes.sql`.
 
 ### Table tools
 
@@ -294,7 +323,7 @@ edit those two files to change policy. `lib/access.ts` exposes `can()`,
 
 | Table | Rows in this build | Notes |
 | --- | --- | --- |
-| `tasks` | 5 seeded + runtime | Teams, priority, due date, status |
+| `tasks` | 5 seeded + runtime | Assignee, status, priority, due date |
 | `clients` | 4 seeded | Two contacts + mobiles, industry, owner, assignee, stamps |
 | `patch_plans` | 3 seeded | Window, ring, owner, status |
 | `approvals` | 4 seeded | Change/access/patch/purchase, decision trail |

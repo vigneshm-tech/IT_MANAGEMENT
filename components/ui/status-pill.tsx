@@ -21,6 +21,9 @@ const STATUS_TONE: Record<string, Tone> = {
   healthy: "positive",
   in_progress: "navy",
   "in progress": "navy",
+  feedback: "pending",
+  reopen: "pending",
+  failed: "danger",
   open: "navy",
   todo: "neutral",
   planned: "pending",
@@ -42,8 +45,12 @@ const STATUS_TONE: Record<string, Tone> = {
 };
 
 const LABELS: Record<string, string> = {
-  in_progress: "In progress",
-  todo: "To do",
+  in_progress: "In Progress",
+  todo: "To Do",
+  completed: "Completed",
+  feedback: "Feedback",
+  failed: "Failed",
+  reopen: "Reopen",
 };
 
 export function humanise(value: string | null | undefined): string {

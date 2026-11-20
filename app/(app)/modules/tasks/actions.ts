@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { isAssignableRole, ROLE_BY_ID, type RoleId } from "@/lib/roles";
+import { isRoleId, type RoleId } from "@/lib/roles";
 import { assertCanCreateTask } from "@/lib/task-window";
 import {
   appendTaskNote,
@@ -13,23 +13,26 @@ import {
   setTaskStatus,
   updateTask,
 } from "@/lib/tasks/repository";
-import { PLAN_STATUS_OPTIONS, TASK_STATUS_LABEL } from "@/lib/tasks/options";
+import { PLAN_STATUS_OPTIONS, TASK_STATUS_LABEL, TASK_STATUS_VALUES } from "@/lib/tasks/options";
 import type { PlanStatus, TaskPriority, TaskStatus } from "@/lib/tasks/store";
 import { formatDateTime } from "@/lib/format";
-import { listActiveActivityTypes } from "@/lib/records/repository";
+import { listActiveActivityTypes, listAssignableUsers } from "@/lib/records/repository";
 import { TASK_ACTIVITY_MODULE } from "@/lib/activity-types";
 import type { FormState } from "@/lib/forms";
 
 export type CreateTaskState = FormState;
 
 const PRIORITIES: TaskPriority[] = ["low", "medium", "high", "critical"];
-const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+const STATUSES: TaskStatus[] = TASK_STATUS_VALUES;
 const PLAN_STATUSES: PlanStatus[] = PLAN_STATUS_OPTIONS.map((option) => option.value);
 
 type ParsedTask = {
   title: string;
   description: string;
   priority: TaskPriority;
+  status: TaskStatus;
+  assigneeId: string;
+  assigneeName: string;
   assigneeRole: RoleId;
   dueDate: string | null;
   clientName: string;
@@ -40,12 +43,18 @@ type ParsedTask = {
   referenceTicketNo: string;
 };
 
-function parseTaskForm(
+/**
+ * The assignee is a person, so the role is taken from the directory, never from
+ * the submitted body. `listAssignableUsers()` is the same list the picker draws
+ * from (active staff, names only).
+ */
+async function parseTaskForm(
   formData: FormData,
   activityTypes: string[],
-): ParsedTask | { error: string } {
+): Promise<ParsedTask | { error: string }> {
   const title = String(formData.get("title") ?? "").trim();
-  const assignee = String(formData.get("assigneeRole") ?? "");
+  const assigneeId = String(formData.get("assigneeId") ?? "").trim();
+  const status = String(formData.get("status") ?? "") as TaskStatus;
   const priority = String(formData.get("priority") ?? "medium") as TaskPriority;
   const activityType = String(formData.get("activityType") ?? "").trim();
   const planStatus = String(formData.get("planStatus") ?? "unplanned") as PlanStatus;
@@ -54,8 +63,11 @@ function parseTaskForm(
   if (title.length < 4) {
     return { error: "Give the task a name of at least 4 characters." };
   }
-  if (!isAssignableRole(assignee)) {
+  if (!assigneeId) {
     return { error: "Choose who the task is assigned to." };
+  }
+  if (!STATUSES.includes(status)) {
+    return { error: "Choose a status." };
   }
   if (!PRIORITIES.includes(priority)) {
     return { error: "Choose a valid priority." };
@@ -67,11 +79,19 @@ function parseTaskForm(
     return { error: "Choose whether the work is planned or unplanned." };
   }
 
+  const assignee = (await listAssignableUsers()).find((person) => person.id === assigneeId);
+  if (!assignee || !isRoleId(assignee.role) || assignee.role === "super_admin") {
+    return { error: "That person is not available for assignment." };
+  }
+
   return {
     title,
     description: String(formData.get("description") ?? "").trim(),
     priority,
-    assigneeRole: assignee,
+    status,
+    assigneeId: assignee.id,
+    assigneeName: assignee.name,
+    assigneeRole: assignee.role,
     dueDate: dueDate ? new Date(`${dueDate}T18:00:00+05:30`).toISOString() : null,
     clientName: String(formData.get("clientName") ?? "").trim(),
     activityType,
@@ -101,7 +121,7 @@ export async function createTaskAction(
     return { error: "No activity types are configured — add one under Masters → Activity types." };
   }
 
-  const parsed = parseTaskForm(formData, activityTypes);
+  const parsed = await parseTaskForm(formData, activityTypes);
   if ("error" in parsed) return parsed;
 
   // Authoritative window check — the client clock is never trusted.
@@ -145,7 +165,7 @@ export async function updateTaskAction(
   }
 
   const id = String(formData.get("id") ?? "");
-  const parsed = parseTaskForm(
+  const parsed = await parseTaskForm(
     formData,
     await listActiveActivityTypes(TASK_ACTIVITY_MODULE),
   );
@@ -168,9 +188,16 @@ export async function updateTaskAction(
   redirect(`/modules/tasks/${id}?updated=1`);
 }
 
-/** Assignee team or leadership — the same rule the table has always used. */
-function mayWorkOn(role: RoleId, taskAssignee: string): boolean {
-  return can(role, "tasks", "edit") || taskAssignee === role;
+/** The assigned person, their team's leadership, or the owning role. */
+function mayWorkOn(
+  user: { id: string; role: RoleId },
+  task: { assigneeId: string; assigneeRole: string },
+): boolean {
+  return (
+    can(user.role, "tasks", "edit") ||
+    task.assigneeId === user.id ||
+    task.assigneeRole === user.role
+  );
 }
 
 export async function changeTaskStatusAction(
@@ -187,7 +214,7 @@ export async function changeTaskStatusAction(
 
   const task = (await listTasks()).find((item) => item.id === id);
   if (!task) return { error: "That task no longer exists." };
-  if (!mayWorkOn(user.role, task.assigneeRole)) {
+  if (!mayWorkOn(user, task)) {
     return { error: "Your role cannot move this task." };
   }
 
@@ -217,7 +244,7 @@ export async function updateTaskNoteAction(
 
   const task = (await listTasks()).find((item) => item.id === id);
   if (!task) return { error: "That task no longer exists." };
-  if (!mayWorkOn(user.role, task.assigneeRole)) {
+  if (!mayWorkOn(user, task)) {
     return { error: "Your role cannot add notes to this task." };
   }
 

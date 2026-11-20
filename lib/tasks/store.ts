@@ -1,6 +1,12 @@
-import { VISIBLE_ROLES, type RoleId } from "../roles";
+import type { RoleId } from "../roles";
 
-export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskStatus =
+  | "todo"
+  | "in_progress"
+  | "completed"
+  | "feedback"
+  | "failed"
+  | "reopen";
 export type PlanStatus = "planned" | "unplanned";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
@@ -20,6 +26,9 @@ export type Task = {
   referenceTicketNo: string;
   priority: TaskPriority;
   status: TaskStatus;
+  /** Person the work sits with; the role is kept for team views and permissions. */
+  assigneeId: string;
+  assigneeName: string;
   assigneeRole: RoleId;
   createdBy: { name: string; role: RoleId };
   createdAt: string;
@@ -44,6 +53,8 @@ function seed(): Task[] {
         "12 servers are two patch cycles behind. Stage the update rings and confirm reboot approvals.",
       priority: "high",
       status: "in_progress",
+      assigneeId: "u-it-engineer",
+      assigneeName: "Arun Prakash",
       assigneeRole: "it_engineer",
       createdBy: { name: "Meera Raghavan", role: "it_manager" },
       createdAt: new Date(now - 26 * hour).toISOString(),
@@ -55,6 +66,8 @@ function seed(): Task[] {
       description: "Validate tenant provisioning, SSO mapping and handover documentation.",
       priority: "medium",
       status: "todo",
+      assigneeId: "u-impl-engineer",
+      assigneeName: "Vikram Shetty",
       assigneeRole: "implementation_engineer",
       createdBy: { name: "Priya Nair", role: "implementation_lead" },
       createdAt: new Date(now - 8 * hour).toISOString(),
@@ -66,6 +79,8 @@ function seed(): Task[] {
       description: "Reproduce the timeout, capture logs and confirm with the client contact.",
       priority: "critical",
       status: "todo",
+      assigneeId: "u-l2-engineer",
+      assigneeName: "Nisha Verma",
       assigneeRole: "l2_support_engineer",
       createdBy: { name: "Karthik Raman", role: "l2_support_lead" },
       createdAt: new Date(now - 3 * hour).toISOString(),
@@ -76,7 +91,9 @@ function seed(): Task[] {
       title: "Regression pack for release 4.8",
       description: "Smoke suite passed; finish the regression pack for billing and reports.",
       priority: "medium",
-      status: "in_progress",
+      status: "feedback",
+      assigneeId: "u-qa-engineer",
+      assigneeName: "Ananya Bose",
       assigneeRole: "testing_engineer",
       createdBy: { name: "Lakshmi Narayan", role: "testing_manager" },
       createdAt: new Date(now - 50 * hour).toISOString(),
@@ -87,7 +104,9 @@ function seed(): Task[] {
       title: "Rotate API credentials for the reporting service",
       description: "Rotate keys, update the vault and confirm no downtime during the switch.",
       priority: "high",
-      status: "done",
+      status: "completed",
+      assigneeId: "u-dev-engineer",
+      assigneeName: "Rahul Menon",
       assigneeRole: "development_engineer",
       createdBy: { name: "Anand Krishnan", role: "development_manager" },
       createdAt: new Date(now - 96 * hour).toISOString(),
@@ -135,6 +154,9 @@ export type TaskPatch = Partial<
     | "title"
     | "description"
     | "priority"
+    | "status"
+    | "assigneeId"
+    | "assigneeName"
     | "assigneeRole"
     | "dueDate"
     | "clientName"
@@ -167,12 +189,4 @@ export function updateTaskStatus(id: string, status: TaskStatus): Task | null {
   if (!task) return null;
   task.status = status;
   return task;
-}
-
-export function assigneeOptions(): { value: RoleId; label: string; group: string }[] {
-  return VISIBLE_ROLES.map((role) => ({
-    value: role.id,
-    label: role.label,
-    group: role.group,
-  }));
 }
