@@ -167,9 +167,9 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     id: "users",
-    title: "Users",
+    title: "Users & Groups",
     href: "/modules/users",
-    summary: "Employee directory and access levels",
+    summary: "Employee accounts and groups",
     icon: "Users",
     navGroup: "governance",
     // Hidden role only. Every other role — IT Manager included — is denied.

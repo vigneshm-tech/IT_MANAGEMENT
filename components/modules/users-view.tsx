@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { StatusPill, humanise } from "@/components/ui/status-pill";
+import { UsersTabs } from "@/components/modules/users-tabs";
 import { ROLE_BY_ID, VISIBLE_ROLES } from "@/lib/roles";
 import type { DirectoryUser } from "@/lib/users/repository";
 import { createUserAction, updateUserAction } from "@/app/(app)/modules/users/actions";
@@ -132,11 +133,10 @@ export function UsersView({
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Users"
+        title="Users & Groups"
         actions={
           <RecordDialog
             title="Add user"
-            description="The account is active immediately and signs in with the temporary password."
             triggerLabel="Add user"
             submitLabel="Add user"
             fields={ADD_FIELDS}
@@ -144,7 +144,9 @@ export function UsersView({
             size="lg"
           />
         }
-      />
+      >
+        <UsersTabs active="users" />
+      </PageHeader>
 
       <DataTable
         columns={COLUMNS}
@@ -171,11 +173,7 @@ export function UsersView({
           <EmptyState
             icon={Users}
             title={error ?? "No accounts found"}
-            description={
-              error
-                ? "The directory could not be read. Reload the page, or check the database connection."
-                : "Profiles appear here as soon as they are provisioned. Accounts without an access level are shown as unassigned."
-            }
+            description={error ? "Reload the page to try again." : undefined}
           />
         }
       />

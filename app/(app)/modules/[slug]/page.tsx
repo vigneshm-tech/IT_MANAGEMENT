@@ -9,7 +9,6 @@ import { RenewalsView } from "@/components/modules/renewals-view";
 import { isServersFilter, ServersView } from "@/components/modules/servers-view";
 import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
-import { UsersView } from "@/components/modules/users-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
@@ -28,7 +27,6 @@ import {
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
 import { isTicketView, loadTickets } from "@/lib/tickets/portal";
-import { listDirectory } from "@/lib/users/repository";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -119,17 +117,6 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             industries: industries.length,
             customFields: customFields.length,
           }}
-        />
-      );
-    }
-
-    case "users": {
-      const directory = await listDirectory();
-      return (
-        <UsersView
-          users={directory.users}
-          error={directory.error}
-          currentUserId={user.id}
         />
       );
     }

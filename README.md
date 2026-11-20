@@ -83,15 +83,20 @@ Tiers: **manager**, **lead**, **engineer**, **executive** (Management, Super Adm
 Engineers are the only tier with a restricted task-creation window.
 
 **Super Admin** is the hidden platform role. It bypasses the access matrix (every
-capability, every module) and is the only role that can open **Users**. It is
+capability, every module) and is the only role that can open **Users & Groups**. It is
 excluded from `VISIBLE_ROLES`, so it never appears in a task/client/patch owner
 picker, the role catalogue or the directory itself — the account that holds it is
 filtered out of the Users list too. Provision it by hand in the database; the
 sign-up trigger downgrades any request for `super_admin` to "unassigned".
 
 The super admin is also the only account that administers the directory: it adds
-employees from **Users → Add user**, suspends or reactivates them, deletes them,
-and opens a read-only profile with **View**. Creating an account, changing a
+employees from **Users & Groups → Manage Users → Add user**, suspends or
+reactivates them, deletes them, and opens a read-only profile with **View**.
+The second sub-module, **Manage Groups**, builds named groups (Service Desk,
+Infrastructure, …) and puts people in or out of them; membership is a
+`user_group_members` row, so removing a person from a group never touches the
+account. Groups are readable and writable only by the super admin
+(`supabase/migrations/0017_user_groups.sql`). Creating an account, changing a
 status and deleting all run through `security definer` functions
 (`admin_create_user`, `admin_set_user_status`, `admin_delete_user` in
 `supabase/migrations/0007_user_administration.sql`) that re-check the caller's
@@ -115,12 +120,16 @@ re-reads `profiles.status` and sends a non-active account through `/logout`.
 | Renewals Master | Everyone | Leadership | IT + leadership | — | — |
 | Masters | Everyone | — | IT + leadership | — | — |
 | Settings | Everyone | — | Everyone (own keys) | — | IT Manager, Management |
-| Users | Super Admin | Super Admin | Super Admin | — | Super Admin |
+| Users & Groups | Super Admin | Super Admin | Super Admin | — | Super Admin |
 
 \* **Task creation window** — engineers may only raise new tasks between **09:00 and
 18:00 IST**; leads, managers, the IT Manager and management can raise tasks 24 hours a day.
 The window is checked in the server action (`assertCanCreateTask`) against the
 server clock, never the browser. Boundary tests live in `tests/task-window.test.ts`.
+
+Users & Groups carries two sub-module tabs under its heading —
+**Manage Users** (`/modules/users`) and **Manage Groups**
+(`/modules/users/groups`) — mirroring the tab pattern below.
 
 Task Management carries three sub-views under its heading, selected with the
 `view` query parameter: **Requested Tasks** (`/modules/tasks`, the full queue),
