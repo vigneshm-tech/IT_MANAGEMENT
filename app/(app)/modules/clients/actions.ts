@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
+import { isLeadership } from "@/lib/roles";
 import type { FormState } from "@/lib/forms";
 import {
   clientFormError,
@@ -167,6 +168,9 @@ export async function updateClientStatusAction(formData: FormData): Promise<void
   if (!id) return;
 
   if (value === "delete") {
+    // clients_delete is leadership-only in RLS; refusing here keeps the
+    // register from silently dropping the click for everyone else.
+    if (!isLeadership(user.role)) return;
     await deleteClientRecord(id);
     revalidateClients();
     return;

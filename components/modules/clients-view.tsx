@@ -5,7 +5,7 @@ import { buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { can } from "@/lib/access";
-import { VISIBLE_ROLES } from "@/lib/roles";
+import { VISIBLE_ROLES, isLeadership } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { updateClientStatusAction } from "@/app/(app)/modules/clients/actions";
 import { clientTimestamps } from "@/lib/clients";
@@ -48,6 +48,8 @@ export function ClientsView({
   updatedId?: string;
 }) {
   const canEdit = can(user.role, "clients", "edit");
+  // RLS removes client rows for leadership only (clients_delete -> is_leadership()).
+  const canDelete = canEdit && isLeadership(user.role);
   const created = createdId ? clients.find((client) => client.id === createdId) : undefined;
   const updated = updatedId ? clients.find((client) => client.id === updatedId) : undefined;
 
@@ -78,12 +80,16 @@ export function ClientsView({
             client.status === "active"
               ? { label: "Deactivate", value: "deactivate", tone: "default" as const }
               : { label: "Activate", value: "activate", tone: "default" as const },
-            {
-              label: "Delete",
-              value: "delete",
-              tone: "danger" as const,
-              confirm: `Delete ${client.name}? The account and its custom field answers are removed permanently.`,
-            },
+            ...(canDelete
+              ? [
+                  {
+                    label: "Delete",
+                    value: "delete",
+                    tone: "danger" as const,
+                    confirm: `Delete ${client.name}? The account and its custom field answers are removed permanently.`,
+                  },
+                ]
+              : []),
           ]
         : [],
     };
