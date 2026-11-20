@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createDemoUser,
   demoEmailTaken,
+  demoEmployeeIdTaken,
   findDemoDirectoryUser,
   listDemoDirectory,
   removeDemoUser,
@@ -24,6 +25,7 @@ test("a new account can be added, suspended, reactivated and deleted", () => {
 
   const created = createDemoUser({
     name: "Preview New Hire",
+    employeeId: "emp-9001",
     email: email.toUpperCase(),
     title: "IT Engineer",
     role: "it_engineer",
@@ -31,6 +33,7 @@ test("a new account can be added, suspended, reactivated and deleted", () => {
 
   assert.equal(created.status, "active");
   assert.equal(created.email, email);
+  assert.equal(created.employeeId, "EMP-9001");
   assert.equal(demoEmailTaken(email), true);
 
   assert.equal(setDemoUserStatus(created.id, "suspended"), true);
@@ -39,9 +42,12 @@ test("a new account can be added, suspended, reactivated and deleted", () => {
   assert.equal(setDemoUserStatus(created.id, "active"), true);
   assert.equal(findDemoDirectoryUser(created.id)?.status, "active");
 
+  assert.equal(demoEmployeeIdTaken("emp-9001"), true);
+
   assert.equal(removeDemoUser(created.id), true);
   assert.equal(findDemoDirectoryUser(created.id), null);
   assert.equal(demoEmailTaken(email), false);
+  assert.equal(demoEmployeeIdTaken("emp-9001"), false);
 });
 
 test("unknown ids are ignored", () => {

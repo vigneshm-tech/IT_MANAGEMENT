@@ -92,6 +92,13 @@ sign-up trigger downgrades any request for `super_admin` to "unassigned".
 The super admin is also the only account that administers the directory: it adds
 employees from **Users & Groups → Manage Users → Add user**, suspends or
 reactivates them, deletes them, and opens a read-only profile with **View**.
+**Add user** is an inline panel, never a dialog: Employee name, Employee ID,
+Employee designation, Work email, Access level, Access group and a temporary
+password — all seven required. The Access group is a searchable picker fed by the
+groups created in Manage Groups, and the membership row is written straight after
+the account exists. `profiles.employee_id` is unique (case- and
+space-insensitive), so the same employee number cannot be issued twice.
+
 The second sub-module, **Manage Groups**, builds named groups (Service Desk,
 Infrastructure, …) and puts people in or out of them; membership is a
 `user_group_members` row, so removing a person from a group never touches the
@@ -99,7 +106,8 @@ account. Groups are readable and writable only by the super admin
 (`supabase/migrations/0017_user_groups.sql`). Creating an account, changing a
 status and deleting all run through `security definer` functions
 (`admin_create_user`, `admin_set_user_status`, `admin_delete_user` in
-`supabase/migrations/0007_user_administration.sql`) that re-check the caller's
+`supabase/migrations/0007_user_administration.sql`, extended with the employee id
+in `0018_employee_id.sql`) that re-check the caller's
 role, refuse the hidden `super_admin` role, and refuse to touch the super admin
 account itself. Suspension is enforced on the next request: `requireUser()`
 re-reads `profiles.status` and sends a non-active account through `/logout`.

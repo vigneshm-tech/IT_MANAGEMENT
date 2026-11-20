@@ -13,8 +13,9 @@ let directory: DirectoryUser[] | null = null;
 let counter = 0;
 
 function seed(): DirectoryUser[] {
-  return DEMO_USERS.filter((user) => user.role !== "super_admin").map((user) => ({
+  return DEMO_USERS.filter((user) => user.role !== "super_admin").map((user, index) => ({
     id: user.id,
+    employeeId: `EMP-${1001 + index}`,
     name: user.name,
     email: user.email,
     title: user.title,
@@ -42,8 +43,14 @@ export function demoEmailTaken(email: string): boolean {
   return users().some((user) => user.email.toLowerCase() === normalized);
 }
 
+export function demoEmployeeIdTaken(employeeId: string): boolean {
+  const normalized = employeeId.trim().toUpperCase();
+  return users().some((user) => user.employeeId.trim().toUpperCase() === normalized);
+}
+
 export function createDemoUser(input: {
   name: string;
+  employeeId: string;
   email: string;
   title: string;
   role: RoleId;
@@ -51,6 +58,7 @@ export function createDemoUser(input: {
   counter += 1;
   const user: DirectoryUser = {
     id: `u-demo-${counter}`,
+    employeeId: input.employeeId.trim().toUpperCase(),
     name: input.name,
     email: input.email.trim().toLowerCase(),
     title: input.title,

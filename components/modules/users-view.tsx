@@ -11,56 +11,22 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { StatusPill, humanise } from "@/components/ui/status-pill";
 import { UsersTabs } from "@/components/modules/users-tabs";
+import { UserForm } from "@/components/modules/user-form";
+import { buttonClass } from "@/components/ui/button";
 import { ROLE_BY_ID, VISIBLE_ROLES } from "@/lib/roles";
 import type { DirectoryUser } from "@/lib/users/repository";
+import type { UserGroup } from "@/lib/users/groups";
 import { createUserAction, updateUserAction } from "@/app/(app)/modules/users/actions";
 
 const COLUMNS: Column[] = [
-  { key: "name", label: "Name", width: "22%" },
-  { key: "email", label: "Email", type: "muted", width: "26%" },
-  { key: "title", label: "Job title", type: "muted", width: "20%" },
-  { key: "role", label: "Access level", width: "18%" },
-  { key: "status", label: "Status", type: "status", width: "14%" },
-];
-
-const ADD_FIELDS: FieldDef[] = [
-  {
-    name: "fullName",
-    label: "Full name",
-    type: "text",
-    required: true,
-    placeholder: "Priya Raman",
-  },
-  {
-    name: "email",
-    label: "Work email",
-    type: "email",
-    required: true,
-    placeholder: "priya.raman@company.com",
-  },
-  {
-    name: "title",
-    label: "Job title",
-    type: "text",
-    placeholder: "IT Support Engineer",
-  },
-  {
-    name: "role",
-    label: "Access level",
-    type: "select",
-    required: true,
-    options: VISIBLE_ROLES.map((role) => ({ value: role.id, label: role.label })),
-  },
-  {
-    name: "password",
-    label: "Temporary password",
-    type: "password",
-    required: true,
-    placeholder: "At least 8 characters",
-  },
+  { key: "name", label: "Employee", width: "22%" },
+  { key: "employeeId", label: "Employee ID", type: "muted", width: "14%" },
+  { key: "email", label: "Work email", type: "muted", width: "24%" },
+  { key: "title", label: "Designation", type: "muted", width: "16%" },
+  { key: "role", label: "Access level", width: "14%" },
+  { key: "status", label: "Status", type: "status", width: "10%" },
 ];
 
 function roleLabel(role: DirectoryUser["role"]): string {
@@ -86,14 +52,28 @@ function lastSeen(value: string | null): string {
 
 export function UsersView({
   users,
+  groups,
   error,
   currentUserId,
 }: {
   users: DirectoryUser[];
+  groups: Pick<UserGroup, "id" | "name" | "members">[];
   error: string | null;
   currentUserId: string;
 }) {
   const [viewing, setViewing] = useState<DirectoryUser | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const groupOptions = useMemo(
+    () => groups.map((group) => ({ id: group.id, name: group.name })),
+    [groups],
+  );
+
+  const groupsOf = (userId: string) =>
+    groups
+      .filter((group) => group.members.some((member) => member.id === userId))
+      .map((group) => group.name)
+      .join(", ");
 
   const rows = useMemo<TableRow[]>(
     () =>
@@ -119,6 +99,7 @@ export function UsersView({
           id: user.id,
           cells: {
             name: user.name,
+            employeeId: user.employeeId || "—",
             email: user.email,
             title: user.title || "—",
             role: roleLabel(user.role),
@@ -135,18 +116,19 @@ export function UsersView({
       <PageHeader
         title="Users & Groups"
         actions={
-          <RecordDialog
-            title="Add user"
-            triggerLabel="Add user"
-            submitLabel="Add user"
-            fields={ADD_FIELDS}
-            action={createUserAction}
-            size="lg"
-          />
+          <button
+            type="button"
+            onClick={() => setAdding((value) => !value)}
+            className={buttonClass({ size: "sm" })}
+          >
+            Add user
+          </button>
         }
       >
         <UsersTabs active="users" />
       </PageHeader>
+
+      {adding && <UserForm groups={groupOptions} onClose={() => setAdding(false)} />}
 
       <DataTable
         columns={COLUMNS}
@@ -197,10 +179,12 @@ export function UsersView({
       >
         {viewing && (
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-            <Detail label="Full name" value={viewing.name} />
+            <Detail label="Employee name" value={viewing.name} />
+            <Detail label="Employee ID" value={viewing.employeeId || "—"} />
             <Detail label="Work email" value={viewing.email || "—"} />
-            <Detail label="Job title" value={viewing.title || "—"} />
+            <Detail label="Designation" value={viewing.title || "—"} />
             <Detail label="Access level" value={roleLabel(viewing.role)} />
+            <Detail label="Access group" value={groupsOf(viewing.id) || "—"} />
             <div>
               <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
                 Status

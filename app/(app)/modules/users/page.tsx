@@ -4,7 +4,7 @@ import { UsersView } from "@/components/modules/users-view";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getModule } from "@/lib/modules";
-import { listDirectory } from "@/lib/users/repository";
+import { listDirectory, listGroups } from "@/lib/users/repository";
 
 const MODULE = getModule("users");
 
@@ -17,11 +17,12 @@ export default async function UsersPage() {
     return <AccessDenied moduleTitle={MODULE?.title ?? "Users & Groups"} />;
   }
 
-  const directory = await listDirectory();
+  const [directory, groups] = await Promise.all([listDirectory(), listGroups()]);
 
   return (
     <UsersView
       users={directory.users}
+      groups={groups.groups}
       error={directory.error}
       currentUserId={user.id}
     />

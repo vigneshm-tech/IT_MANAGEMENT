@@ -9,9 +9,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createDemoUser,
   demoEmailTaken,
+  demoEmployeeIdTaken,
   removeDemoUser,
   setDemoUserStatus,
 } from "@/lib/users/store";
+import { addDemoGroupMember, listDemoGroups } from "@/lib/users/groups-store";
 
 const USERS_PATH = "/modules/users";
 
@@ -24,7 +26,10 @@ function failure(error: unknown, fallback: string): string {
   return message || fallback;
 }
 
-/** Add an employee: Supabase auth user + identity + profile. */
+/**
+ * Add an employee: Supabase auth user + identity + profile, then the access
+ * group membership. The group is required, so every new account lands in one.
+ */
 export async function createUserAction(
   _previous: FormState,
   formData: FormData,
@@ -36,19 +41,30 @@ export async function createUserAction(
   }
 
   const fullName = String(formData.get("fullName") ?? "").trim();
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  const designation = String(formData.get("designation") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const title = String(formData.get("title") ?? "").trim();
   const role = String(formData.get("role") ?? "");
+  const groupId = String(formData.get("groupId") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
   if (fullName.length < 2) {
-    return { error: "Enter the employee's full name." };
+    return { error: "Enter the employee name." };
+  }
+  if (employeeId.length < 2) {
+    return { error: "Enter the employee ID." };
+  }
+  if (designation.length < 2) {
+    return { error: "Enter the employee designation." };
   }
   if (!EMAIL_PATTERN.test(email)) {
     return { error: "Enter a valid work email address." };
   }
   if (!isAssignableRole(role)) {
     return { error: "Choose an access level for this account." };
+  }
+  if (!groupId) {
+    return { error: "Choose an access group." };
   }
   if (password.length < 8) {
     return { error: "The temporary password needs at least 8 characters." };
@@ -58,8 +74,17 @@ export async function createUserAction(
     if (demoEmailTaken(email)) {
       return { error: "An account already uses this email address." };
     }
-    createDemoUser({ name: fullName, email, title, role });
+    if (demoEmployeeIdTaken(employeeId)) {
+      return { error: "An account already uses this employee ID." };
+    }
+    if (!listDemoGroups().some((group) => group.id === groupId)) {
+      return { error: "That access group no longer exists." };
+    }
+
+    const created = createDemoUser({ name: fullName, employeeId, email, title: designation, role });
+    addDemoGroupMember(groupId, created.id);
     revalidatePath(USERS_PATH);
+    revalidatePath("/modules/users/groups");
     return {
       ok: true,
       message: `${fullName} was added as ${ROLE_BY_ID[role].label}.`,
@@ -68,12 +93,13 @@ export async function createUserAction(
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.rpc("admin_create_user", {
+    const { data, error } = await supabase.rpc("admin_create_user", {
       p_email: email,
       p_password: password,
       p_full_name: fullName,
-      p_title: title,
+      p_title: designation,
       p_role: role,
+      p_employee_id: employeeId,
     });
 
     if (error) {
@@ -81,7 +107,20 @@ export async function createUserAction(
       return { error: failure(error, "The account could not be created.") };
     }
 
+    // The account exists from here on; a failed membership must not report the
+    // whole add as lost, so it is logged and the account is reported as added.
+    const createdId = typeof data === "string" ? data : "";
+    if (createdId) {
+      const membership = await supabase
+        .from("user_group_members")
+        .insert({ group_id: groupId, user_id: createdId });
+      if (membership.error) {
+        console.error("[users] group membership failed", membership.error);
+      }
+    }
+
     revalidatePath(USERS_PATH);
+    revalidatePath("/modules/users/groups");
     return {
       ok: true,
       message: `${fullName} was added as ${ROLE_BY_ID[role].label}.`,

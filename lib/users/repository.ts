@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "../supabase/server";
 
 export type DirectoryUser = {
   id: string;
+  employeeId: string;
   name: string;
   email: string;
   title: string;
@@ -45,7 +46,7 @@ export async function listDirectory(): Promise<DirectoryResult> {
       const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, full_name, title, role, status, last_login_at")
+        .select("id, employee_id, email, full_name, title, role, status, last_login_at")
         .order("full_name", { ascending: true });
 
       if (error) {
@@ -57,6 +58,7 @@ export async function listDirectory(): Promise<DirectoryResult> {
         .filter((row) => row.role !== SUPER_ADMIN)
         .map<DirectoryUser>((row) => ({
           id: row.id,
+          employeeId: row.employee_id ?? "",
           name: row.full_name || row.email?.split("@")[0] || "Unnamed",
           email: row.email ?? "",
           title: row.title ?? "",
