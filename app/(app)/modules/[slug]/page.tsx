@@ -80,25 +80,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     case "renewals":
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
-    case "masters": {
-      const [clients, renewals, plans, activityTypes] = await Promise.all([
-        listClients(),
-        listRenewals(),
-        listPatchPlans(),
-        listActivityTypes(),
-      ]);
-      return (
-        <MastersView
-          user={user}
-          counts={{
-            clients: clients.length,
-            renewals: renewals.length,
-            patching: plans.length,
-            activityTypes: activityTypes.length,
-          }}
-        />
-      );
-    }
+    case "masters":
+      return <MastersView user={user} counts={{ activityTypes: (await listActivityTypes()).length }} />;
 
     case "users": {
       const directory = await listDirectory();

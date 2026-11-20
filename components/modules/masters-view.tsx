@@ -2,14 +2,14 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { canAccessModule } from "@/lib/access";
-import { MODULE_BY_ID, type ModuleId } from "@/lib/modules";
+import type { ModuleId } from "@/lib/modules";
 import type { SessionUser } from "@/lib/auth/token";
 
-type CountKey = "clients" | "renewals" | "patching" | "activityTypes";
+type CountKey = "activityTypes";
 
 /**
- * Master registers. The hub only lists what the signed-in role may open, and
- * every count is read from the same repository that feeds the register itself.
+ * Master registers owned by this hub. Clients, renewals and patching plans are
+ * modules of their own and are not duplicated here.
  */
 const REGISTERS: {
   key: CountKey;
@@ -20,30 +20,6 @@ const REGISTERS: {
   /** Which module's access rule governs the register. */
   guard: ModuleId;
 }[] = [
-  {
-    key: "clients",
-    title: MODULE_BY_ID.clients.title,
-    summary: MODULE_BY_ID.clients.summary,
-    href: MODULE_BY_ID.clients.href,
-    noun: "clients",
-    guard: "clients",
-  },
-  {
-    key: "renewals",
-    title: MODULE_BY_ID.renewals.title,
-    summary: MODULE_BY_ID.renewals.summary,
-    href: MODULE_BY_ID.renewals.href,
-    noun: "renewals",
-    guard: "renewals",
-  },
-  {
-    key: "patching",
-    title: MODULE_BY_ID.patching.title,
-    summary: MODULE_BY_ID.patching.summary,
-    href: MODULE_BY_ID.patching.href,
-    noun: "plans",
-    guard: "patching",
-  },
   {
     key: "activityTypes",
     title: "Activity types",

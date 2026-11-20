@@ -168,10 +168,9 @@ Task Management additionally carries the request-detail columns (client,
 activity, planned/unplanned, reference ticket); activity and ticket start
 hidden so the board stays readable.
 
-**Masters** is the index for the master registers — Clients, Renewals,
-Patching Plans and **Activity types**. It lists only the registers the signed-in
-role may open, and the record counts beside each one come from the same
-repository that feeds the register itself.
+**Masters** holds master data, not links to other modules. Its only register is
+**Activity types** (the vocabulary behind the task form); Clients, Renewals and
+Patching Plans stay in their own modules and are not repeated here.
 
 ### Activity types (master data)
 

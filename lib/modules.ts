@@ -142,7 +142,7 @@ export const MODULES: ModuleDefinition[] = [
     id: "masters",
     title: "Masters",
     href: "/modules/masters",
-    summary: "Clients, renewals and patching registers",
+    summary: "Master data — activity types for tasks",
     icon: "Layers",
     navGroup: "commercial",
     access: { view: "all", edit: [IT, ...LEADERSHIP] },
