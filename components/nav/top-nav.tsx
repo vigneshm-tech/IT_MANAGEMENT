@@ -8,6 +8,8 @@ import {
   Search,
   Settings as SettingsIcon,
   UserRound,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,6 +49,11 @@ export type NavUser = {
   roleLabel: string;
 };
 
+/** The chime played when something new lands in the bell. */
+const NOTIFICATION_SOUND = "/sounds/notification.wav";
+const SOUND_PREFERENCE_KEY = "tt-notification-sound";
+const CHIME_VOLUME = 0.7;
+
 function initials(name: string) {
   return name
     .split(" ")
@@ -79,6 +86,148 @@ export function TopNav({
   const [searchOpen, setSearchOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+
+  // Sound on by default; the speaker in the bell menu remembers the choice.
+  const [soundOn, setSoundOn] = useState(true);
+  const soundOnRef = useRef(true);
+  const chimeRef = useRef<HTMLAudioElement | null>(null);
+  /** The count the bell last showed — a rise above it is what rings. */
+  const seenCount = useRef<number | null>(null);
+
+  /** One shared element, created lazily so nothing loads until it is needed. */
+  const getChime = useCallback(() => {
+    if (!chimeRef.current) {
+      const el = new Audio(NOTIFICATION_SOUND);
+      el.preload = "auto";
+      chimeRef.current = el;
+    }
+    return chimeRef.current;
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SOUND_PREFERENCE_KEY) === "off") {
+        setSoundOn(false);
+        soundOnRef.current = false;
+      }
+    } catch {
+      // Storage blocked (private mode): the choice just does not persist.
+    }
+  }, []);
+
+  /**
+   * Browsers block audio until the page has been interacted with, so the first
+   * click or keypress primes the element with a silent play. Failures are
+   * ignored: a missing chime must never break the shell.
+   */
+  useEffect(() => {
+    function prime() {
+      document.removeEventListener("pointerdown", prime);
+      document.removeEventListener("keydown", prime);
+      try {
+        const el = getChime();
+        el.volume = 0;
+        void el
+          .play()
+          .then(() => {
+            el.pause();
+            el.currentTime = 0;
+            el.volume = CHIME_VOLUME;
+          })
+          .catch(() => {
+            el.volume = CHIME_VOLUME;
+          });
+      } catch {
+        // No audio support here — the badge still tells the story.
+      }
+    }
+    document.addEventListener("pointerdown", prime, { once: true });
+    document.addEventListener("keydown", prime, { once: true });
+    return () => {
+      document.removeEventListener("pointerdown", prime);
+      document.removeEventListener("keydown", prime);
+    };
+  }, [getChime]);
+
+  const playChime = useCallback(() => {
+    try {
+      const el = getChime();
+      el.volume = CHIME_VOLUME;
+      // Seeking is only legal once the file has metadata; the first ring may be
+      // too early, and that is fine — it still plays.
+      if (el.readyState > 0) el.currentTime = 0;
+      void el.play().catch(() => {});
+    } catch {
+      // No audio support here — the badge still tells the story.
+    }
+  }, [getChime]);
+
+  /** Rings once per rise; the count the bell shows is the baseline. */
+  const noteCount = useCallback(
+    (count: number) => {
+      if (seenCount.current === null) {
+        seenCount.current = count;
+        return false;
+      }
+      const rose = count > seenCount.current;
+      seenCount.current = count;
+      if (rose && soundOnRef.current) playChime();
+      return rose;
+    },
+    [playChime],
+  );
+
+  // Ring when a navigation brings a higher count than the bell last showed.
+  useEffect(() => {
+    noteCount(notificationCount);
+  }, [notificationCount, noteCount]);
+
+  /**
+   * A page that is already open is the common case, so the bell also asks the
+   * server every half minute (and whenever the tab comes back). A rise rings the
+   * chime and refreshes the list; a fall — someone else decided, or you did —
+   * only moves the baseline.
+   */
+  useEffect(() => {
+    let stopped = false;
+
+    async function check() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const response = await fetch("/api/notifications", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { count?: number };
+        if (stopped || typeof data.count !== "number") return;
+        if (noteCount(data.count)) router.refresh();
+      } catch {
+        // Offline, or the endpoint is missing — the next tick tries again.
+      }
+    }
+
+    const timer = window.setInterval(check, 30_000);
+    function onVisible() {
+      if (document.visibilityState === "visible") void check();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [noteCount, router]);
+
+  const toggleSound = useCallback(() => {
+    const next = !soundOnRef.current;
+    soundOnRef.current = next;
+    setSoundOn(next);
+    try {
+      window.localStorage.setItem(SOUND_PREFERENCE_KEY, next ? "on" : "off");
+    } catch {
+      // Storage blocked — the choice holds for this visit only.
+    }
+    if (next) playChime();
+  }, [playChime]);
 
   const closeAll = useCallback(() => {
     setUserOpen(false);
@@ -162,8 +311,24 @@ export function TopNav({
                     transition={{ duration: 0.15 }}
                     className="absolute right-0 top-full z-50 mt-2 w-[320px] rounded-md border border-line bg-surface shadow-[0_18px_40px_-24px_rgba(23,44,82,0.45)]"
                   >
-                    <div className="border-b border-line px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
                       <p className="text-[12.5px] font-semibold text-navy">Notifications</p>
+                      <button
+                        type="button"
+                        onClick={toggleSound}
+                        aria-pressed={soundOn}
+                        aria-label={
+                          soundOn ? "Turn the notification sound off" : "Turn the notification sound on"
+                        }
+                        title={soundOn ? "Sound on" : "Sound off"}
+                        className="flex h-7 w-7 items-center justify-center rounded text-muted transition hover:bg-[#f5f7fb] hover:text-navy"
+                      >
+                        {soundOn ? (
+                          <Volume2 className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <VolumeX className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                      </button>
                     </div>
                     {notifications.length === 0 ? (
                       <p className="px-4 py-6 text-center text-[12.5px] text-muted">
