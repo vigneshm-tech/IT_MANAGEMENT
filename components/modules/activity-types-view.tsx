@@ -8,6 +8,11 @@ import { DataTable, type Column, type TableRow } from "@/components/ui/data-tabl
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import type { FormState } from "@/lib/forms";
+import {
+  ACTIVITY_MODULE_OPTIONS,
+  TASK_ACTIVITY_MODULE,
+  activityModuleLabel,
+} from "@/lib/activity-types";
 import type { ActivityTypeRecord } from "@/lib/records/repository";
 import {
   activityTypeRowAction,
@@ -16,6 +21,7 @@ import {
 
 const COLUMNS: Column[] = [
   { key: "name", label: "Activity type" },
+  { key: "module", label: "Module", type: "muted", width: "180px" },
   { key: "id", label: "Ref", type: "mono", width: "90px" },
   { key: "status", label: "Status", type: "status", width: "120px" },
   { key: "created", label: "Added", type: "muted", width: "120px" },
@@ -38,6 +44,7 @@ export function ActivityTypesView({
     id: item.id,
     cells: {
       name: item.name,
+      module: activityModuleLabel(item.module),
       id: item.id,
       status: item.status,
       created: new Date(item.createdAt).toLocaleDateString("en-GB", {
@@ -62,6 +69,9 @@ export function ActivityTypesView({
   }));
 
   const active = items.filter((item) => item.status === "active").length;
+  const taskTypes = items.filter(
+    (item) => item.status === "active" && item.module === TASK_ACTIVITY_MODULE,
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -75,9 +85,10 @@ export function ActivityTypesView({
         }
       >
         <p className="text-[12.5px] leading-relaxed text-muted">
-          {active} active {active === 1 ? "type" : "types"} of {items.length}. Only active types
-          appear in the task form — deactivate a type to retire it without touching the tasks that
-          already recorded it.
+          {active} active {active === 1 ? "type" : "types"} of {items.length}. Every type belongs
+          to a module; the task form offers the {taskTypes} active{" "}
+          {taskTypes === 1 ? "type" : "types"} filed under Task Management. Deactivate a type to
+          retire it without touching the tasks that already recorded it.
         </p>
       </PageHeader>
 
@@ -89,7 +100,7 @@ export function ActivityTypesView({
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[220px] flex-1">
               <label htmlFor="activity-type-name" className="field-label">
-                New activity type
+                Activity type name<span className="ml-0.5 text-danger">*</span>
               </label>
               <input
                 id="activity-type-name"
@@ -101,6 +112,27 @@ export function ActivityTypesView({
                 className="field"
               />
             </div>
+
+            <div className="min-w-[190px]">
+              <label htmlFor="activity-type-module" className="field-label">
+                Module<span className="ml-0.5 text-danger">*</span>
+              </label>
+              <select
+                id="activity-type-module"
+                name="module"
+                required
+                defaultValue={TASK_ACTIVITY_MODULE}
+                className="field"
+              >
+                <option value="">Select a module</option>
+                {ACTIVITY_MODULE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <Button type="submit" disabled={pending}>
               {pending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />

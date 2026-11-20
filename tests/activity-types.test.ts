@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ACTIVITY_TYPE_SEED,
+  ACTIVITY_MODULE_OPTIONS,
+  activityTypeModuleError,
   activityTypeNameError,
+  activityModuleLabel,
   normaliseActivityTypeName,
 } from "../lib/activity-types";
 
 const EXISTING = [
-  { id: "AT-1", name: "Patching" },
-  { id: "AT-2", name: "Service request" },
+  { id: "AT-1", name: "Patching", module: "tasks" },
+  { id: "AT-2", name: "Service request", module: "tasks" },
+  { id: "AT-3", name: "Service request", module: "tickets" },
 ];
 
 test("names are trimmed and inner whitespace is collapsed", () => {
@@ -31,8 +35,39 @@ test("duplicates are rejected regardless of case or spacing", () => {
 });
 
 test("the row being renamed does not collide with itself", () => {
-  assert.equal(activityTypeNameError("Patching", EXISTING, "AT-1"), null);
-  assert.match(String(activityTypeNameError("Service request", EXISTING, "AT-1")), /already exists/);
+  assert.equal(activityTypeNameError("Patching", EXISTING, { ignoreId: "AT-1" }), null);
+  assert.match(
+    String(activityTypeNameError("Service request", EXISTING, { ignoreId: "AT-1" })),
+    /already exists/,
+  );
+});
+
+test("names only have to be unique inside their module", () => {
+  assert.match(
+    String(activityTypeNameError("Service request", EXISTING, { module: "tasks" })),
+    /already exists for Task Management/,
+  );
+  assert.match(
+    String(activityTypeNameError("Service request", EXISTING, { module: "tickets" })),
+    /already exists for Ticket Portal/,
+  );
+  assert.equal(activityTypeNameError("Service request", EXISTING, { module: "servers" }), null);
+});
+
+test("a module must be chosen from the registry", () => {
+  assert.match(String(activityTypeModuleError("")), /Choose the module/);
+  assert.match(String(activityTypeModuleError("payroll")), /valid module/);
+  assert.equal(activityTypeModuleError("tasks"), null);
+  assert.equal(activityTypeModuleError("approvals"), null);
+});
+
+test("module options are labelled from the registry", () => {
+  assert.deepEqual(
+    ACTIVITY_MODULE_OPTIONS.map((option) => option.value),
+    ["tasks", "tickets", "servers", "patching", "clients", "renewals", "approvals"],
+  );
+  assert.equal(activityModuleLabel("tasks"), "Task Management");
+  assert.equal(activityModuleLabel("patching"), "Patching Plans");
 });
 
 test("the seed keeps the previously hard-coded vocabulary", () => {

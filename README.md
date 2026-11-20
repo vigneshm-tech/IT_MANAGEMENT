@@ -181,8 +181,13 @@ The task form's **Activity type** dropdown is not a constant in the code: it is
 The page is an inline form (no popup): type a name, press **Add type**, and the
 type is immediately offered on `/modules/tasks/new` and the edit form.
 
-- Names are trimmed, inner whitespace collapsed and unique case-insensitively
-  (`activity_types_name_unique`); validation lives in `lib/activity-types.ts`.
+- Every type records the **module** it belongs to — a required choice from Task
+  Management, Ticket Portal, Servers, Patching Plans, Clients, Renewals or
+  Approvals. The module decides where the type is offered: the task form reads
+  `listActiveActivityTypes("tasks")` and nothing else.
+- Names are trimmed, inner whitespace collapsed and unique **per module**
+  (`activity_types_module_name_unique`), so "Service request" can exist for both
+  Task Management and Ticket Portal. Validation lives in `lib/activity-types.ts`.
 - **Deactivate** retires a type without touching tasks that already recorded it —
   only active types appear in the form. **Delete** removes it from the register;
   stored task text is left alone.

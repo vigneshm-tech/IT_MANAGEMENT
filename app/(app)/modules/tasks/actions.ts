@@ -17,6 +17,7 @@ import { PLAN_STATUS_OPTIONS, TASK_STATUS_LABEL } from "@/lib/tasks/options";
 import type { PlanStatus, TaskPriority, TaskStatus } from "@/lib/tasks/store";
 import { formatDateTime } from "@/lib/format";
 import { listActiveActivityTypes } from "@/lib/records/repository";
+import { TASK_ACTIVITY_MODULE } from "@/lib/activity-types";
 import type { FormState } from "@/lib/forms";
 
 export type CreateTaskState = FormState;
@@ -95,7 +96,7 @@ export async function createTaskAction(
     return { error: "Your role cannot create tasks." };
   }
 
-  const activityTypes = await listActiveActivityTypes();
+  const activityTypes = await listActiveActivityTypes(TASK_ACTIVITY_MODULE);
   if (activityTypes.length === 0) {
     return { error: "No activity types are configured — add one under Masters → Activity types." };
   }
@@ -144,7 +145,10 @@ export async function updateTaskAction(
   }
 
   const id = String(formData.get("id") ?? "");
-  const parsed = parseTaskForm(formData, await listActiveActivityTypes());
+  const parsed = parseTaskForm(
+    formData,
+    await listActiveActivityTypes(TASK_ACTIVITY_MODULE),
+  );
   if ("error" in parsed) return parsed;
 
   const existing = (await listTasks()).find((item) => item.id === id);

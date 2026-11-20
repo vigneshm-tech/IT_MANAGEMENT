@@ -28,7 +28,7 @@ export default async function EditTaskPage({ params }: PageProps) {
     listClients().then((items) =>
       items.filter((client) => client.status === "active").map((client) => client.name),
     ),
-    listActiveActivityTypes(),
+    listActiveActivityTypes("tasks"),
   ]);
 
   return (

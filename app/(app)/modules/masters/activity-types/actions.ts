@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
+  activityModuleLabel,
+  activityTypeModuleError,
   activityTypeNameError,
   normaliseActivityTypeName,
 } from "@/lib/activity-types";
@@ -31,18 +33,26 @@ export async function addActivityTypeAction(
   }
 
   const name = normaliseActivityTypeName(String(formData.get("name") ?? ""));
-  const error = activityTypeNameError(name, await listActivityTypes());
-  if (error) return { error };
+  const module = String(formData.get("module") ?? "");
+
+  const moduleError = activityTypeModuleError(module);
+  if (moduleError) return { error: moduleError };
+
+  const nameError = activityTypeNameError(name, await listActivityTypes(), { module });
+  if (nameError) return { error: nameError };
 
   try {
-    await createActivityType(user, name);
+    await createActivityType(user, name, module);
   } catch (cause) {
     console.error("[activity-types] create failed", cause);
     return { error: "The activity type could not be saved. Please try again." };
   }
 
   revalidate();
-  return { ok: true, message: `"${name}" was added to the register.` };
+  return {
+    ok: true,
+    message: `"${name}" was added for ${activityModuleLabel(module)}.`,
+  };
 }
 
 /**

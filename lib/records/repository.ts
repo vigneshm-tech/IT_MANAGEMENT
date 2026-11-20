@@ -1,6 +1,10 @@
 import { isSupabaseConfigured } from "../config";
 import { createSupabaseServerClient } from "../supabase/server";
-import { ACTIVITY_TYPE_SEED, normaliseActivityTypeName } from "../activity-types";
+import {
+  ACTIVITY_TYPE_SEED,
+  normaliseActivityTypeName,
+  TASK_ACTIVITY_MODULE,
+} from "../activity-types";
 import type { SessionUser } from "../auth/token";
 import type { RoleId } from "../roles";
 
@@ -55,6 +59,8 @@ export type ActivityTypeStatus = "active" | "inactive";
 export type ActivityTypeRecord = {
   id: string;
   name: string;
+  /** Which module offers this type (tasks, tickets, …). */
+  module: string;
   status: ActivityTypeStatus;
   createdAt: string;
 };
@@ -98,6 +104,7 @@ function seededActivityTypes(): ActivityTypeRecord[] {
   return ACTIVITY_TYPE_SEED.map((name, index) => ({
     id: `AT-${index + 1}`,
     name,
+    module: TASK_ACTIVITY_MODULE,
     status: "active" as ActivityTypeStatus,
     createdAt: iso(-180 + index),
   }));
@@ -299,6 +306,10 @@ function demoStore(): Store {
   // A long-lived dev process can still be holding a store created by an older
   // build; backfill registers that did not exist when it was seeded.
   if (!Array.isArray(store.activityTypes)) store.activityTypes = seededActivityTypes();
+  // Records seeded before the module column existed belong to the task form.
+  for (const type of store.activityTypes) {
+    if (!type.module) type.module = TASK_ACTIVITY_MODULE;
+  }
 
   return store;
 }
@@ -667,6 +678,7 @@ function mapActivityType(row: Record<string, unknown>): ActivityTypeRecord {
   return {
     id: s(row.id),
     name: s(row.name),
+    module: s(row.module, TASK_ACTIVITY_MODULE),
     status: s(row.status, "active") === "inactive" ? "inactive" : "active",
     createdAt: s(row.created_at, new Date().toISOString()),
   };
@@ -683,6 +695,7 @@ export async function listActivityTypes(): Promise<ActivityTypeRecord[]> {
     const { data, error } = await supabase
       .from("activity_types")
       .select("*")
+      .order("module", { ascending: true })
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true })
       .limit(200);
@@ -695,10 +708,14 @@ export async function listActivityTypes(): Promise<ActivityTypeRecord[]> {
   }
 }
 
-/** Exactly what the task form may offer. */
-export async function listActiveActivityTypes(): Promise<string[]> {
+/** Exactly what a module's form may offer — the task form asks for "tasks". */
+export async function listActiveActivityTypes(
+  module: string = TASK_ACTIVITY_MODULE,
+): Promise<string[]> {
   const types = await listActivityTypes();
-  return types.filter((type) => type.status === "active").map((type) => type.name);
+  return types
+    .filter((type) => type.status === "active" && type.module === module)
+    .map((type) => type.name);
 }
 
 function byStatusThenName(a: ActivityTypeRecord, b: ActivityTypeRecord): number {
@@ -709,6 +726,7 @@ function byStatusThenName(a: ActivityTypeRecord, b: ActivityTypeRecord): number 
 export async function createActivityType(
   user: SessionUser,
   rawName: string,
+  module: string = TASK_ACTIVITY_MODULE,
 ): Promise<ActivityTypeRecord> {
   const name = normaliseActivityTypeName(rawName);
 
@@ -717,10 +735,11 @@ export async function createActivityType(
     const record: ActivityTypeRecord = {
       id: nextId("AT", store.activityTypes),
       name,
+      module,
       status: "active",
       createdAt: new Date().toISOString(),
     };
-    store.activityTypes.unshift(record);
+    store.activityTypes.push(record);
     return record;
   }
 
@@ -728,6 +747,7 @@ export async function createActivityType(
     "activity_types",
     {
       name,
+      module,
       status: "active",
       sort_order: 100,
       created_by: user.id,
