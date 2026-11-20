@@ -141,16 +141,17 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   return getSession();
 }
 
+/** A suspension takes effect within this window, not on every single render. */
+const STATUS_TTL_MS = 30_000;
+
 /**
  * Use inside protected server components / actions.
  *
  * Besides decoding the cookie, Supabase sessions are checked against
- * `profiles.status` so a suspended or removed account loses access at once
- * instead of when the 12-hour cookie expires.
+ * `profiles.status` so a suspended or removed account loses access within
+ * `STATUS_TTL_MS` rather than on every render (a database read per render was
+ * one of the costs of switching modules) and never when the cookie expires.
  */
-/** A suspension takes effect within this window, not on every single render. */
-const STATUS_TTL_MS = 30_000;
-
 export const requireUser = cache(async (): Promise<SessionUser> => {
   const user = await getSession();
   if (!user) redirect("/login");
