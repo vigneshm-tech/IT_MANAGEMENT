@@ -10,7 +10,7 @@ import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import { readCache, writeCache } from "../cache/ttl";
 import type { RoleId } from "../roles";
-import { isPatchOutcome } from "../patching/plan";
+import { isPatchOutcome, pendingForApprover } from "../patching/plan";
 import type {
   PatchApprover,
   PatchOutcome,
@@ -1439,10 +1439,20 @@ function mapSchedule(
   };
 }
 
+/**
+ * Every plan with its approvers. Read by the register, the report, the
+ * Approvals inbox and the nav badge, so it is cached for thirty seconds — every
+ * patching action clears `patch-schedules` before it revalidates.
+ */
+const PATCH_SCHEDULES_TTL_MS = 30_000;
+
 export async function listPatchSchedules(): Promise<PatchScheduleRecord[]> {
   if (!isSupabaseConfigured) {
     return [...demoStore().patchSchedules].sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
   }
+
+  const cached = readCache<PatchScheduleRecord[]>("patch-schedules");
+  if (cached) return cached;
 
   try {
     const supabase = await createSupabaseServerClient();
@@ -1471,11 +1481,22 @@ export async function listPatchSchedules(): Promise<PatchScheduleRecord[]> {
       bySchedule.set(key, list);
     }
 
-    return schedules.map((row) => mapSchedule(row, bySchedule.get(s(row.id)) ?? []));
+    const plans = schedules.map((row) => mapSchedule(row, bySchedule.get(s(row.id)) ?? []));
+    writeCache("patch-schedules", plans, PATCH_SCHEDULES_TTL_MS);
+    return plans;
   } catch (error) {
     console.error("[records] patch schedules select failed", error);
     return [];
   }
+}
+
+/**
+ * The patch plans waiting for one person's decision — the source of the
+ * "Patching sign-offs" section on Approvals and of the bell's patch entries.
+ */
+export async function listPatchInbox(userId: string): Promise<PatchScheduleRecord[]> {
+  if (!userId) return [];
+  return pendingForApprover(await listPatchSchedules(), userId);
 }
 
 export type PatchScheduleInput = {

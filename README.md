@@ -371,6 +371,19 @@ together:
   anyone rejects, and Pending until then. Only the named approvers can decide —
   the same rule the RLS on `patch_schedule_approvers` enforces
   (`approver_id = auth.uid()` or leadership).
+- **Where an approver sees it**: a patch plan is an approval, so it shows up in
+  three places, all reading `listPatchInbox(userId)` — `pendingForApprover()` in
+  `lib/patching/plan.ts` keeps the plans whose *own* decision is still pending
+  and drops any plan someone else already rejected:
+  1. **Approvals** — a *Patching sign-offs* block above the request table, with
+     the endpoint, planned date, handler, patch counts and the same
+     approve/reject form (verified-by + note) as the register. An approver who
+     never opens Patching Plans can still decide.
+  2. **The bell** — the badge counts requests *and* patch sign-offs, each row is
+     labelled *Patching sign-off · awaiting your decision* and links straight to
+     `/modules/approvals#patching-signoffs`.
+  3. **Overview** — the pending-approvals metric adds them up and *Needs
+     attention* lists the two nearest patch sign-offs.
 - **Report**: with endpoints ticked, *Prepare report* opens
   `/modules/patching/report?plans=…`. The sheet carries the wordmark, and per
   endpoint: planned date, endpoint name, IT member handling the patching,

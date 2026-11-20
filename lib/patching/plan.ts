@@ -134,6 +134,26 @@ export function verificationNames(approvers: PatchApprover[]): string {
   return unique.length > 0 ? unique.join(", ") : "—";
 }
 
+/**
+ * The patch inbox: plans that are still waiting for *this* person's decision.
+ *
+ * A plan someone else already rejected needs nothing from the remaining
+ * approvers, so it drops out of the inbox even though their own decision is
+ * still recorded as pending.
+ */
+export function pendingForApprover(
+  schedules: PatchScheduleRecord[],
+  userId: string,
+): PatchScheduleRecord[] {
+  if (!userId) return [];
+  return schedules
+    .filter(
+      (plan) =>
+        myDecision(plan.approvers, userId) === "pending" && planStatus(plan.approvers) !== "rejected",
+    )
+    .sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
+}
+
 export function isApprover(approvers: PatchApprover[], userId: string): boolean {
   return approvers.some((approver) => approver.approverId === userId);
 }

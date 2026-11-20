@@ -15,6 +15,7 @@ import {
   isApprover,
   myDecision,
   pendingApproverNames,
+  pendingForApprover,
   outcomeError,
   planStatus,
   plannedDateError,
@@ -26,6 +27,7 @@ import {
   verificationNames,
   rejectedByName,
   type PatchApprover,
+  type PatchScheduleRecord,
 } from "../lib/patching/plan";
 
 function approver(name: string, status: PatchApprover["status"] = "pending"): PatchApprover {
@@ -247,4 +249,70 @@ test("each result reads and colours the same way in the table and the report", (
   assert.equal(PATCH_OUTCOME_TONE.failed, "danger");
   assert.equal(PATCH_OUTCOME_TONE.partial, "pending");
   assert.equal(PATCH_OUTCOME_TONE.pending, "neutral");
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The approver's inbox                                                      */
+/* -------------------------------------------------------------------------- */
+
+function plan(id: string, approvers: PatchApprover[], plannedDate = "2026-11-20"): PatchScheduleRecord {
+  return {
+    id,
+    endpointId: `ep-${id}`,
+    endpointName: `SRV-${id}`,
+    missingCount: 3,
+    otherCount: 1,
+    plannedDate,
+    handlerId: "usr-handler",
+    handlerName: "Handler",
+    approvers,
+    outcome: "pending",
+    outcomeByName: "",
+    outcomeAt: null,
+    note: "",
+    createdByName: "Ravi",
+    createdAt: "2026-11-18T09:00:00.000Z",
+    updatedAt: "2026-11-18T09:00:00.000Z",
+  };
+}
+
+test("the inbox holds the plans still waiting on that person", () => {
+  const schedules = [
+    plan("1", [approver("Asha"), approver("Ravi")]),
+    plan("2", [approver("Asha", "approved"), approver("Ravi")]),
+    plan("3", [approver("Asha")]),
+  ];
+
+  // Asha has decided on plan 2, so only 1 and 3 wait for her.
+  assert.deepEqual(
+    pendingForApprover(schedules, "usr-asha").map((item) => item.id),
+    ["1", "3"],
+  );
+  // Someone who was never named gets nothing — this is the bug being fixed:
+  // a plan used to be invisible unless you opened Patching Plans.
+  assert.deepEqual(pendingForApprover(schedules, "usr-nobody"), []);
+  assert.deepEqual(pendingForApprover(schedules, ""), []);
+});
+
+test("a plan someone else rejected leaves the remaining inboxes", () => {
+  const schedules = [
+    plan("1", [approver("Asha"), approver("Ravi", "rejected")]),
+    plan("2", [approver("Asha"), approver("Ravi")]),
+  ];
+  // Ravi's rejection settles plan 1, so Asha is no longer asked about it.
+  assert.deepEqual(
+    pendingForApprover(schedules, "usr-asha").map((item) => item.id),
+    ["2"],
+  );
+});
+
+test("the inbox is ordered by the date the patching is planned for", () => {
+  const schedules = [
+    plan("late", [approver("Asha")], "2026-12-09"),
+    plan("soon", [approver("Asha")], "2026-11-21"),
+  ];
+  assert.deepEqual(
+    pendingForApprover(schedules, "usr-asha").map((item) => item.id),
+    ["soon", "late"],
+  );
 });

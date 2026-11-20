@@ -1,5 +1,7 @@
-import { BadgeCheck } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, CalendarDays, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { PatchDecisionForm } from "@/components/modules/patch-decision-form";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
@@ -7,8 +9,9 @@ import { can } from "@/lib/access";
 import { ROLE_BY_ID } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { createApprovalAction, decideApprovalAction } from "@/app/(app)/modules/approvals/actions";
-import type { ApprovalRecord } from "@/lib/records/repository";
+import type { ApprovalRecord, AssignableUser, PatchScheduleRecord } from "@/lib/records/repository";
 import { formatDayMonth } from "@/lib/format";
+import { formatPlannedDate } from "@/lib/patching/plan";
 
 const COLUMNS: Column[] = [
   { key: "title", label: "Request" },
@@ -49,9 +52,15 @@ function fields(): FieldDef[] {
 export function ApprovalsView({
   user,
   approvals,
+  patchApprovals = [],
+  people = [],
 }: {
   user: SessionUser;
   approvals: ApprovalRecord[];
+  /** Patch plans this person was named on and has not decided yet. */
+  patchApprovals?: PatchScheduleRecord[];
+  /** Staff directory for the "Verified by" picker. */
+  people?: AssignableUser[];
 }) {
   const canApprove = can(user.role, "approvals", "approve");
   const ordered = [
@@ -93,6 +102,69 @@ export function ApprovalsView({
           />
         }
       />
+
+      {patchApprovals.length > 0 && (
+        <section
+          id="patching-signoffs"
+          aria-labelledby="patching-signoffs-title"
+          className="space-y-3 border border-line bg-surface"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+            <div>
+              <h2
+                id="patching-signoffs-title"
+                className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-navy"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-gold" aria-hidden />
+                Patching sign-offs
+              </h2>
+              <p className="mt-0.5 text-[11.5px] text-muted">
+                {patchApprovals.length === 1
+                  ? "One patch plan is waiting for your decision."
+                  : `${patchApprovals.length} patch plans are waiting for your decision.`}
+              </p>
+            </div>
+            <Link
+              href="/modules/patching"
+              className="text-[12px] font-medium text-navy hover:underline"
+            >
+              Open Patching Plans
+            </Link>
+          </div>
+
+          <ul className="divide-y divide-line">
+            {patchApprovals.map((plan) => (
+              <li key={plan.id} className="space-y-3 px-4 py-3.5">
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium text-navy">{plan.endpointName}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted">
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays className="h-3 w-3" aria-hidden />
+                        {formatPlannedDate(plan.plannedDate)}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <UserRound className="h-3 w-3" aria-hidden />
+                        {plan.handlerName || "No handler"}
+                      </span>
+                      <span>
+                        {plan.missingCount} missing {plan.missingCount === 1 ? "patch" : "patches"} ·{" "}
+                        {plan.otherCount} other {plan.otherCount === 1 ? "update" : "updates"}
+                      </span>
+                      {plan.createdByName ? <span>Raised by {plan.createdByName}</span> : null}
+                    </p>
+                  </div>
+                  <span className="rounded bg-[#eaeef6] px-1.5 py-0.5 text-[10.5px] font-medium text-navy">
+                    {plan.id}
+                  </span>
+                </div>
+
+                <PatchDecisionForm plan={plan} people={people} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <DataTable
         columns={COLUMNS}

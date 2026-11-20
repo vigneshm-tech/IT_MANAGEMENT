@@ -23,6 +23,7 @@ import {
   listCustomFields,
   listAssignableUsers,
   listIndustries,
+  listPatchInbox,
   listPatchSchedules,
   listRenewals,
 } from "@/lib/records/repository";
@@ -111,8 +112,23 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       );
     }
 
-    case "approvals":
-      return <ApprovalsView user={user} approvals={await listApprovals()} />;
+    case "approvals": {
+      // Patch plans a named approver still has to answer live here next to the
+      // request approvals — the same person may never open Patching Plans.
+      const [approvals, patchApprovals, people] = await Promise.all([
+        listApprovals(),
+        listPatchInbox(user.id),
+        listAssignableUsers(),
+      ]);
+      return (
+        <ApprovalsView
+          user={user}
+          approvals={approvals}
+          patchApprovals={patchApprovals}
+          people={people}
+        />
+      );
+    }
 
     case "renewals":
       return <RenewalsView user={user} renewals={await listRenewals()} />;

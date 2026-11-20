@@ -31,6 +31,15 @@ export type NavGroup = {
   modules: NavModule[];
 };
 
+/** One row in the bell: a request or a patch sign-off waiting on this person. */
+export type NavNotification = {
+  id: string;
+  title: string;
+  /** Short label — "Request" or "Patching". */
+  kind: string;
+  href: string;
+};
+
 export type NavUser = {
   name: string;
   email: string;
@@ -55,11 +64,14 @@ function initials(name: string) {
 export function TopNav({
   groups,
   user,
-  approvals,
+  notifications = [],
+  notificationCount = 0,
 }: {
   groups: NavGroup[];
   user: NavUser;
-  approvals: { id: string; title: string }[];
+  notifications?: NavNotification[];
+  /** Everything waiting, including rows beyond the six the menu lists. */
+  notificationCount?: number;
 }) {
   const router = useRouter();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -127,16 +139,16 @@ export function TopNav({
                 }}
                 aria-expanded={bellOpen}
                 aria-label={
-                  approvals.length > 0
-                    ? `Notifications, ${approvals.length} pending approvals`
+                  notificationCount > 0
+                    ? `Notifications, ${notificationCount} waiting on you`
                     : "Notifications"
                 }
                 className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted transition hover:bg-[#f5f7fb] hover:text-navy"
               >
                 <Bell className="h-4 w-4" aria-hidden />
-                {approvals.length > 0 && (
+                {notificationCount > 0 && (
                   <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-semibold text-navy">
-                    {approvals.length}
+                    {notificationCount > 9 ? "9+" : notificationCount}
                   </span>
                 )}
               </button>
@@ -153,23 +165,25 @@ export function TopNav({
                     <div className="border-b border-line px-4 py-3">
                       <p className="text-[12.5px] font-semibold text-navy">Notifications</p>
                     </div>
-                    {approvals.length === 0 ? (
+                    {notifications.length === 0 ? (
                       <p className="px-4 py-6 text-center text-[12.5px] text-muted">
                         You’re all caught up.
                       </p>
                     ) : (
                       <ul className="max-h-[280px] overflow-y-auto py-1">
-                        {approvals.map((item) => (
-                          <li key={item.id}>
+                        {notifications.map((item) => (
+                          <li key={`${item.kind}-${item.id}`}>
                             <Link
-                              href="/modules/approvals"
+                              href={item.href}
                               className="block px-4 py-2.5 transition hover:bg-[#f5f7fb]"
                             >
                               <span className="block text-[12.5px] font-medium text-navy">
                                 {item.title}
                               </span>
                               <span className="mt-0.5 block text-[11.5px] text-muted">
-                                Awaiting a decision
+                                {item.kind === "Patching"
+                                  ? "Patching sign-off · awaiting your decision"
+                                  : "Request · awaiting a decision"}
                               </span>
                             </Link>
                           </li>

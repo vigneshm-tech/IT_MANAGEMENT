@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { clearCache } from "@/lib/cache/ttl";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import type { FormState } from "@/lib/forms";
@@ -71,7 +72,10 @@ export async function schedulePatchPlansAction(
       note,
     });
 
+    // The register, the Approvals inbox and the bell all read the cached list.
+    clearCache("patch-schedules");
     revalidatePath("/modules/patching");
+    revalidatePath("/modules/approvals");
     revalidatePath("/modules/dashboard");
 
     return {
@@ -129,7 +133,9 @@ export async function decidePatchPlanAction(
   });
   if (!saved) return { error: "The decision could not be saved. Please try again." };
 
+  clearCache("patch-schedules");
   revalidatePath("/modules/patching");
+  revalidatePath("/modules/approvals");
   revalidatePath("/modules/dashboard");
   return {
     ok: true,
@@ -173,7 +179,9 @@ export async function updatePatchOutcomeAction(
   });
   if (!saved) return { error: "The update status could not be saved. Please try again." };
 
+  clearCache("patch-schedules");
   revalidatePath("/modules/patching");
+  revalidatePath("/modules/approvals");
   revalidatePath("/modules/dashboard");
 
   const label = isPatchOutcome(value) ? PATCH_OUTCOME_LABEL[value] : "Not run";

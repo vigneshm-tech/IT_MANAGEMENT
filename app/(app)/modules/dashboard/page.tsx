@@ -32,6 +32,7 @@ import {
 import {
   daysUntil,
   listApprovals,
+  listPatchInbox,
   listRenewals,
 } from "@/lib/records/repository";
 import { listTasks, type TaskRecord } from "@/lib/tasks/repository";
@@ -71,9 +72,10 @@ function buildTrend(tasks: TaskRecord[], days = 14) {
 export default async function OverviewPage() {
   const user = await requireUser();
   // One batch: the overview is the landing page, so nothing waits twice.
-  const [tasks, approvals, renewals, redmine, action1] = await Promise.all([
+  const [tasks, approvals, patchInbox, renewals, redmine, action1] = await Promise.all([
     listTasks(),
     listApprovals(),
+    listPatchInbox(user.id),
     listRenewals(),
     integrationStatus(user.id, "redmine"),
     integrationStatus(user.id, "action1"),
@@ -83,6 +85,8 @@ export default async function OverviewPage() {
   const openTasks = tasks.filter((task) => isOpenStatus(task.status));
   const inProgress = tasks.filter((task) => task.status === "in_progress");
   const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
+  // Patch sign-offs are approvals too, so the overview counts and lists them.
+  const awaitingDecision = pendingApprovals.length + patchInbox.length;
   const renewalsDue = renewals.filter(
     (renewal) =>
       renewal.status !== "renewed" &&
@@ -100,6 +104,13 @@ export default async function OverviewPage() {
   );
 
   const attention = [
+    ...patchInbox.slice(0, 2).map((plan) => ({
+      id: plan.id,
+      title: plan.endpointName,
+      meta: `Patching sign-off · ${formatDayMonth(`${plan.plannedDate}T12:00:00`, now)}`,
+      href: "/modules/approvals#patching-signoffs",
+      status: "pending",
+    })),
     ...pendingApprovals.slice(0, 2).map((approval) => ({
       id: approval.id,
       title: approval.title,
@@ -143,8 +154,13 @@ export default async function OverviewPage() {
     },
     {
       label: "Pending approvals",
-      value: pendingApprovals.length,
-      foot: canApprove ? "Awaiting your decision" : "Awaiting leadership",
+      value: awaitingDecision,
+      foot:
+        patchInbox.length > 0
+          ? `${patchInbox.length} patch ${patchInbox.length === 1 ? "sign-off" : "sign-offs"}`
+          : canApprove
+            ? "Awaiting your decision"
+            : "Awaiting leadership",
       icon: BadgeCheck,
     },
     {

@@ -42,11 +42,8 @@ import {
   todayInIndia,
   withinPlannedRange,
 } from "@/lib/patching/plan";
-import {
-  decidePatchPlanAction,
-  schedulePatchPlansAction,
-  updatePatchOutcomeAction,
-} from "@/app/(app)/modules/patching/actions";
+import { schedulePatchPlansAction, updatePatchOutcomeAction } from "@/app/(app)/modules/patching/actions";
+import { PatchDecisionForm } from "@/components/modules/patch-decision-form";
 import { refreshServersAction } from "@/app/(app)/modules/servers/actions";
 import { useActionState } from "react";
 
@@ -141,10 +138,6 @@ export function PatchingView({
     schedulePatchPlansAction,
     {},
   );
-  const [decisionState, decisionAction, decisionPending] = useActionState(
-    decidePatchPlanAction,
-    {},
-  );
 
   useEffect(() => {
     if (scheduleState.ok) {
@@ -153,13 +146,6 @@ export function PatchingView({
       setNotice(scheduleState.message ?? "Plans saved.");
     }
   }, [scheduleState]);
-
-  useEffect(() => {
-    if (decisionState.ok) {
-      setPanel(null);
-      setNotice(decisionState.message ?? "Decision saved.");
-    }
-  }, [decisionState]);
 
   const rangeError = plannedRangeError(from, to);
   const rangeActive = Boolean(from || to);
@@ -217,7 +203,6 @@ export function PatchingView({
 
   const error =
     (panel?.kind === "schedule" ? scheduleState.error : undefined) ??
-    (panel?.kind === "decide" ? decisionState.error : undefined) ??
     (outcomeFailure || undefined);
 
   /** Saves the result of the patching run straight from the row. */
@@ -319,12 +304,11 @@ export function PatchingView({
           const plan = schedules.find((item) => item.id === panel.planId);
           if (!plan) return null;
           return (
-            <DecisionPanel
+            <PatchDecisionForm
               plan={plan}
               people={people}
-              pending={decisionPending}
-              action={decisionAction}
               onCancel={() => setPanel(null)}
+              onResult={(message) => setNotice(message)}
             />
           );
         })()}
@@ -741,86 +725,6 @@ function SchedulePanel({
         <Button type="submit" size="sm" disabled={pending || endpoints.length === 0}>
           {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
           Send for approval
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function DecisionPanel({
-  plan,
-  people,
-  pending,
-  action,
-  onCancel,
-}: {
-  plan: PatchScheduleRecord;
-  people: AssignableUser[];
-  pending: boolean;
-  action: (formData: FormData) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <form action={action} className="border border-line-strong bg-surface">
-      <div className="border-b border-line px-4 py-2.5">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-navy">
-          Approval · {plan.endpointName}
-        </h2>
-      </div>
-
-      <input type="hidden" name="scheduleId" value={plan.id} />
-
-      <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
-        <div>
-          <span className="field-label">Verified by</span>
-          {people.length > 0 ? (
-            <SearchSelect
-              name="verificationPersonId"
-              options={people.map((person) => ({
-                value: person.id,
-                label: person.name,
-                hint: person.role ?? undefined,
-              }))}
-              placeholder="Select the person who verified"
-              emptyLabel="No active staff found"
-              ariaLabel="Verified by"
-              searchPlaceholder="Search people"
-            />
-          ) : (
-            <p className="text-[12px] text-muted">No active staff available.</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="decision-note" className="field-label">
-            Note
-          </label>
-          <input id="decision-note" name="note" maxLength={500} className="field" />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-2.5">
-        <button
-          type="button"
-          onClick={onCancel}
-          className={buttonClass({ variant: "secondary", size: "sm" })}
-        >
-          Cancel
-        </button>
-        <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>
-          {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
-          Approve
-        </Button>
-        <Button
-          type="submit"
-          name="decision"
-          value="reject"
-          variant="secondary"
-          size="sm"
-          disabled={pending}
-          className="border-danger/40 text-danger hover:bg-danger-soft"
-        >
-          Reject
         </Button>
       </div>
     </form>

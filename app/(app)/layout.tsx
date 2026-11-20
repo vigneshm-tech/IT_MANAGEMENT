@@ -8,7 +8,8 @@ import { isIntroPending } from "@/lib/auth/intro";
 import { can, visibleModules } from "@/lib/access";
 import { NAV_GROUPS } from "@/lib/modules";
 import { ROLE_BY_ID } from "@/lib/roles";
-import { listPendingApprovals } from "@/lib/records/repository";
+import { listPatchInbox, listPendingApprovals } from "@/lib/records/repository";
+import { formatPlannedDate } from "@/lib/patching/plan";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -38,16 +39,46 @@ export default async function WorkspaceLayout({
       })),
   })).filter((group) => group.modules.length > 0);
 
-  let approvals: { id: string; title: string }[] = [];
+  // The bell is the notification surface: raised requests for the roles that
+  // decide them, plus the patch plans this person was named on. A patch
+  // approval used to exist only on the Patching Plans screen, so an approver who
+  // never opened it was never told.
+  const notifications: {
+    id: string;
+    title: string;
+    kind: string;
+    href: string;
+  }[] = [];
+
   if (can(user.role, "approvals", "approve")) {
     try {
-      approvals = (await listPendingApprovals())
-        .slice(0, 5)
-        .map((approval) => ({ id: approval.id, title: approval.title }));
+      for (const approval of await listPendingApprovals()) {
+        notifications.push({
+          id: approval.id,
+          title: approval.title,
+          kind: "Request",
+          href: "/modules/approvals",
+        });
+      }
     } catch {
-      approvals = [];
+      // A failed read must not take the whole shell down.
     }
   }
+
+  try {
+    for (const plan of await listPatchInbox(user.id)) {
+      notifications.push({
+        id: plan.id,
+        title: `${plan.endpointName} · ${formatPlannedDate(plan.plannedDate)}`,
+        kind: "Patching",
+        href: "/modules/approvals#patching-signoffs",
+      });
+    }
+  } catch {
+    // Same here — the badge is a convenience, not a dependency.
+  }
+
+  const pendingCount = notifications.length;
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
@@ -59,7 +90,8 @@ export default async function WorkspaceLayout({
           title: user.title,
           roleLabel: role.label,
         }}
-        approvals={approvals}
+        notifications={notifications.slice(0, 6)}
+        notificationCount={pendingCount}
       />
 
       <Breadcrumbs />
