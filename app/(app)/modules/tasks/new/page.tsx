@@ -9,6 +9,8 @@ import {
   listActiveActivityTypes,
   listAssignableUsers,
   listClients,
+  listCustomFieldValues,
+  listModuleCustomFields,
 } from "@/lib/records/repository";
 import { peopleOptions } from "@/lib/tasks/options";
 import { listServerOptions } from "@/lib/servers/inventory";
@@ -37,13 +39,14 @@ export default async function NewTaskPage() {
     );
   }
 
-  const [clients, activityTypes, people, servers] = await Promise.all([
+  const [clients, activityTypes, people, servers, customFields] = await Promise.all([
     listClients().then((items) =>
       items.filter((client) => client.status === "active").map((client) => client.name),
     ),
     listActiveActivityTypes("tasks"),
     listAssignableUsers(),
     listServerOptions(user.id),
+    listModuleCustomFields("tasks"),
   ]);
 
   return (
@@ -56,6 +59,7 @@ export default async function NewTaskPage() {
         activityTypes={activityTypes}
         people={peopleOptions(people)}
         servers={servers}
+        customFields={customFields}
       />
     </div>
   );

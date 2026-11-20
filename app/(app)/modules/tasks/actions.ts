@@ -16,7 +16,13 @@ import {
 import { PLAN_STATUS_OPTIONS, TASK_STATUS_LABEL, TASK_STATUS_VALUES } from "@/lib/tasks/options";
 import type { PlanStatus, TaskPriority, TaskStatus } from "@/lib/tasks/store";
 import { formatDateTime } from "@/lib/format";
-import { listActiveActivityTypes, listAssignableUsers } from "@/lib/records/repository";
+import {
+  listActiveActivityTypes,
+  listAssignableUsers,
+  listModuleCustomFields,
+  readCustomFieldForm,
+  saveCustomFieldValues,
+} from "@/lib/records/repository";
 import { TASK_ACTIVITY_MODULE } from "@/lib/activity-types";
 import type { FormState } from "@/lib/forms";
 
@@ -144,6 +150,8 @@ export async function createTaskAction(
       requestedByEmail: user.email,
     });
     createdId = task.id;
+    const fields = await listModuleCustomFields(TASK_ACTIVITY_MODULE);
+    await saveCustomFieldValues(task.id, readCustomFieldForm(formData, fields));
   } catch (error) {
     console.error("[tasks] create failed", error);
     return { error: "The task could not be saved. Please try again." };
@@ -181,6 +189,8 @@ export async function updateTaskAction(
     requestedByEmail: existing.requestedByEmail,
   });
   if (!saved) return { error: "The task could not be updated. Please try again." };
+  const fields = await listModuleCustomFields(TASK_ACTIVITY_MODULE);
+  await saveCustomFieldValues(id, readCustomFieldForm(formData, fields));
 
   revalidatePath("/modules/tasks");
   revalidatePath(`/modules/tasks/${id}`);

@@ -14,7 +14,11 @@ import {
 import { mobileDigits } from "@/lib/countries";
 import {
   createClientRecord,
+  deleteClientRecord,
   listAssignableUsers,
+  listModuleCustomFields,
+  readCustomFieldForm,
+  saveCustomFieldValues,
   setClientStatus,
   updateClientRecord,
 } from "@/lib/records/repository";
@@ -109,6 +113,10 @@ export async function createClientAction(
 
   try {
     const record = await createClientRecord(user, parsed.input);
+    // Masters → Custom fields is the only place fields are defined; whatever is
+    // filed under this module is answered here.
+    const fields = await listModuleCustomFields("clients");
+    await saveCustomFieldValues(record.id, readCustomFieldForm(formData, fields));
     revalidateClients();
     redirect(`/modules/clients?created=${encodeURIComponent(record.id)}`);
   } catch (cause) {
@@ -138,6 +146,8 @@ export async function updateClientAction(
   try {
     const saved = await updateClientRecord(id, parsed.input);
     if (!saved) return { error: "The client could not be saved. Please try again." };
+    const fields = await listModuleCustomFields("clients");
+    await saveCustomFieldValues(id, readCustomFieldForm(formData, fields));
     // A renamed client must keep its renewals and patching windows readable.
     revalidateClients();
     redirect(`/modules/clients?updated=${encodeURIComponent(id)}`);
@@ -154,8 +164,16 @@ export async function updateClientStatusAction(formData: FormData): Promise<void
 
   const id = String(formData.get("id") ?? "");
   const value = String(formData.get("value") ?? "");
+  if (!id) return;
+
+  if (value === "delete") {
+    await deleteClientRecord(id);
+    revalidateClients();
+    return;
+  }
+
   const status = value === "activate" ? "active" : value === "deactivate" ? "inactive" : null;
-  if (!id || !status) return;
+  if (!status) return;
 
   await setClientStatus(id, status);
   revalidatePath("/modules/clients");

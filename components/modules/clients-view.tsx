@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Upload } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
@@ -78,6 +78,12 @@ export function ClientsView({
             client.status === "active"
               ? { label: "Deactivate", value: "deactivate", tone: "default" as const }
               : { label: "Activate", value: "activate", tone: "default" as const },
+            {
+              label: "Delete",
+              value: "delete",
+              tone: "danger" as const,
+              confirm: `Delete ${client.name}? The account and its custom field answers are removed permanently.`,
+            },
           ]
         : [],
     };
@@ -89,10 +95,19 @@ export function ClientsView({
         title="Clients"
         actions={
           canEdit ? (
-            <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Add client
-            </Link>
+            <>
+              <Link
+                href="/modules/clients/import"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                <Upload className="h-3.5 w-3.5" aria-hidden />
+                Import
+              </Link>
+              <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Add client
+              </Link>
+            </>
           ) : undefined
         }
       >

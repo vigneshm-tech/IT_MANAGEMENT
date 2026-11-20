@@ -5,9 +5,14 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { useActionState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { CountryCodeField } from "@/components/ui/country-code-field";
+import { CustomFields } from "@/components/ui/custom-fields";
 import type { FormState } from "@/lib/forms";
 import { VISIBLE_ROLES } from "@/lib/roles";
-import type { AssignableUser, ClientRecord } from "@/lib/records/repository";
+import type {
+  AssignableUser,
+  ClientRecord,
+  CustomFieldRecord,
+} from "@/lib/records/repository";
 import type { FormState as ClientFormState } from "@/lib/forms";
 
 const NAME_MAX = 160;
@@ -84,6 +89,8 @@ function MobileFields({
 export function ClientForm({
   people,
   industries,
+  customFields = [],
+  customValues = {},
   client,
   action,
   submitLabel = "Save client",
@@ -91,6 +98,10 @@ export function ClientForm({
   people: AssignableUser[];
   /** Active industry names from Masters. */
   industries: string[];
+  /** Masters → Custom fields filed under this module, active only. */
+  customFields?: CustomFieldRecord[];
+  /** Existing answers, keyed by field id. */
+  customValues?: Record<string, string>;
   /** Present when editing an existing record. */
   client?: ClientRecord;
   action: (state: ClientFormState, formData: FormData) => Promise<ClientFormState>;
@@ -299,6 +310,8 @@ export function ClientForm({
           </div>
         </div>
       </Section>
+
+      <CustomFields fields={customFields} values={customValues} />
 
       {state.error && (
         <p

@@ -64,7 +64,7 @@ export default async function CustomFieldsPage({
       basePath="/modules/masters/custom-fields"
       deleteQuestion={'Delete "{name}" from the custom fields register?'}
       deleteExplanation={
-        'Filed under {module}. Deleting removes the definition from the register; no record on the module is rewritten, and the entry cannot be restored afterwards.'
+        'Filed under {module}. The field appears on that module\u2019s forms. Deleting removes the definition and every answer saved against it, and cannot be undone.'
       }
       addLabel="Add field"
       nameLabel="Field name"

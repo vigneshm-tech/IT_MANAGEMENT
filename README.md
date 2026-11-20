@@ -287,6 +287,17 @@ full-page create form (no popup). One client records:
 - The register shows every field as a column (all of them visible by default;
   the table scrolls sideways and the Columns control can hide any of them).
   Deactivate keeps history, as with the other registers.
+- **Delete** sits last in each row's menu, behind the browser confirm that names
+  the account. It needs `clients.edit`, goes through
+  `updateClientStatusAction` (value `delete`) into `deleteClientRecord()`, and
+  cascades the client's custom-field answers with it.
+- **Import** (`/modules/clients/import`) takes a CSV file or pasted rows — never
+  a popup. The template is generated from `CLIENT_IMPORT_COLUMNS`, so its header
+  can never drift from the parser. Rows are validated with the same rules as the
+  form (`lib/clients.ts`), matched case-insensitively against the register by
+  name and short code, and reported as "N clients imported, M skipped." with one
+  line per skipped row. Up to 500 rows / 512 KB per run; the CSV parser handles
+  quoted cells, embedded commas and CRLF (`lib/clients-import.ts`, tested).
 
 ### Industries
 
@@ -314,6 +325,17 @@ and on the edit page.
   reference" can exist for Clients and for Ticket Portal at the same time.
 - Edit renames the field or moves it to another module; Deactivate/Delete behave
   like the other registers, deletion behind the same designed confirm panel.
+- **Pointing a field at a module displays it there automatically.** No per-module
+  wiring: every form asks `listModuleCustomFields(<module>)` and renders what it
+  gets with `components/ui/custom-fields.tsx` (named `custom:<fieldId>`), and the
+  server action writes the answers through `saveCustomFieldValues()` /
+  `readCustomFieldForm()`. Today the Clients and Task Management forms consume
+  it; adding it to another module is one `<CustomFields …>` line plus those two
+  calls.
+- Answers live in `custom_field_values (field_id, record_id, value)` (migration
+  `0020`), keyed by text record id — `CL-1001`, `TSK-1042` — so one table serves
+  every module. Deleting a field cascades its answers; clearing a field stores an
+  empty string rather than dropping the row.
 
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,

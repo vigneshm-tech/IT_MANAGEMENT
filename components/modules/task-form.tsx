@@ -5,10 +5,12 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { CustomFields } from "@/components/ui/custom-fields";
 import { TASK_STATUS_OPTIONS, NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
 import type { TaskStatus } from "@/lib/tasks/store";
 import type { FormState } from "@/lib/forms";
 import type { TaskRecord } from "@/lib/tasks/repository";
+import type { CustomFieldRecord } from "@/lib/records/repository";
 import { createTaskAction, updateTaskAction } from "@/app/(app)/modules/tasks/actions";
 
 function Section({
@@ -69,6 +71,8 @@ export function TaskForm({
   activityTypes,
   people,
   servers,
+  customFields = [],
+  customValues = {},
   task,
 }: {
   mode: "create" | "edit";
@@ -80,6 +84,9 @@ export function TaskForm({
   people: SearchSelectOption[];
   /** Endpoint names from the Servers module; empty when Action1 is unreachable. */
   servers: SearchSelectOption[];
+  /** Masters → Custom fields filed under the tasks module. */
+  customFields?: CustomFieldRecord[];
+  customValues?: Record<string, string>;
   task?: TaskRecord;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -372,6 +379,8 @@ export function TaskForm({
           </select>
         </div>
       </Section>
+
+      <CustomFields fields={customFields} values={customValues} />
 
       <Feedback state={state} />
 

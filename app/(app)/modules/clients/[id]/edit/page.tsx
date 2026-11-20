@@ -8,7 +8,13 @@ import { ClientForm } from "@/components/modules/client-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { clientTimestamps } from "@/lib/clients";
-import { listActiveIndustries, listAssignableUsers, listClients } from "@/lib/records/repository";
+import {
+  listActiveIndustries,
+  listAssignableUsers,
+  listClients,
+  listCustomFieldValues,
+  listModuleCustomFields,
+} from "@/lib/records/repository";
 import { updateClientAction } from "@/app/(app)/modules/clients/actions";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -66,9 +72,11 @@ export default async function EditClientPage({ params }: PageProps) {
     );
   }
 
-  const [people, industries] = await Promise.all([
+  const [people, industries, customFields, customValues] = await Promise.all([
     listAssignableUsers(),
     listActiveIndustries(),
+    listModuleCustomFields("clients"),
+    listCustomFieldValues(client.id),
   ]);
   const stamps = clientTimestamps(client.createdAt, client.updatedAt);
 
@@ -95,6 +103,8 @@ export default async function EditClientPage({ params }: PageProps) {
       <ClientForm
         people={people}
         industries={industries}
+        customFields={customFields}
+        customValues={customValues}
         client={client}
         action={updateClientAction}
         submitLabel="Save changes"

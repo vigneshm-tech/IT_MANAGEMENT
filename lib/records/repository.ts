@@ -134,6 +134,8 @@ type Store = {
   activityTypes: ActivityTypeRecord[];
   industries: IndustryRecord[];
   customFields: CustomFieldRecord[];
+  /** `fieldId\u0000recordId` → answer, mirroring `custom_field_values`. */
+  customValues: Record<string, string>;
   clients: ClientRecord[];
   patchPlans: PatchPlanRecord[];
   approvals: ApprovalRecord[];
@@ -174,6 +176,7 @@ function demoStore(): Store {
       activityTypes: seededActivityTypes(),
       industries: seededIndustries(),
       customFields: [],
+      customValues: {},
       clients: [
         {
           id: "CL-1001",
@@ -420,6 +423,7 @@ function demoStore(): Store {
   if (!Array.isArray(store.activityTypes)) store.activityTypes = seededActivityTypes();
   if (!Array.isArray(store.industries)) store.industries = seededIndustries();
   if (!Array.isArray(store.customFields)) store.customFields = [];
+  if (!store.customValues || typeof store.customValues !== "object") store.customValues = {};
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
     if (!type.module) type.module = TASK_ACTIVITY_MODULE;
@@ -631,6 +635,28 @@ export async function updateClientRecord(id: string, input: ClientInput): Promis
     assigned_user_id: input.assignedUserId || null,
     assigned_user_name: input.assignedUserName,
   });
+}
+
+/** Removes a client row. Its custom-field answers cascade with it. */
+export async function deleteClientRecord(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.clients.findIndex((client) => client.id === id);
+    if (index === -1) return false;
+    store.clients.splice(index, 1);
+    for (const key of Object.keys(store.customValues)) {
+      if (key.endsWith(`${VALUE_KEY}${id}`)) delete store.customValues[key];
+    }
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("clients").delete().eq("id", id).select("id");
+  if (error) {
+    console.error("[records] client delete failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 export async function setClientStatus(id: string, status: ClientStatus): Promise<boolean> {
@@ -860,6 +886,98 @@ export async function deleteCustomField(id: string): Promise<boolean> {
   const { data, error } = await supabase.from("custom_fields").delete().eq("id", id).select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Custom field answers, read by whichever module the field points at        */
+/* -------------------------------------------------------------------------- */
+
+const VALUE_KEY = "\u0000";
+
+function valueKey(fieldId: string, recordId: string) {
+  return `${fieldId}${VALUE_KEY}${recordId}`;
+}
+
+/** Active fields filed under one module, A→Z — this is what a module form renders. */
+export async function listModuleCustomFields(module: string): Promise<CustomFieldRecord[]> {
+  const fields = await listCustomFields();
+  return fields
+    .filter((field) => field.module === module && field.status === "active")
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Answers already recorded for one record, keyed by field id. */
+export async function listCustomFieldValues(recordId: string): Promise<Record<string, string>> {
+  if (!recordId) return {};
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const values: Record<string, string> = {};
+    for (const [key, value] of Object.entries(store.customValues)) {
+      const [fieldId, id] = key.split(VALUE_KEY);
+      if (id === recordId) values[fieldId] = value;
+    }
+    return values;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("custom_field_values")
+      .select("field_id, value")
+      .eq("record_id", recordId)
+      .limit(200);
+
+    if (error) throw error;
+    return Object.fromEntries(
+      (data ?? []).map((row) => [s((row as Record<string, unknown>).field_id), s((row as Record<string, unknown>).value)]),
+    );
+  } catch (error) {
+    console.error("[records] custom field values could not be read", error);
+    return {};
+  }
+}
+
+/**
+ * Writes the answers a module form submitted. Empty answers are stored as ""
+ * rather than deleted, so clearing a field is a real edit.
+ */
+export async function saveCustomFieldValues(
+  recordId: string,
+  values: Record<string, string>,
+): Promise<void> {
+  const entries = Object.entries(values);
+  if (!recordId || entries.length === 0) return;
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    for (const [fieldId, value] of entries) {
+      store.customValues[valueKey(fieldId, recordId)] = value;
+    }
+    return;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from("custom_field_values").upsert(
+      entries.map(([fieldId, value]) => ({ field_id: fieldId, record_id: recordId, value })),
+      { onConflict: "field_id,record_id" },
+    );
+    if (error) throw error;
+  } catch (error) {
+    // A failed answer must not lose the record the operator just saved.
+    console.error("[records] custom field values could not be saved", error);
+  }
+}
+
+/** Reads `custom:<fieldId>` entries off a submitted form. */
+export function readCustomFieldForm(formData: FormData, fields: CustomFieldRecord[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of fields) {
+    const raw = formData.get(`custom:${field.id}`);
+    if (raw !== null) values[field.id] = String(raw).trim().slice(0, 240);
+  }
+  return values;
 }
 
 /* -------------------------------------------------------------------------- */
