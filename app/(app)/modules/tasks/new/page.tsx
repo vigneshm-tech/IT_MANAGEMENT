@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TaskForm } from "@/components/modules/task-form";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listClients } from "@/lib/records/repository";
+import { listActiveActivityTypes, listClients } from "@/lib/records/repository";
 import { taskWindowFor } from "@/lib/task-window";
 
 export const metadata: Metadata = { title: "New task" };
@@ -31,9 +31,12 @@ export default async function NewTaskPage() {
     );
   }
 
-  const clients = (await listClients())
-    .filter((client) => client.status === "active")
-    .map((client) => client.name);
+  const [clients, activityTypes] = await Promise.all([
+    listClients().then((items) =>
+      items.filter((client) => client.status === "active").map((client) => client.name),
+    ),
+    listActiveActivityTypes(),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -42,6 +45,7 @@ export default async function NewTaskPage() {
         mode="create"
         requester={{ name: user.name, email: user.email }}
         clients={clients}
+        activityTypes={activityTypes}
       />
     </div>
   );

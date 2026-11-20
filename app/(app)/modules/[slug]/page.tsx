@@ -16,6 +16,7 @@ import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
 import { getModule } from "@/lib/modules";
 import {
+  listActivityTypes,
   listApprovals,
   listClients,
   listPatchPlans,
@@ -80,10 +81,11 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
     case "masters": {
-      const [clients, renewals, plans] = await Promise.all([
+      const [clients, renewals, plans, activityTypes] = await Promise.all([
         listClients(),
         listRenewals(),
         listPatchPlans(),
+        listActivityTypes(),
       ]);
       return (
         <MastersView
@@ -92,6 +94,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             clients: clients.length,
             renewals: renewals.length,
             patching: plans.length,
+            activityTypes: activityTypes.length,
           }}
         />
       );

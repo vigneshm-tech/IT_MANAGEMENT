@@ -141,7 +141,8 @@ form and `/modules/tasks/<id>/edit` the edit form; the task page
 anchored sections (`#status`, `#notes`). Nothing about a task opens in a dialog.
 
 The create form captures, in order: **Task ID** (generated on save, read only),
-**Task name**, **Task description**, **Client name**, **Activity type**,
+**Task name**, **Task description**, **Client name**, **Activity type** (from
+Masters, see below),
 **Requested by** and **Requester email** (auto-captured from the session, read
 only), **Server details**, **Planned / unplanned**, **Communication**,
 **Reference ticket no.** and **Assigned to** (select grouped by team, with the
@@ -167,10 +168,30 @@ Task Management additionally carries the request-detail columns (client,
 activity, planned/unplanned, reference ticket); activity and ticket start
 hidden so the board stays readable.
 
-**Masters** is the index for the master registers — Clients, Renewals and
-Patching Plans. It lists only the registers the signed-in role may open, and the
-record counts beside each one come from the same repository that feeds the
-register itself.
+**Masters** is the index for the master registers — Clients, Renewals,
+Patching Plans and **Activity types**. It lists only the registers the signed-in
+role may open, and the record counts beside each one come from the same
+repository that feeds the register itself.
+
+### Activity types (master data)
+
+The task form's **Activity type** dropdown is not a constant in the code: it is
+`public.activity_types`, managed at
+[`/modules/masters/activity-types`](app/(app)/modules/masters/activity-types/page.tsx).
+The page is an inline form (no popup): type a name, press **Add type**, and the
+type is immediately offered on `/modules/tasks/new` and the edit form.
+
+- Names are trimmed, inner whitespace collapsed and unique case-insensitively
+  (`activity_types_name_unique`); validation lives in `lib/activity-types.ts`.
+- **Deactivate** retires a type without touching tasks that already recorded it —
+  only active types appear in the form. **Delete** removes it from the register;
+  stored task text is left alone.
+- The register is seeded with the eight types that used to be hard-coded, so an
+  existing board sees no change.
+- Server-side, `createTaskAction` / `updateTaskAction` re-check the submitted
+  value against the live register; a crafted post cannot invent a type.
+- Editing the register needs `masters.edit` (IT Manager and leadership), enforced
+  in the UI and by RLS (`public.can_edit_masters()`).
 
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,

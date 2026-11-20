@@ -13,13 +13,10 @@ import {
   setTaskStatus,
   updateTask,
 } from "@/lib/tasks/repository";
-import {
-  ACTIVITY_TYPES,
-  PLAN_STATUS_OPTIONS,
-  TASK_STATUS_LABEL,
-} from "@/lib/tasks/options";
+import { PLAN_STATUS_OPTIONS, TASK_STATUS_LABEL } from "@/lib/tasks/options";
 import type { PlanStatus, TaskPriority, TaskStatus } from "@/lib/tasks/store";
 import { formatDateTime } from "@/lib/format";
+import { listActiveActivityTypes } from "@/lib/records/repository";
 import type { FormState } from "@/lib/forms";
 
 export type CreateTaskState = FormState;
@@ -42,7 +39,10 @@ type ParsedTask = {
   referenceTicketNo: string;
 };
 
-function parseTaskForm(formData: FormData): ParsedTask | { error: string } {
+function parseTaskForm(
+  formData: FormData,
+  activityTypes: string[],
+): ParsedTask | { error: string } {
   const title = String(formData.get("title") ?? "").trim();
   const assignee = String(formData.get("assigneeRole") ?? "");
   const priority = String(formData.get("priority") ?? "medium") as TaskPriority;
@@ -59,8 +59,8 @@ function parseTaskForm(formData: FormData): ParsedTask | { error: string } {
   if (!PRIORITIES.includes(priority)) {
     return { error: "Choose a valid priority." };
   }
-  if (!(ACTIVITY_TYPES as readonly string[]).includes(activityType)) {
-    return { error: "Choose an activity type." };
+  if (!activityTypes.includes(activityType)) {
+    return { error: "Choose an activity type from Masters → Activity types." };
   }
   if (!PLAN_STATUSES.includes(planStatus)) {
     return { error: "Choose whether the work is planned or unplanned." };
@@ -95,7 +95,12 @@ export async function createTaskAction(
     return { error: "Your role cannot create tasks." };
   }
 
-  const parsed = parseTaskForm(formData);
+  const activityTypes = await listActiveActivityTypes();
+  if (activityTypes.length === 0) {
+    return { error: "No activity types are configured — add one under Masters → Activity types." };
+  }
+
+  const parsed = parseTaskForm(formData, activityTypes);
   if ("error" in parsed) return parsed;
 
   // Authoritative window check — the client clock is never trusted.
@@ -139,7 +144,7 @@ export async function updateTaskAction(
   }
 
   const id = String(formData.get("id") ?? "");
-  const parsed = parseTaskForm(formData);
+  const parsed = parseTaskForm(formData, await listActiveActivityTypes());
   if ("error" in parsed) return parsed;
 
   const existing = (await listTasks()).find((item) => item.id === id);

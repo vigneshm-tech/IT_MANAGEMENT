@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useActionState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ROLE_GROUPS, VISIBLE_ROLES } from "@/lib/roles";
-import { ACTIVITY_TYPES, NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
+import { NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
 import type { FormState } from "@/lib/forms";
 import type { TaskRecord } from "@/lib/tasks/repository";
 import { createTaskAction, updateTaskAction } from "@/app/(app)/modules/tasks/actions";
@@ -65,11 +65,14 @@ export function TaskForm({
   mode,
   requester,
   clients,
+  activityTypes,
   task,
 }: {
   mode: "create" | "edit";
   requester: { name: string; email: string };
   clients: string[];
+  /** Masters → Activity types; the form offers nothing else. */
+  activityTypes: string[];
   task?: TaskRecord;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -167,16 +170,32 @@ export function TaskForm({
             id="activityType"
             name="activityType"
             required
-            defaultValue={task?.activityType ?? ""}
+            disabled={activityTypes.length === 0}
+            defaultValue={
+              task?.activityType && activityTypes.includes(task.activityType)
+                ? task.activityType
+                : ""
+            }
             className="field"
           >
-            <option value="">Select an activity</option>
-            {ACTIVITY_TYPES.map((type) => (
+            <option value="">
+              {activityTypes.length === 0 ? "No activity types configured" : "Select an activity"}
+            </option>
+            {activityTypes.map((type) => (
               <option key={type} value={type}>
                 {type}
               </option>
             ))}
           </select>
+          {activityTypes.length === 0 ? (
+            <p className="mt-1 text-[11.5px] text-danger">
+              Add one in{" "}
+              <Link href="/modules/masters/activity-types" className="underline">
+                Masters → Activity types
+              </Link>{" "}
+              before raising a task.
+            </p>
+          ) : null}
         </div>
       </Section>
 

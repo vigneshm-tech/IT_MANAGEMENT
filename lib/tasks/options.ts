@@ -1,19 +1,10 @@
 import type { PlanStatus, TaskStatus } from "./store";
 
-/** Options shared by the task form, the detail page and the server actions. */
-export const ACTIVITY_TYPES = [
-  "Patching",
-  "Incident",
-  "Service request",
-  "Change request",
-  "Preventive maintenance",
-  "Onboarding",
-  "Audit",
-  "Other",
-] as const;
-
-export type ActivityType = (typeof ACTIVITY_TYPES)[number];
-
+/**
+ * Options shared by the task form, the detail page and the server actions.
+ * Activity types are deliberately absent: they are master data and come from
+ * `listActiveActivityTypes()` (Masters → Activity types).
+ */
 export const PLAN_STATUS_OPTIONS: { value: PlanStatus; label: string }[] = [
   { value: "planned", label: "Planned" },
   { value: "unplanned", label: "Unplanned" },

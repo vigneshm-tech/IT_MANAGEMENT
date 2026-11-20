@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "../config";
 import { createSupabaseServerClient } from "../supabase/server";
+import { ACTIVITY_TYPE_SEED, normaliseActivityTypeName } from "../activity-types";
 import type { SessionUser } from "../auth/token";
 import type { RoleId } from "../roles";
 
@@ -49,6 +50,15 @@ export type ApprovalRecord = {
   createdAt: string;
 };
 
+export type ActivityTypeStatus = "active" | "inactive";
+
+export type ActivityTypeRecord = {
+  id: string;
+  name: string;
+  status: ActivityTypeStatus;
+  createdAt: string;
+};
+
 export type RenewalRecord = {
   id: string;
   item: string;
@@ -68,6 +78,7 @@ export type RenewalRecord = {
 /* -------------------------------------------------------------------------- */
 
 type Store = {
+  activityTypes: ActivityTypeRecord[];
   clients: ClientRecord[];
   patchPlans: PatchPlanRecord[];
   approvals: ApprovalRecord[];
@@ -83,9 +94,19 @@ function iso(daysFromNow: number, hour = 10): string {
   return date.toISOString();
 }
 
+function seededActivityTypes(): ActivityTypeRecord[] {
+  return ACTIVITY_TYPE_SEED.map((name, index) => ({
+    id: `AT-${index + 1}`,
+    name,
+    status: "active" as ActivityTypeStatus,
+    createdAt: iso(-180 + index),
+  }));
+}
+
 function demoStore(): Store {
   if (!globalForRecords.__taskTornadoRecords) {
     globalForRecords.__taskTornadoRecords = {
+      activityTypes: seededActivityTypes(),
       clients: [
         {
           id: "CL-1001",
@@ -273,7 +294,13 @@ function demoStore(): Store {
       ],
     };
   }
-  return globalForRecords.__taskTornadoRecords;
+
+  const store = globalForRecords.__taskTornadoRecords;
+  // A long-lived dev process can still be holding a store created by an older
+  // build; backfill registers that did not exist when it was seeded.
+  if (!Array.isArray(store.activityTypes)) store.activityTypes = seededActivityTypes();
+
+  return store;
 }
 
 function nextId(prefix: string, existing: { id: string }[]): string {
@@ -630,6 +657,111 @@ export async function markRenewalRenewed(id: string): Promise<boolean> {
     return true;
   }
   return patchRow("renewals", id, { status: "renewed" });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Activity types (master data for the task form)                            */
+/* -------------------------------------------------------------------------- */
+
+function mapActivityType(row: Record<string, unknown>): ActivityTypeRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** Every type, active first, then alphabetically. */
+export async function listActivityTypes(): Promise<ActivityTypeRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().activityTypes].sort(byStatusThenName);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("activity_types")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+      .limit(200);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapActivityType(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[records] falling back to the demo activity types", error);
+    return [...demoStore().activityTypes].sort(byStatusThenName);
+  }
+}
+
+/** Exactly what the task form may offer. */
+export async function listActiveActivityTypes(): Promise<string[]> {
+  const types = await listActivityTypes();
+  return types.filter((type) => type.status === "active").map((type) => type.name);
+}
+
+function byStatusThenName(a: ActivityTypeRecord, b: ActivityTypeRecord): number {
+  if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+  return a.name.localeCompare(b.name, "en");
+}
+
+export async function createActivityType(
+  user: SessionUser,
+  rawName: string,
+): Promise<ActivityTypeRecord> {
+  const name = normaliseActivityTypeName(rawName);
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: ActivityTypeRecord = {
+      id: nextId("AT", store.activityTypes),
+      name,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    store.activityTypes.unshift(record);
+    return record;
+  }
+
+  return insertRow(
+    "activity_types",
+    {
+      name,
+      status: "active",
+      sort_order: 100,
+      created_by: user.id,
+    },
+    mapActivityType,
+  );
+}
+
+export async function setActivityTypeStatus(
+  id: string,
+  status: ActivityTypeStatus,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const record = demoStore().activityTypes.find((type) => type.id === id);
+    if (!record) return false;
+    record.status = status;
+    return true;
+  }
+  return patchRow("activity_types", id, { status });
+}
+
+export async function deleteActivityType(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.activityTypes.findIndex((type) => type.id === id);
+    if (index < 0) return false;
+    store.activityTypes.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("activity_types").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 /* -------------------------------------------------------------------------- */
