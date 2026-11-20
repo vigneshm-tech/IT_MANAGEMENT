@@ -225,9 +225,15 @@ full-page create form (no popup). One client records:
   countries, searchable by name, ISO code or dial code ("india", "IN" and "+91"
   all reach India). The picker stores the ISO code; the number is stored as
   digits only (6–15, checked by `clients_*_mobile_digits`).
+- **Edit** opens `/modules/clients/<id>/edit` with the same form, prefilled
+  (`Save changes`), and returns to the register with a "was updated" line. The
+  created stamp never moves; the database trigger moves `updated_at`.
+- **Industry** is a dropdown fed by `Masters → Industries`, not free text;
+  a client that stored a value the register no longer holds keeps that value
+  selected until it is changed.
 - **Validation** lives in `lib/clients.ts` (pure, tested): name 2–160, code
-  ≤20 with `A–Z 0–9 - _ . /`, industry ≤80, and for each contact a valid email
-  plus a valid mobile whenever a number is typed.
+  ≤20 with `A–Z 0–9 - _ . /`, and for each contact a valid email plus a valid
+  mobile whenever a number is typed.
 - **Assigned user** is resolved server-side against the directory, so a crafted
   post cannot invent a name. Profiles are readable only by the super admin, so
   the app calls the `assignable_users()` RPC (security definer, names only) and
@@ -235,6 +241,33 @@ full-page create form (no popup). One client records:
 - The register shows every field as a column (all of them visible by default;
   the table scrolls sideways and the Columns control can hide any of them).
   Deactivate keeps history, as with the other registers.
+
+### Industries
+
+`/modules/masters/industries` is the Industry register the client form draws
+from — same shape as activity types: inline add form, Edit page
+(`/modules/masters/industries/<id>`), Deactivate, and Delete behind the in-page
+confirm panel (`?delete=<id>`).
+
+- Names are trimmed, inner whitespace collapsed and unique case-insensitively
+  (`industries_name_unique`); rules live in `lib/industries.ts`.
+- The register was seeded with 16 common industries plus any industry the client
+  table already stored, so no existing account lost its wording.
+- Deleting never rewrites a client: the record keeps the text it stored.
+
+### Custom fields
+
+`/modules/masters/custom-fields` defines extra fields, and **each one is filed
+under exactly one module** — the module selection is required on the add form
+and on the edit page.
+
+- Modules are the workspace's own list (Task Management, Ticket Portal, Servers,
+  Patching Plans, Clients, Renewals, Approvals), taken from
+  `CUSTOM_FIELD_MODULE_OPTIONS` so the vocabulary matches activity types.
+- Uniqueness is per module (`custom_fields_module_name_unique`), so "Contract
+  reference" can exist for Clients and for Ticket Portal at the same time.
+- Edit renames the field or moves it to another module; Deactivate/Delete behave
+  like the other registers, deletion behind the same designed confirm panel.
 
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,
@@ -254,7 +287,8 @@ All four record tables (plus `tasks`) have RLS: any authenticated user can read,
 rows are inserted as the signed-in user, updates are limited to the creator or
 leadership, and approvals can only be decided by leadership. Schemas live in
 `supabase/migrations/0001_rbac.sql`, `0002_tasks.sql`,
-`0003_business_records.sql` and `0013_client_contacts.sql`; the hidden role, its directory policy and the first
+`0003_business_records.sql`, `0013_client_contacts.sql` and
+`0014_industries_custom_fields.sql`; the hidden role, its directory policy and the first
 super-admin account live in `0004_super_admin_role.sql` and
 `0005_super_admin_account.sql`; user administration lives in
 `0007_user_administration.sql`.

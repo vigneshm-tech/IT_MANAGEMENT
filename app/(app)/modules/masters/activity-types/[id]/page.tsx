@@ -5,11 +5,12 @@ import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { AccessDenied } from "@/components/modules/access-denied";
-import { ActivityTypeEditForm } from "@/components/modules/activity-type-edit-form";
+import { MasterEditForm } from "@/components/modules/master-edit-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { activityModuleLabel } from "@/lib/activity-types";
+import { ACTIVITY_MODULE_OPTIONS, activityModuleLabel } from "@/lib/activity-types";
 import { listActivityTypes } from "@/lib/records/repository";
+import { updateActivityTypeAction } from "@/app/(app)/modules/masters/activity-types/actions";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -72,12 +73,24 @@ export default async function EditActivityTypePage({ params }: PageProps) {
           <span aria-hidden>·</span>
           <span>{activityModuleLabel(type.module)}</span>
           <span aria-hidden>·</span>
-          <StatusPill status={type.status} label={type.status === "active" ? "Active" : "Inactive"} />
+          <StatusPill
+            status={type.status}
+            label={type.status === "active" ? "Active" : "Inactive"}
+          />
         </p>
       </PageHeader>
 
       {canEdit ? (
-        <ActivityTypeEditForm type={{ id: type.id, name: type.name, module: type.module }} />
+        <MasterEditForm
+          id={type.id}
+          name={type.name}
+          module={type.module}
+          modules={ACTIVITY_MODULE_OPTIONS}
+          nameLabel="Activity type name"
+          nameErrorHint="Records already saved with the old wording are not rewritten."
+          action={updateActivityTypeAction}
+          basePath="/modules/masters/activity-types"
+        />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
           Your role can read master data but not change it.

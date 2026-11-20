@@ -7,7 +7,8 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { ClientForm } from "@/components/modules/client-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listAssignableUsers } from "@/lib/records/repository";
+import { listActiveIndustries, listAssignableUsers } from "@/lib/records/repository";
+import { createClientAction } from "@/app/(app)/modules/clients/actions";
 
 export const metadata: Metadata = { title: "New client" };
 
@@ -35,7 +36,7 @@ export default async function NewClientPage() {
     );
   }
 
-  const people = await listAssignableUsers();
+  const [people, industries] = await Promise.all([listAssignableUsers(), listActiveIndustries()]);
 
   return (
     <div className="space-y-4">
@@ -57,7 +58,7 @@ export default async function NewClientPage() {
         </p>
       </PageHeader>
 
-      <ClientForm people={people} />
+      <ClientForm people={people} industries={industries} action={createClientAction} />
     </div>
   );
 }

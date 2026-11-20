@@ -5,7 +5,7 @@ import { canAccessModule } from "@/lib/access";
 import type { ModuleId } from "@/lib/modules";
 import type { SessionUser } from "@/lib/auth/token";
 
-type CountKey = "activityTypes";
+type CountKey = "activityTypes" | "industries" | "customFields";
 
 /**
  * Master registers owned by this hub. Clients, renewals and patching plans are
@@ -26,6 +26,22 @@ const REGISTERS: {
     summary: "The vocabulary the task form offers for every request",
     href: "/modules/masters/activity-types",
     noun: "types",
+    guard: "masters",
+  },
+  {
+    key: "industries",
+    title: "Industries",
+    summary: "The Industry list the client form draws from",
+    href: "/modules/masters/industries",
+    noun: "industries",
+    guard: "masters",
+  },
+  {
+    key: "customFields",
+    title: "Custom fields",
+    summary: "Extra fields, each filed under one module",
+    href: "/modules/masters/custom-fields",
+    noun: "fields",
     guard: "masters",
   },
 ];

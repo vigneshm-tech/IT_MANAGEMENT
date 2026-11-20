@@ -14,8 +14,8 @@ function humanise(segment: string, parent?: string): string {
   } catch {
     /* keep the raw segment */
   }
-  // Task ids stay verbatim; two route words read better expanded.
-  if (/^tsk-\d+$/i.test(value)) return value.toUpperCase();
+  // Record ids stay verbatim (TSK-12, CL-1001, AT-3); two route words expand.
+  if (/^[a-z]{2,4}-\d+$/i.test(value)) return value.toUpperCase();
   if (value === "new") {
     if (parent === "tasks") return "New task";
     if (parent === "tickets") return "New ticket";

@@ -19,6 +19,8 @@ import {
   listActivityTypes,
   listApprovals,
   listClients,
+  listCustomFields,
+  listIndustries,
   listPatchPlans,
   listRenewals,
 } from "@/lib/records/repository";
@@ -28,7 +30,7 @@ import { listDirectory } from "@/lib/users/repository";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ new?: string; view?: string; created?: string }>;
+  searchParams: Promise<{ new?: string; view?: string; created?: string; updated?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -67,8 +69,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <ServersView user={user} status={await integrationStatus(user.id, "action1")} />;
 
     case "clients": {
-      const [{ created }, clients] = await Promise.all([searchParams, listClients()]);
-      return <ClientsView user={user} clients={clients} createdId={created} />;
+      const [{ created, updated }, clients] = await Promise.all([searchParams, listClients()]);
+      return (
+        <ClientsView user={user} clients={clients} createdId={created} updatedId={updated} />
+      );
     }
 
     case "patching": {
@@ -88,8 +92,23 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     case "renewals":
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
-    case "masters":
-      return <MastersView user={user} counts={{ activityTypes: (await listActivityTypes()).length }} />;
+    case "masters": {
+      const [activityTypes, industries, customFields] = await Promise.all([
+        listActivityTypes(),
+        listIndustries(),
+        listCustomFields(),
+      ]);
+      return (
+        <MastersView
+          user={user}
+          counts={{
+            activityTypes: activityTypes.length,
+            industries: industries.length,
+            customFields: customFields.length,
+          }}
+        />
+      );
+    }
 
     case "users": {
       const directory = await listDirectory();

@@ -7,8 +7,8 @@ import { Button, buttonClass } from "@/components/ui/button";
 import { CountryCodeField } from "@/components/ui/country-code-field";
 import type { FormState } from "@/lib/forms";
 import { VISIBLE_ROLES } from "@/lib/roles";
-import type { AssignableUser } from "@/lib/records/repository";
-import { createClientAction } from "@/app/(app)/modules/clients/actions";
+import type { AssignableUser, ClientRecord } from "@/lib/records/repository";
+import type { FormState as ClientFormState } from "@/lib/forms";
 
 const NAME_MAX = 160;
 const CODE_MAX = 20;
@@ -38,9 +38,13 @@ function Section({
 function MobileFields({
   prefix,
   label,
+  country,
+  mobile,
 }: {
   prefix: "primary" | "secondary";
   label: string;
+  country: string;
+  mobile: string;
 }) {
   return (
     <div>
@@ -52,7 +56,7 @@ function MobileFields({
           id={`${prefix}Country`}
           name={`${prefix}Country`}
           label={`${label} country code`}
-          defaultValue="IN"
+          defaultValue={country}
         />
         <input
           id={`${prefix}Mobile`}
@@ -61,6 +65,7 @@ function MobileFields({
           inputMode="tel"
           autoComplete="tel-national"
           maxLength={20}
+          defaultValue={mobile}
           placeholder="98400 12345"
           className="field"
         />
@@ -72,12 +77,34 @@ function MobileFields({
   );
 }
 
-/** Full-page create form — every client field, no popup. */
-export function ClientForm({ people }: { people: AssignableUser[] }) {
-  const [state, formAction, pending] = useActionState(createClientAction, {} as FormState);
+/**
+ * Full-page client form — every client field, no popup. The same component
+ * creates (blank defaults) and edits (record defaults, hidden id).
+ */
+export function ClientForm({
+  people,
+  industries,
+  client,
+  action,
+  submitLabel = "Save client",
+}: {
+  people: AssignableUser[];
+  /** Active industry names from Masters. */
+  industries: string[];
+  /** Present when editing an existing record. */
+  client?: ClientRecord;
+  action: (state: ClientFormState, formData: FormData) => Promise<ClientFormState>;
+  submitLabel?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+  const industryOptions =
+    client?.industry && !industries.includes(client.industry)
+      ? [client.industry, ...industries]
+      : industries;
 
   return (
     <form action={formAction} className="space-y-4">
+      {client && <input type="hidden" name="id" value={client.id} />}
       <Section
         title="Client"
         description="Who the account is, and who inside TaskTornado looks after it."
@@ -93,6 +120,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               required
               minLength={2}
               maxLength={NAME_MAX}
+              defaultValue={client?.name}
               placeholder="Acme Manufacturing"
               className="field"
             />
@@ -106,6 +134,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               id="code"
               name="code"
               maxLength={CODE_MAX}
+              defaultValue={client?.code}
               placeholder="ACME"
               className="field font-mono uppercase"
             />
@@ -118,13 +147,22 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
             <label htmlFor="industry" className="field-label">
               Industry
             </label>
-            <input
+            <select
               id="industry"
               name="industry"
-              maxLength={INDUSTRY_MAX}
-              placeholder="Manufacturing"
+              defaultValue={client?.industry ?? ""}
               className="field"
-            />
+            >
+              <option value="">Select an industry</option>
+              {industryOptions.map((industry) => (
+                <option key={industry} value={industry}>
+                  {industry}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[11px] text-muted">
+              The list comes from <span className="text-body">Masters → Industries</span>.
+            </p>
           </div>
 
           <div>
@@ -135,7 +173,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               id="ownerRole"
               name="ownerRole"
               required
-              defaultValue="implementation_lead"
+              defaultValue={client?.ownerRole ?? "implementation_lead"}
               className="field"
             >
               {VISIBLE_ROLES.map((role) => (
@@ -150,7 +188,12 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
             <label htmlFor="assignedUserId" className="field-label">
               Assigned user
             </label>
-            <select id="assignedUserId" name="assignedUserId" defaultValue="" className="field">
+            <select
+              id="assignedUserId"
+              name="assignedUserId"
+              defaultValue={client?.assignedUserId ?? ""}
+              className="field"
+            >
               <option value="">Not assigned</option>
               {people.map((person) => (
                 <option key={person.id} value={person.id}>
@@ -180,6 +223,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               id="primaryName"
               name="primaryName"
               maxLength={CONTACT_MAX}
+              defaultValue={client?.primary.name}
               placeholder="Ritu Shah"
               className="field"
             />
@@ -194,13 +238,19 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               name="primaryEmail"
               type="email"
               maxLength={160}
+              defaultValue={client?.primary.email}
               placeholder="ritu.shah@acme.com"
               className="field"
             />
           </div>
 
           <div className="sm:col-span-2 sm:max-w-[420px]">
-            <MobileFields prefix="primary" label="Primary contact" />
+            <MobileFields
+          prefix="primary"
+          label="Primary contact"
+          country={client?.primary.mobileCountry ?? "IN"}
+          mobile={client?.primary.mobile ?? ""}
+        />
           </div>
         </div>
       </Section>
@@ -218,6 +268,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               id="secondaryName"
               name="secondaryName"
               maxLength={CONTACT_MAX}
+              defaultValue={client?.secondary.name}
               placeholder="Vikram Rao"
               className="field"
             />
@@ -232,13 +283,19 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
               name="secondaryEmail"
               type="email"
               maxLength={160}
+              defaultValue={client?.secondary.email}
               placeholder="vikram.rao@acme.com"
               className="field"
             />
           </div>
 
           <div className="sm:col-span-2 sm:max-w-[420px]">
-            <MobileFields prefix="secondary" label="Secondary contact" />
+            <MobileFields
+          prefix="secondary"
+          label="Secondary contact"
+          country={client?.secondary.mobileCountry ?? "IN"}
+          mobile={client?.secondary.mobile ?? ""}
+        />
           </div>
         </div>
       </Section>
@@ -263,7 +320,7 @@ export function ClientForm({ people }: { people: AssignableUser[] }) {
           </Link>
           <Button type="submit" disabled={pending}>
             {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
-            Save client
+            {submitLabel}
           </Button>
         </div>
       </div>

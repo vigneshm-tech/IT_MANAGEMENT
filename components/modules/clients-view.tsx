@@ -38,14 +38,18 @@ export function ClientsView({
   user,
   clients,
   createdId,
+  updatedId,
 }: {
   user: SessionUser;
   clients: ClientRecord[];
   /** Set after a client was created in this session. */
   createdId?: string;
+  /** Set after a client was edited in this session. */
+  updatedId?: string;
 }) {
   const canEdit = can(user.role, "clients", "edit");
   const created = createdId ? clients.find((client) => client.id === createdId) : undefined;
+  const updated = updatedId ? clients.find((client) => client.id === updatedId) : undefined;
 
   const rows: TableRow[] = clients.map((client) => {
     const stamps = clientTimestamps(client.createdAt, client.updatedAt);
@@ -70,6 +74,7 @@ export function ClientsView({
       },
       actions: canEdit
         ? [
+            { label: "Edit", href: `/modules/clients/${client.id}/edit`, tone: "primary" as const },
             client.status === "active"
               ? { label: "Deactivate", value: "deactivate", tone: "default" as const }
               : { label: "Activate", value: "activate", tone: "default" as const },
@@ -101,6 +106,12 @@ export function ClientsView({
       {created && (
         <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
           {created.name} was added to the register.
+        </p>
+      )}
+
+      {updated && (
+        <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
+          {updated.name} was updated.
         </p>
       )}
 

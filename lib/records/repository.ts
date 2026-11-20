@@ -5,6 +5,7 @@ import {
   normaliseActivityTypeName,
   TASK_ACTIVITY_MODULE,
 } from "../activity-types";
+import { INDUSTRY_SEED, normaliseIndustryName } from "../industries";
 import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import type { RoleId } from "../roles";
@@ -86,6 +87,22 @@ export type ApprovalRecord = {
 
 export type ActivityTypeStatus = "active" | "inactive";
 
+export type IndustryRecord = {
+  id: string;
+  name: string;
+  status: ActivityTypeStatus;
+  createdAt: string;
+};
+
+export type CustomFieldRecord = {
+  id: string;
+  name: string;
+  /** Module the field belongs to (tasks, tickets, …). */
+  module: string;
+  status: ActivityTypeStatus;
+  createdAt: string;
+};
+
 export type ActivityTypeRecord = {
   id: string;
   name: string;
@@ -115,6 +132,8 @@ export type RenewalRecord = {
 
 type Store = {
   activityTypes: ActivityTypeRecord[];
+  industries: IndustryRecord[];
+  customFields: CustomFieldRecord[];
   clients: ClientRecord[];
   patchPlans: PatchPlanRecord[];
   approvals: ApprovalRecord[];
@@ -140,10 +159,21 @@ function seededActivityTypes(): ActivityTypeRecord[] {
   }));
 }
 
+function seededIndustries(): IndustryRecord[] {
+  return INDUSTRY_SEED.map((name, index) => ({
+    id: `IND-${index + 1}`,
+    name,
+    status: "active" as ActivityTypeStatus,
+    createdAt: iso(-200 + index),
+  }));
+}
+
 function demoStore(): Store {
   if (!globalForRecords.__taskTornadoRecords) {
     globalForRecords.__taskTornadoRecords = {
       activityTypes: seededActivityTypes(),
+      industries: seededIndustries(),
+      customFields: [],
       clients: [
         {
           id: "CL-1001",
@@ -388,6 +418,8 @@ function demoStore(): Store {
   // A long-lived dev process can still be holding a store created by an older
   // build; backfill registers that did not exist when it was seeded.
   if (!Array.isArray(store.activityTypes)) store.activityTypes = seededActivityTypes();
+  if (!Array.isArray(store.industries)) store.industries = seededIndustries();
+  if (!Array.isArray(store.customFields)) store.customFields = [];
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
     if (!type.module) type.module = TASK_ACTIVITY_MODULE;
@@ -564,6 +596,43 @@ export async function listAssignableUsers(): Promise<AssignableUser[]> {
     .map((person) => ({ id: person.id, name: person.name, role: person.role }));
 }
 
+/** Edits an existing client; ids, status and timestamps are never client input. */
+export async function updateClientRecord(id: string, input: ClientInput): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const record = demoStore().clients.find((client) => client.id === id);
+    if (!record) return false;
+    record.name = input.name;
+    record.code = input.code;
+    record.industry = input.industry;
+    record.primary = input.primary;
+    record.secondary = input.secondary;
+    record.ownerRole = input.ownerRole;
+    record.assignedUserId = input.assignedUserId;
+    record.assignedUserName = input.assignedUserName;
+    // Keep the demo stamp strictly after the created one, as the trigger does.
+    const previous = new Date(record.updatedAt).getTime();
+    record.updatedAt = new Date(Math.max(Date.now(), previous + 1000)).toISOString();
+    return true;
+  }
+
+  return patchRow("clients", id, {
+    name: input.name,
+    code: input.code,
+    industry: input.industry,
+    primary_contact_name: input.primary.name,
+    primary_contact_email: input.primary.email,
+    primary_mobile_country: input.primary.mobileCountry || "IN",
+    primary_mobile: input.primary.mobile,
+    secondary_contact_name: input.secondary.name,
+    secondary_contact_email: input.secondary.email,
+    secondary_mobile_country: input.secondary.mobileCountry || "IN",
+    secondary_mobile: input.secondary.mobile,
+    owner_role: input.ownerRole,
+    assigned_user_id: input.assignedUserId || null,
+    assigned_user_name: input.assignedUserName,
+  });
+}
+
 export async function setClientStatus(id: string, status: ClientStatus): Promise<boolean> {
   if (!isSupabaseConfigured) {
     const record = demoStore().clients.find((client) => client.id === id);
@@ -572,6 +641,225 @@ export async function setClientStatus(id: string, status: ClientStatus): Promise
     return true;
   }
   return patchRow("clients", id, { status });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Industries (master data for the client form)                              */
+/* -------------------------------------------------------------------------- */
+
+function mapIndustry(row: Record<string, unknown>): IndustryRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** Every industry, active first, then alphabetically. */
+export async function listIndustries(): Promise<IndustryRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().industries].sort(byStatusThenName);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("industries")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+      .limit(500);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapIndustry(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[records] falling back to the demo industries", error);
+    return [...demoStore().industries].sort(byStatusThenName);
+  }
+}
+
+/** Exactly what the client form offers. */
+export async function listActiveIndustries(): Promise<string[]> {
+  return (await listIndustries())
+    .filter((industry) => industry.status === "active")
+    .map((industry) => industry.name);
+}
+
+export async function createIndustry(
+  user: SessionUser,
+  rawName: string,
+): Promise<IndustryRecord> {
+  const name = normaliseIndustryName(rawName);
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: IndustryRecord = {
+      id: nextId("IND", store.industries),
+      name,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    store.industries.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "industries",
+    { name, status: "active", sort_order: 100, created_by: user.id },
+    mapIndustry,
+  );
+}
+
+export async function updateIndustry(id: string, rawName: string): Promise<boolean> {
+  const name = normaliseIndustryName(rawName);
+
+  if (!isSupabaseConfigured) {
+    const record = demoStore().industries.find((industry) => industry.id === id);
+    if (!record) return false;
+    record.name = name;
+    return true;
+  }
+
+  return patchRow("industries", id, { name });
+}
+
+export async function setIndustryStatus(
+  id: string,
+  status: ActivityTypeStatus,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const record = demoStore().industries.find((industry) => industry.id === id);
+    if (!record) return false;
+    record.status = status;
+    return true;
+  }
+  return patchRow("industries", id, { status });
+}
+
+export async function deleteIndustry(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.industries.findIndex((industry) => industry.id === id);
+    if (index < 0) return false;
+    store.industries.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("industries").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Custom fields (master data, filed per module)                             */
+/* -------------------------------------------------------------------------- */
+
+function mapCustomField(row: Record<string, unknown>): CustomFieldRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    module: s(row.module, TASK_ACTIVITY_MODULE),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+export async function listCustomFields(): Promise<CustomFieldRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().customFields].sort(byStatusThenName);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("custom_fields")
+      .select("*")
+      .order("module", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+      .limit(500);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapCustomField(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[records] falling back to the demo custom fields", error);
+    return [...demoStore().customFields].sort(byStatusThenName);
+  }
+}
+
+export async function createCustomField(
+  user: SessionUser,
+  rawName: string,
+  module: string,
+): Promise<CustomFieldRecord> {
+  const name = rawName.replace(/\s+/g, " ").trim();
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: CustomFieldRecord = {
+      id: nextId("CF", store.customFields),
+      name,
+      module,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    store.customFields.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "custom_fields",
+    { name, module, status: "active", sort_order: 100, created_by: user.id },
+    mapCustomField,
+  );
+}
+
+export async function updateCustomField(
+  id: string,
+  rawName: string,
+  module: string,
+): Promise<boolean> {
+  const name = rawName.replace(/\s+/g, " ").trim();
+
+  if (!isSupabaseConfigured) {
+    const record = demoStore().customFields.find((field) => field.id === id);
+    if (!record) return false;
+    record.name = name;
+    record.module = module;
+    return true;
+  }
+
+  return patchRow("custom_fields", id, { name, module });
+}
+
+export async function setCustomFieldStatus(
+  id: string,
+  status: ActivityTypeStatus,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const record = demoStore().customFields.find((field) => field.id === id);
+    if (!record) return false;
+    record.status = status;
+    return true;
+  }
+  return patchRow("custom_fields", id, { status });
+}
+
+export async function deleteCustomField(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.customFields.findIndex((field) => field.id === id);
+    if (index < 0) return false;
+    store.customFields.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("custom_fields").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -850,7 +1138,10 @@ export async function listActiveActivityTypes(
     .map((type) => type.name);
 }
 
-function byStatusThenName(a: ActivityTypeRecord, b: ActivityTypeRecord): number {
+function byStatusThenName<T extends { name: string; status: ActivityTypeStatus }>(
+  a: T,
+  b: T,
+): number {
   if (a.status !== b.status) return a.status === "active" ? -1 : 1;
   return a.name.localeCompare(b.name, "en");
 }

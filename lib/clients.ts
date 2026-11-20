@@ -139,7 +139,7 @@ export function clientTimestamps(createdAt: string, updatedAt: string): {
 
   const touched =
     Boolean(createdAt && updatedAt) &&
-    Math.abs(new Date(updatedAt).getTime() - new Date(createdAt).getTime()) > 60_000;
+    new Date(updatedAt).getTime() > new Date(createdAt).getTime();
 
   return { created: format(createdAt), updated: format(updatedAt), touched };
 }
