@@ -354,6 +354,8 @@ together:
 | Other updates | `missing_other` |
 | Scheduled plan | `patch_schedules.planned_date` with the IT member who handles it beneath |
 | Approval | Approved / Rejected / Pending, derived from the approvers' decisions |
+| Update status | `patch_schedules.outcome` — Success / Failed / Partial update, recorded on the row |
+| Planned range | *Planned from … to …* above the table filters the register by `planned_date` |
 
 - **Scheduling** is inline, never a dialog. Tick one or more endpoints (the
   header checkbox takes the whole filtered list), then *Schedule plans*: one
@@ -377,13 +379,28 @@ together:
   report opens; a tenant that is unreachable prints a line instead of an empty
   table. *Print or save as PDF* hands the sheet to the browser; the print
   stylesheet hides the navigation, breadcrumbs, footer and in-page buttons.
+- **Date range filter**: the register has *Planned from* / *Planned to* date
+  inputs above the table. Both ends are inclusive, either can be left empty
+  (*from 1 Nov* or *until 30 Nov*), *Clear dates* resets it, and an inverted
+  range is reported instead of showing an empty table. While a range is set the
+  register shows only scheduled plans — an endpoint with no plan has no date to
+  match — and the count reads “12 of 200 endpoints · 01 Nov 2026 – 30 Nov 2026”.
+- **Update status**: each scheduled row carries a *Update status* control with
+  **Success**, **Failed**, **Partial update** and **Not run**. It is saved the
+  moment it is picked (`updatePatchOutcomeAction` →
+  `patch_schedules.outcome`), independent of the approval — a plan can be
+  approved and still fail on the server — and the name of the person who
+  recorded it is kept and printed under the value. Readers without edit rights
+  see it as a coloured pill. Rescheduling a plan resets it to *Not run*, because
+  the previous result no longer describes the new date.
 - Limits: 25 endpoints per schedule action and per report, 10 approvers per
   plan, planned dates must be today or later (IST).
 
-Data lives in `patch_schedules` (one row per endpoint, `endpoint_id` unique) and
+Data lives in `patch_schedules` (one row per endpoint, `endpoint_id` unique,
+with `outcome`, `outcome_by_name` and `outcome_at` from migration `0022`) and
 `patch_schedule_approvers` (one row per approver, carrying the decision, the
-verification name and the note) — migration `0021`. The older
-`patch_plans` table is untouched but no longer shown.
+verification name and the note) — migration `0021`. The older `patch_plans`
+table is untouched but no longer shown.
 
 ## 4. Data
 

@@ -10,8 +10,10 @@ import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import { readCache, writeCache } from "../cache/ttl";
 import type { RoleId } from "../roles";
+import { isPatchOutcome } from "../patching/plan";
 import type {
   PatchApprover,
+  PatchOutcome,
   PatchScheduleRecord,
   SelectedEndpoint,
 } from "../patching/plan";
@@ -20,7 +22,7 @@ import type {
 /*  Types                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export type { PatchApprover, PatchScheduleRecord, SelectedEndpoint };
+export type { PatchApprover, PatchOutcome, PatchScheduleRecord, SelectedEndpoint };
 
 export type ClientStatus = "active" | "inactive";
 export type PatchStatus = "planned" | "in_progress" | "completed";
@@ -1407,6 +1409,12 @@ function mapApprover(row: Record<string, unknown>): PatchApprover {
   };
 }
 
+/** Rows written before migration 0022 have no outcome column — they read as not run. */
+function outcomeFrom(value: unknown): PatchOutcome {
+  const text = typeof value === "string" ? value : "";
+  return isPatchOutcome(text) ? text : "pending";
+}
+
 function mapSchedule(
   row: Record<string, unknown>,
   approvers: PatchApprover[],
@@ -1421,6 +1429,9 @@ function mapSchedule(
     handlerId: s(row.handler_id),
     handlerName: s(row.handler_name),
     approvers,
+    outcome: outcomeFrom(row.outcome),
+    outcomeByName: s(row.outcome_by_name),
+    outcomeAt: typeof row.outcome_at === "string" ? row.outcome_at : null,
     note: s(row.note),
     createdByName: s(row.created_by_name),
     createdAt: s(row.created_at, new Date().toISOString()),
@@ -1511,6 +1522,10 @@ export async function savePatchSchedules(
           handlerId: input.handlerId,
           handlerName: input.handlerName,
           approvers,
+          // A new date means the old result no longer applies.
+          outcome: "pending",
+          outcomeByName: "",
+          outcomeAt: null,
           note: input.note,
           updatedAt: now,
         });
@@ -1526,6 +1541,9 @@ export async function savePatchSchedules(
           handlerId: input.handlerId,
           handlerName: input.handlerName,
           approvers,
+          outcome: "pending",
+          outcomeByName: "",
+          outcomeAt: null,
           note: input.note,
           createdByName: user.name,
           createdAt: now,
@@ -1558,6 +1576,9 @@ export async function savePatchSchedules(
       planned_date: input.plannedDate,
       handler_id: input.handlerId || null,
       handler_name: input.handlerName,
+      outcome: "pending",
+      outcome_by_name: "",
+      outcome_at: null,
       note: input.note,
     };
 
@@ -1611,6 +1632,9 @@ export async function savePatchSchedules(
         note: "",
         decidedAt: null,
       })),
+      outcome: "pending",
+      outcomeByName: "",
+      outcomeAt: null,
       note: input.note,
       createdByName: user.name,
       createdAt: now,
@@ -1661,6 +1685,47 @@ export async function decidePatchSchedule(input: {
 
   if (error) {
     console.error("[records] patch decision failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Records what happened when the patching ran: success, failed, partial — or
+ * back to "not run" when a result was entered against the wrong row. The name
+ * of the person recording it travels with the value so the report can print it.
+ */
+export async function setPatchOutcome(input: {
+  scheduleId: string;
+  outcome: PatchOutcome;
+  byName: string;
+}): Promise<boolean> {
+  const at = new Date().toISOString();
+  const recorded = input.outcome === "pending";
+
+  if (!isSupabaseConfigured) {
+    const plan = demoStore().patchSchedules.find((item) => item.id === input.scheduleId);
+    if (!plan) return false;
+    plan.outcome = input.outcome;
+    plan.outcomeByName = recorded ? "" : input.byName;
+    plan.outcomeAt = recorded ? null : at;
+    plan.updatedAt = at;
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("patch_schedules")
+    .update({
+      outcome: input.outcome,
+      outcome_by_name: recorded ? "" : input.byName,
+      outcome_at: recorded ? null : at,
+    })
+    .eq("id", input.scheduleId)
+    .select("id");
+
+  if (error) {
+    console.error("[records] patch outcome failed", error);
     return false;
   }
   return (data?.length ?? 0) > 0;

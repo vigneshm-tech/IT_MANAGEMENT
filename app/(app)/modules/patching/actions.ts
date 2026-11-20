@@ -9,12 +9,16 @@ import {
   listAssignableUsers,
   listPatchSchedules,
   savePatchSchedules,
+  setPatchOutcome,
 } from "@/lib/records/repository";
 import {
   decisionError,
   decodeEndpoints,
   formatPlannedDate,
   isApprover,
+  isPatchOutcome,
+  outcomeError,
+  PATCH_OUTCOME_LABEL,
   schedulePlanError,
 } from "@/lib/patching/plan";
 
@@ -134,4 +138,44 @@ export async function decidePatchPlanAction(
         ? `${plan.endpointName} approved.`
         : `${plan.endpointName} rejected.`,
   };
+}
+
+/**
+ * Records what happened when the patching ran. Kept separate from the approval
+ * decision: any IT role that can edit patching plans can record the result, and
+ * the person's name is stored with it.
+ */
+export async function updatePatchOutcomeAction(
+  scheduleId: string,
+  outcome: string,
+): Promise<FormState> {
+  const user = await requireUser();
+  if (!can(user.role, "patching", "edit")) {
+    return { error: "You don’t have permission to record patching results." };
+  }
+
+  const value = outcome.trim();
+  const error = outcomeError(value);
+  if (error) return { error };
+  if (value && !isPatchOutcome(value)) return { error: "Choose a patching result." };
+
+  const id = scheduleId.trim();
+  if (!id) return { error: "That plan no longer exists." };
+
+  const plans = await listPatchSchedules();
+  const plan = plans.find((item) => item.id === id);
+  if (!plan) return { error: "That plan no longer exists." };
+
+  const saved = await setPatchOutcome({
+    scheduleId: id,
+    outcome: isPatchOutcome(value) ? value : "pending",
+    byName: user.name,
+  });
+  if (!saved) return { error: "The update status could not be saved. Please try again." };
+
+  revalidatePath("/modules/patching");
+  revalidatePath("/modules/dashboard");
+
+  const label = isPatchOutcome(value) ? PATCH_OUTCOME_LABEL[value] : "Not run";
+  return { ok: true, message: `${plan.endpointName}: ${label.toLowerCase()}.` };
 }

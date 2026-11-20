@@ -25,6 +25,9 @@ import type { SessionUser } from "@/lib/auth/token";
 import type { AssignableUser, PatchScheduleRecord } from "@/lib/records/repository";
 import type { ServersInventory } from "@/lib/servers/inventory";
 import {
+  PATCH_OUTCOMES,
+  PATCH_OUTCOME_LABEL,
+  PATCH_OUTCOME_TONE,
   PATCH_STATUS_LABEL,
   approvedByName,
   encodeEndpoints,
@@ -33,12 +36,16 @@ import {
   myDecision,
   pendingApproverNames,
   planStatus,
+  plannedRangeError,
+  plannedRangeLabel,
   rejectedByName,
   todayInIndia,
+  withinPlannedRange,
 } from "@/lib/patching/plan";
 import {
   decidePatchPlanAction,
   schedulePatchPlansAction,
+  updatePatchOutcomeAction,
 } from "@/app/(app)/modules/patching/actions";
 import { refreshServersAction } from "@/app/(app)/modules/servers/actions";
 import { useActionState } from "react";
@@ -120,6 +127,11 @@ export function PatchingView({
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
+  /** Planned-date range: either end may be left empty. */
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [savingOutcome, setSavingOutcome] = useState<string>("");
+  const [outcomeFailure, setOutcomeFailure] = useState("");
   const [panel, setPanel] = useState<
     { kind: "schedule"; keys: string[] } | { kind: "decide"; planId: string } | null
   >(null);
@@ -149,16 +161,24 @@ export function PatchingView({
     }
   }, [decisionState]);
 
+  const rangeError = plannedRangeError(from, to);
+  const rangeActive = Boolean(from || to);
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((row) =>
-      [row.name, row.detail, row.plan?.handlerName ?? "", row.plan?.endpointName ?? ""]
+    return rows.filter((row) => {
+      // A range only ever matches scheduled plans — unscheduled endpoints have
+      // no date to compare, so they step aside while a range is set.
+      if (rangeActive && (!row.plan || !withinPlannedRange(row.plan.plannedDate, from, to))) {
+        return false;
+      }
+      if (!needle) return true;
+      return [row.name, row.detail, row.plan?.handlerName ?? "", row.plan?.endpointName ?? ""]
         .join(" ")
         .toLowerCase()
-        .includes(needle),
-    );
-  }, [rows, query]);
+        .includes(needle);
+    });
+  }, [rows, query, from, to, rangeActive]);
 
   const selectableVisible = visible.filter((row) => row.inInventory);
   const allVisibleSelected =
@@ -197,7 +217,23 @@ export function PatchingView({
 
   const error =
     (panel?.kind === "schedule" ? scheduleState.error : undefined) ??
-    (panel?.kind === "decide" ? decisionState.error : undefined);
+    (panel?.kind === "decide" ? decisionState.error : undefined) ??
+    (outcomeFailure || undefined);
+
+  /** Saves the result of the patching run straight from the row. */
+  async function saveOutcome(plan: PatchScheduleRecord, value: string) {
+    setOutcomeFailure("");
+    setSavingOutcome(plan.id);
+    try {
+      const result = await updatePatchOutcomeAction(plan.id, value);
+      if (result.error) setOutcomeFailure(result.error);
+      else setNotice(result.message ?? "Update status saved.");
+    } catch {
+      setOutcomeFailure("The update status could not be saved. Please try again.");
+    } finally {
+      setSavingOutcome("");
+    }
+  }
 
   const peopleOptions = people.map((person) => ({
     value: person.id,
@@ -295,6 +331,41 @@ export function PatchingView({
 
       <section className="border border-line bg-surface">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
+              Planned
+            </span>
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(event) => setFrom(event.target.value)}
+              aria-label="Planned date from"
+              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-[12px] text-navy outline-none focus-visible:border-navy"
+            />
+            <span className="text-[11.5px] text-muted">to</span>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(event) => setTo(event.target.value)}
+              aria-label="Planned date to"
+              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-[12px] text-navy outline-none focus-visible:border-navy"
+            />
+            {rangeActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFrom("");
+                  setTo("");
+                }}
+                className="text-[11.5px] font-medium text-muted underline-offset-2 hover:text-navy hover:underline"
+              >
+                Clear dates
+              </button>
+            )}
+          </div>
+
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -305,8 +376,16 @@ export function PatchingView({
           <span className="text-[11.5px] text-muted">
             {selectedRows.length > 0
               ? `${selectedRows.length} selected`
-              : `${rows.filter((row) => row.inInventory).length} endpoints`}
+              : rangeActive
+                ? `${visible.length} of ${rows.filter((row) => row.inInventory).length} endpoints · ${plannedRangeLabel(from, to)}`
+                : `${rows.filter((row) => row.inInventory).length} endpoints`}
           </span>
+
+          {rangeError && (
+            <span role="alert" className="text-[11.5px] text-danger">
+              {rangeError}
+            </span>
+          )}
 
           {selectedRows.length > 0 && (
             <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -367,6 +446,7 @@ export function PatchingView({
                   <TableHead className="w-28 text-right">Other updates</TableHead>
                   <TableHead className="w-56">Scheduled plan</TableHead>
                   <TableHead className="w-52">Approval</TableHead>
+                  <TableHead className="w-40">Update status</TableHead>
                   <TableHead className="w-44 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -440,6 +520,48 @@ export function PatchingView({
                                   ? approvedByName(plan.approvers)
                                   : rejectedByName(plan.approvers)}
                             </span>
+                          </div>
+                        ) : (
+                          <span className="text-[12px] text-muted">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {plan ? (
+                          <div className="min-w-0 space-y-1">
+                            {canEdit ? (
+                              <select
+                                value={plan.outcome}
+                                onChange={(event) => saveOutcome(plan, event.target.value)}
+                                disabled={savingOutcome === plan.id}
+                                aria-label={`Update status for ${plan.endpointName}`}
+                                className={`h-7 w-full max-w-[9.5rem] rounded-md border border-line-strong bg-surface px-1.5 text-[11.5px] outline-none focus-visible:border-navy disabled:opacity-60 ${
+                                  plan.outcome === "success"
+                                    ? "text-success"
+                                    : plan.outcome === "failed"
+                                      ? "text-danger"
+                                      : plan.outcome === "partial"
+                                        ? "text-warning"
+                                        : "text-body"
+                                }`}
+                              >
+                                {PATCH_OUTCOMES.map((outcome) => (
+                                  <option key={outcome} value={outcome}>
+                                    {PATCH_OUTCOME_LABEL[outcome]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <StatusPill
+                                status={plan.outcome}
+                                tone={PATCH_OUTCOME_TONE[plan.outcome]}
+                                label={PATCH_OUTCOME_LABEL[plan.outcome]}
+                              />
+                            )}
+                            {plan.outcome !== "pending" && plan.outcomeByName ? (
+                              <span className="block truncate text-[11px] text-muted">
+                                {plan.outcomeByName}
+                              </span>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-[12px] text-muted">—</span>

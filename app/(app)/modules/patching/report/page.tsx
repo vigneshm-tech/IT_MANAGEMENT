@@ -13,6 +13,8 @@ import { listPatchSchedules } from "@/lib/records/repository";
 import { loadPatchLists } from "@/lib/servers/inventory";
 import {
   PATCH_ENDPOINTS_MAX,
+  PATCH_OUTCOME_LABEL,
+  PATCH_OUTCOME_TONE,
   PATCH_STATUS_LABEL,
   approvedByName,
   formatPlannedDate,
@@ -88,6 +90,12 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
   const patchLists = await loadPatchLists(user.id, endpointIds);
   const prepared = formatDate(new Date().toISOString());
   const totalPatches = chosen.reduce((sum, plan) => sum + plan.missingCount, 0);
+  const outcomeCounts = {
+    success: chosen.filter((plan) => plan.outcome === "success").length,
+    partial: chosen.filter((plan) => plan.outcome === "partial").length,
+    failed: chosen.filter((plan) => plan.outcome === "failed").length,
+    pending: chosen.filter((plan) => plan.outcome === "pending").length,
+  };
 
   return (
     <div className="space-y-4">
@@ -115,6 +123,10 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
               {chosen.length === 1 ? "endpoint" : "endpoints"} · {totalPatches} missing{" "}
               {totalPatches === 1 ? "patch" : "patches"}
             </p>
+            <p className="text-[11.5px] text-muted">
+              {outcomeCounts.success} success · {outcomeCounts.partial} partial ·{" "}
+              {outcomeCounts.failed} failed · {outcomeCounts.pending} not run
+            </p>
           </div>
         </header>
 
@@ -132,11 +144,26 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                   <StatusPill status={status} label={PATCH_STATUS_LABEL[status]} />
                 </div>
 
-                <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+                <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5">
                   <Field label="Planned date" value={formatPlannedDate(plan.plannedDate)} />
                   <Field label="IT member handling" value={plan.handlerName || "—"} />
                   <Field label="Approved provided by" value={approvedByName(plan.approvers)} />
                   <Field label="Verified by" value={verificationNames(plan.approvers)} />
+                  <div>
+                    <dt className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-muted">
+                      Update status
+                    </dt>
+                    <dd className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-navy">
+                      <StatusPill
+                        status={plan.outcome}
+                        tone={PATCH_OUTCOME_TONE[plan.outcome]}
+                        label={PATCH_OUTCOME_LABEL[plan.outcome]}
+                      />
+                      {plan.outcomeByName ? (
+                        <span className="text-[11px] text-muted">{plan.outcomeByName}</span>
+                      ) : null}
+                    </dd>
+                  </div>
                 </dl>
 
                 <p className="mt-2 text-[11.5px] text-muted">

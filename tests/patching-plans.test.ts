@@ -3,6 +3,10 @@ import { test } from "node:test";
 import {
   PATCH_APPROVERS_MAX,
   PATCH_ENDPOINTS_MAX,
+  PATCH_OUTCOMES,
+  PATCH_OUTCOME_LABEL,
+  PATCH_OUTCOME_TONE,
+  isPatchOutcome,
   approvedByName,
   decodeEndpoints,
   decisionError,
@@ -11,8 +15,12 @@ import {
   isApprover,
   myDecision,
   pendingApproverNames,
+  outcomeError,
   planStatus,
   plannedDateError,
+  plannedRangeError,
+  plannedRangeLabel,
+  withinPlannedRange,
   schedulePlanError,
   todayInIndia,
   verificationNames,
@@ -177,4 +185,66 @@ test("approving requires the person who verified the patching; rejecting does no
   assert.equal(decisionError({ decision: "approve", verificationName: "usr-meera" }), null);
   assert.equal(decisionError({ decision: "reject", verificationName: "" }), null);
   assert.match(decisionError({ decision: "later", verificationName: "" }) ?? "", /approve or reject/);
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Planned-date range filter                                                 */
+/* -------------------------------------------------------------------------- */
+
+test("the range filter keeps plans inside the window and drops the rest", () => {
+  assert.equal(withinPlannedRange("2026-11-19", "2026-11-01", "2026-11-30"), true);
+  // Both ends are inclusive — a plan on the boundary is in the window.
+  assert.equal(withinPlannedRange("2026-11-01", "2026-11-01", "2026-11-30"), true);
+  assert.equal(withinPlannedRange("2026-11-30", "2026-11-01", "2026-11-30"), true);
+  assert.equal(withinPlannedRange("2026-10-31", "2026-11-01", "2026-11-30"), false);
+  assert.equal(withinPlannedRange("2026-12-01", "2026-11-01", "2026-11-30"), false);
+});
+
+test("either end of the range can be left open", () => {
+  assert.equal(withinPlannedRange("2026-12-24", "2026-11-01", ""), true);
+  assert.equal(withinPlannedRange("2026-10-01", "2026-11-01", ""), false);
+  assert.equal(withinPlannedRange("2026-12-24", "", "2026-12-31"), true);
+  assert.equal(withinPlannedRange("2027-01-02", "", "2026-12-31"), false);
+  // No range at all keeps everything, and an unscheduled row has no date to match.
+  assert.equal(withinPlannedRange("2026-12-24", "", ""), true);
+  assert.equal(withinPlannedRange("", "2026-11-01", "2026-11-30"), false);
+});
+
+test("a backwards range is reported, not silently empty", () => {
+  assert.equal(plannedRangeError("2026-11-01", "2026-11-30"), null);
+  assert.equal(plannedRangeError("2026-11-01", ""), null);
+  assert.match(plannedRangeError("2026-12-01", "2026-11-30") ?? "", /after/);
+});
+
+test("the filter names the window it applied", () => {
+  assert.equal(plannedRangeLabel("", ""), "All dates");
+  assert.equal(plannedRangeLabel("2026-11-01", "2026-11-30"), "01 Nov 2026 – 30 Nov 2026");
+  assert.equal(plannedRangeLabel("2026-11-01", ""), "From 01 Nov 2026");
+  assert.equal(plannedRangeLabel("", "2026-11-30"), "Until 30 Nov 2026");
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Update status                                                             */
+/* -------------------------------------------------------------------------- */
+
+test("only success, failed and partial are real results; empty resets to not run", () => {
+  assert.deepEqual(PATCH_OUTCOMES, ["pending", "success", "failed", "partial"]);
+  assert.equal(isPatchOutcome("success"), true);
+  assert.equal(isPatchOutcome("partial"), true);
+  assert.equal(isPatchOutcome("failed"), true);
+  assert.equal(isPatchOutcome("done"), false);
+  assert.equal(outcomeError("success"), null);
+  assert.equal(outcomeError(""), null);
+  assert.match(outcomeError("half way") ?? "", /success, failed or partial/);
+});
+
+test("each result reads and colours the same way in the table and the report", () => {
+  assert.equal(PATCH_OUTCOME_LABEL.success, "Success");
+  assert.equal(PATCH_OUTCOME_LABEL.failed, "Failed");
+  assert.equal(PATCH_OUTCOME_LABEL.partial, "Partial update");
+  assert.equal(PATCH_OUTCOME_LABEL.pending, "Not run");
+  assert.equal(PATCH_OUTCOME_TONE.success, "positive");
+  assert.equal(PATCH_OUTCOME_TONE.failed, "danger");
+  assert.equal(PATCH_OUTCOME_TONE.partial, "pending");
+  assert.equal(PATCH_OUTCOME_TONE.pending, "neutral");
 });

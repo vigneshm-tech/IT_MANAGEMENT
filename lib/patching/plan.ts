@@ -19,6 +19,41 @@ export const PATCH_STATUS_LABEL: Record<PatchPlanStatus, string> = {
   rejected: "Rejected",
 };
 
+/**
+ * What the engineer records once the patching has run. It is independent of the
+ * approval: a plan can be approved and still fail on the server.
+ */
+export type PatchOutcome = "pending" | "success" | "failed" | "partial";
+
+export const PATCH_OUTCOMES: PatchOutcome[] = ["pending", "success", "failed", "partial"];
+
+export const PATCH_OUTCOME_LABEL: Record<PatchOutcome, string> = {
+  pending: "Not run",
+  success: "Success",
+  failed: "Failed",
+  partial: "Partial update",
+};
+
+/** StatusPill tones, kept here so the table and the report colour it alike. */
+export const PATCH_OUTCOME_TONE: Record<PatchOutcome, "positive" | "danger" | "pending" | "neutral"> =
+  {
+    pending: "neutral",
+    success: "positive",
+    failed: "danger",
+    partial: "pending",
+  };
+
+export function isPatchOutcome(value: string): value is PatchOutcome {
+  return (PATCH_OUTCOMES as string[]).includes(value);
+}
+
+/** Empty is allowed — it means "back to not run". */
+export function outcomeError(value: string): string | null {
+  if (value === "") return null;
+  if (!isPatchOutcome(value)) return "Choose success, failed or partial update.";
+  return null;
+}
+
 export type PatchApprover = {
   approverId: string;
   approverName: string;
@@ -41,6 +76,11 @@ export type PatchScheduleRecord = {
   handlerId: string;
   handlerName: string;
   approvers: PatchApprover[];
+  /** Result of the patching run, recorded from the register or the report. */
+  outcome: PatchOutcome;
+  /** Who recorded the result, and when — printed under the status. */
+  outcomeByName: string;
+  outcomeAt: string | null;
   note: string;
   createdByName: string;
   createdAt: string;
@@ -116,6 +156,32 @@ export function todayInIndia(now: Date = new Date()): string {
   }).formatToParts(now);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * The register's date range filter: both ends are optional, so an empty "to"
+ * means "everything from this date on". Rows without a planned date never
+ * match a range — they have not been scheduled yet.
+ */
+export function withinPlannedRange(plannedDate: string, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const date = plannedDate.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  if (from && date < from) return false;
+  if (to && date > to) return false;
+  return true;
+}
+
+export function plannedRangeError(from: string, to: string): string | null {
+  if (from && to && from > to) return "The “from” date is after the “to” date.";
+  return null;
+}
+
+export function plannedRangeLabel(from: string, to: string): string {
+  if (!from && !to) return "All dates";
+  if (from && to) return `${formatPlannedDate(from)} – ${formatPlannedDate(to)}`;
+  if (from) return `From ${formatPlannedDate(from)}`;
+  return `Until ${formatPlannedDate(to)}`;
 }
 
 export function plannedDateError(value: string, today: string = todayInIndia()): string | null {
