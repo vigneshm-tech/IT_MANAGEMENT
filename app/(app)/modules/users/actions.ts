@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { clearCache } from "@/lib/cache/ttl";
 import { isSupabaseConfigured } from "@/lib/config";
 import { EMAIL_PATTERN, type FormState } from "@/lib/forms";
 import { requireUser } from "@/lib/auth";
@@ -83,6 +84,8 @@ export async function createUserAction(
 
     const created = createDemoUser({ name: fullName, employeeId, email, title: designation, role });
     addDemoGroupMember(groupId, created.id);
+    clearCache("assignable-users");
+    clearCache("assignable-users");
     revalidatePath(USERS_PATH);
     revalidatePath("/modules/users/groups");
     return {
@@ -119,6 +122,8 @@ export async function createUserAction(
       }
     }
 
+    clearCache("assignable-users");
+    clearCache("assignable-users");
     revalidatePath(USERS_PATH);
     revalidatePath("/modules/users/groups");
     return {
@@ -154,6 +159,8 @@ export async function updateUserAction(formData: FormData): Promise<void> {
     } else {
       return;
     }
+    clearCache("assignable-users");
+    clearCache("assignable-users");
     revalidatePath(USERS_PATH);
     return;
   }
@@ -174,6 +181,8 @@ export async function updateUserAction(formData: FormData): Promise<void> {
       return;
     }
 
+    clearCache("assignable-users");
+    clearCache("assignable-users");
     revalidatePath(USERS_PATH);
   } catch (error) {
     console.error("[users] update threw", error);

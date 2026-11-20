@@ -80,6 +80,9 @@ const DEFAULT_BASE_URL = "https://app.action1.com/api/3.0";
 export const ACTION1_LIMIT_MAX = 50;
 const TIMEOUT_MS = 12_000;
 
+/** Every Action1 call accepts a bound so a page can stop waiting. */
+type TypeOptions = { fetchImpl?: typeof fetch; token?: string; timeoutMs?: number };
+
 /**
  * Accepts "app.action1.com", "https://app.na-2.action1.com/" or the full
  * ".../api/3.0" and returns the API base URL.
@@ -383,7 +386,7 @@ export async function fetchEndpoints(
      */
     fields?: string;
   },
-  options: { fetchImpl?: typeof fetch; token?: string } = {},
+  options: TypeOptions = {},
 ): Promise<Action1EndpointPage> {
   const token = options.token ?? (await resolveToken(config, options));
   const limit = Math.min(Math.max(params.limit ?? ACTION1_LIMIT_MAX, 1), ACTION1_LIMIT_MAX);
@@ -410,7 +413,7 @@ export async function fetchEndpoints(
 export async function fetchEndpoint(
   config: Action1Config,
   params: { orgId: string; endpointId: string },
-  options: { fetchImpl?: typeof fetch; token?: string } = {},
+  options: TypeOptions = {},
 ): Promise<Action1Endpoint> {
   const token = options.token ?? (await resolveToken(config, options));
   const path = `/endpoints/managed/${encodeURIComponent(params.orgId)}/${encodeURIComponent(params.endpointId)}`;
@@ -584,7 +587,7 @@ export function mapMissingUpdatePage(payload: unknown): Action1UpdatePage {
 export async function fetchEndpointMissingUpdates(
   config: Action1Config,
   params: { orgId: string; endpointId: string; limit?: number; severity?: string },
-  options: { fetchImpl?: typeof fetch; token?: string } = {},
+  options: TypeOptions = {},
 ): Promise<Action1UpdatePage> {
   const token = options.token ?? (await resolveToken(config, options));
   const limit = Math.min(Math.max(params.limit ?? ACTION1_UPDATE_LIMIT, 1), ACTION1_UPDATE_LIMIT);
@@ -622,7 +625,7 @@ export async function fetchEndpointMissingUpdates(
 /** Uses the configured org, or the first one the credential can see. */
 export async function resolveOrganizationId(
   config: Action1Config,
-  options: { fetchImpl?: typeof fetch; token?: string } = {},
+  options: TypeOptions = {},
 ): Promise<string> {
   if (config.orgId?.trim()) return config.orgId.trim();
   const token = options.token ?? (await resolveToken(config, options));

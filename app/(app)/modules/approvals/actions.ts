@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { clearCache } from "@/lib/cache/ttl";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import { requiredText, type FormState } from "@/lib/forms";
@@ -52,6 +53,7 @@ export async function decideApprovalAction(formData: FormData): Promise<void> {
   if (!id || !decision) return;
 
   await decideApproval(id, decision, user);
+  clearCache("pending-approvals");
   revalidatePath("/modules/approvals");
   revalidatePath("/modules/dashboard");
 }

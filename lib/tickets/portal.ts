@@ -1,3 +1,4 @@
+import { readCache, writeCache } from "../cache/ttl";
 import { getIntegration, maskSecret } from "../integrations/store";
 import {
   fetchIssue,
@@ -46,10 +47,18 @@ export function isTicketView(value: string | undefined): value is TicketView {
  * the portal. Every failure is converted into a state the page can render —
  * the portal never throws at the route level.
  */
+/** Redmine lists are reused briefly so a module switch is not a fresh API call. */
+const TICKETS_TTL_MS = 30_000;
+const PROJECTS_TTL_MS = 5 * 60_000;
+
 export async function loadTickets(
   userId: string,
   view: TicketView = "mine",
 ): Promise<TicketPortalData> {
+  const cacheKey = `tickets:${userId}:${view}`;
+  const cached = readCache<TicketPortalData>(cacheKey);
+  if (cached) return cached;
+
   const record = await getIntegration(userId, "redmine");
 
   if (!record || !record.baseUrl) {
@@ -70,7 +79,7 @@ export async function loadTickets(
       fetchProjects(config).catch(() => []),
     ]);
 
-    return {
+    const data: TicketPortalData = {
       state: "ready",
       baseUrl: record.baseUrl,
       masked,
@@ -80,6 +89,8 @@ export async function loadTickets(
       projects: projects.map((project) => ({ id: project.id, name: project.name })),
       loadedAt: new Date().toISOString(),
     };
+    writeCache(cacheKey, data, TICKETS_TTL_MS);
+    return data;
   } catch (error) {
     return {
       state: "error",
@@ -98,15 +109,21 @@ export async function loadTicketProjects(
   | { state: "error"; error: string }
   | { state: "ready"; projects: ProjectOption[] }
 > {
+  const cacheKey = `tickets:projects:${userId}`;
+  const cached = readCache<{ state: "ready"; projects: ProjectOption[] }>(cacheKey);
+  if (cached) return cached;
+
   const record = await getIntegration(userId, "redmine");
   if (!record || !record.baseUrl) return { state: "disconnected" };
 
   try {
     const projects = await fetchProjects({ baseUrl: record.baseUrl, apiKey: record.secret });
-    return {
-      state: "ready",
+    const ready = {
+      state: "ready" as const,
       projects: projects.map((project) => ({ id: project.id, name: project.name })),
     };
+    writeCache(cacheKey, ready, PROJECTS_TTL_MS);
+    return ready;
   } catch (error) {
     return {
       state: "error",
@@ -156,12 +173,13 @@ export async function loadTicketEditor(
   const config: RedmineConfig = { baseUrl: record.baseUrl, apiKey: record.secret };
 
   try {
-    const issue = await fetchIssue(config, id);
-    const [statuses, priorities, members] = await Promise.all([
+    // The option lists do not depend on the issue, so they go out with it.
+    const [issue, statuses, priorities] = await Promise.all([
+      fetchIssue(config, id),
       fetchStatuses(config).catch(() => []),
       fetchPriorities(config).catch(() => []),
-      fetchProjectMembers(config, issue.projectId).catch(() => []),
     ]);
+    const members = await fetchProjectMembers(config, issue.projectId).catch(() => []);
 
     return { state: "ready", baseUrl: record.baseUrl, issue, statuses, priorities, members };
   } catch (error) {

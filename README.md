@@ -517,6 +517,65 @@ Super Admin, IT Manager and IT Engineer can all write the Action1 credentials;
 the connection is organisation-wide, so whoever saves it is the one the Servers
 module uses for everybody.
 
+## 4c. Response times (why modules were slow, and what fixed it)
+
+Switching modules used to take tens of seconds — over two minutes against a slow
+Action1 tenant. The cause was not the database: **every navigation re-ran the
+whole Action1 handshake**. Servers, Patching, the Task form and the overview all
+call `loadServersInventory()`, and that read signed in again
+(`POST /oauth2/token`), resolved the organization id again
+(`GET /organizations`), then paged `/endpoints/managed/{orgId}` **one page after
+another** — six sequential round trips per page view, each with a 12 s timeout.
+Five modules × six calls × 1–3 s is exactly the "two minutes" that was reported,
+and nothing was reused between renders, between modules or between two people.
+
+The fix is a small in-process cache ([`lib/cache/ttl.ts`](lib/cache/ttl.ts)) in
+front of every read that repeated itself, plus parallel paging:
+
+| Cached value | TTL | Busted by |
+| --- | --- | --- |
+| Action1 access token | token `expires_in` − 60 s (max 25 min) | saving/disconnecting Action1 |
+| Resolved Action1 organization id | 10 min | saving/disconnecting Action1 |
+| Endpoint inventory (org-wide) | 60 s | Refresh, saving/disconnecting Action1 |
+| Endpoint detail + its missing updates | 45 s | Refresh, saving/disconnecting Action1 |
+| Connection record (`getIntegration`) | 30 s | saving/disconnecting |
+| Signed-in profile status (suspension check) | 30 s | — |
+| Assignable users (Task/Patching owner lists) | 30 s | any user mutation |
+| Pending approvals (nav badge) | 30 s | any approval decision |
+| Redmine ticket list / projects | 30 s / 5 min | any ticket write |
+
+Other changes in the same pass:
+
+- Pages 2..n of the inventory are fetched **four at a time** instead of
+  sequentially, under a 12 s wall-clock ceiling so a hung tenant cannot hold a
+  render forever. If the ceiling is reached the page shows what it has and the
+  remaining pages are fetched **in the background**, so the next visit inside the
+  TTL is complete.
+- The Servers table is paginated (25 rows) instead of rendering the entire
+  inventory: the page dropped from ~910 KB of HTML to ~130 KB.
+- Redmine's ticket editor loads the issue together with statuses and priorities
+  before its member lists instead of nesting them.
+- `loading.tsx` boundaries give an instant skeleton on every module route, and
+  `experimental.staleTimes` (30 s dynamic / 300 s static) lets the router reuse a
+  page it already has when you switch back and forth, instead of refetching it.
+- Every mutation clears the prefixes it invalidates (`action1-`, `tickets:`,
+  `integration:`, `assignable-users`, `pending-approvals`), so cache never hides
+  a change the user just made.
+
+Measured locally against a mock Action1 API (200 endpoints, 4 pages) with a
+production build and the same code before and after:
+
+| Page | Before (400 ms per call) | Before (3 s per call) | After, first visit | After, every later visit |
+| --- | --- | --- | --- | --- |
+| Servers | 2.5–2.7 s | 18.3 s | 1.8 s (12.1 s at 3 s/call, completed in the background) | 0.02–0.04 s, 0 API calls |
+| Patching | 2.6 s | 18.2 s | 0.21 s (inventory reused) | 0.09 s, 0 API calls |
+| Tasks (new) | 2.4 s | 18.1 s | 0.06 s (inventory reused) | 0.02 s, 0 API calls |
+| Dashboard, Tickets, Clients, Users, Approvals | — | — | 0.03–0.05 s | 0.01–0.05 s |
+
+Before: one token + one organization + four page calls on **every** navigation.
+After: one token + one organization + four page calls **once per minute per
+connection**, and none at all for the other modules in between.
+
 ## 5. Local development
 
 ```bash

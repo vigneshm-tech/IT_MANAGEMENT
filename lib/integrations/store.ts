@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "../config";
 import { createSupabaseServerClient } from "../supabase/server";
+import { clearCache, readCache, writeCache } from "../cache/ttl";
 import { integrationSlot } from "./access";
 import { decryptSecret, encryptSecret, secretHint } from "./vault";
 
@@ -69,6 +70,10 @@ export async function saveIntegration(
   const updatedAt = new Date().toISOString();
   const saved: IntegrationRecord = { ...record, updatedAt };
 
+  // Any cached inventory, ticket list or connection read is stale from here.
+  clearCache("integration:");
+  clearCache(record.provider === "action1" ? "action1-" : "tickets:");
+
   if (!isSupabaseConfigured) {
     memory().set(integrationSlot(userId, record.provider), saved);
     return saved;
@@ -95,6 +100,14 @@ export async function saveIntegration(
   return saved;
 }
 
+/**
+ * Connections are read on every module load (Servers, Patching, Tasks, Tickets,
+ * Settings, the overview). One short-lived cache entry per slot removes those
+ * round trips while a credential change still shows up within half a minute —
+ * and saving or disconnecting clears it immediately.
+ */
+const INTEGRATION_TTL_MS = 30_000;
+
 export async function getIntegration(
   userId: string,
   provider: IntegrationProvider,
@@ -102,6 +115,11 @@ export async function getIntegration(
   if (!isSupabaseConfigured) {
     return memory().get(integrationSlot(userId, provider)) ?? null;
   }
+
+  // Action1 is organization-wide, so its key must not include the reader.
+  const key = `integration:${provider}:${provider === "action1" ? "org" : userId}`;
+  const cached = readCache<IntegrationRecord | null>(key);
+  if (cached !== undefined) return cached;
 
   try {
     const supabase = await createSupabaseServerClient();
@@ -129,13 +147,15 @@ export async function getIntegration(
       return null;
     }
 
-    return {
+    const record: IntegrationRecord = {
       provider: data.provider,
       baseUrl: data.base_url || undefined,
       secret,
       config: readConfig(data.config),
       updatedAt: data.updated_at,
     };
+    writeCache(key, record, INTEGRATION_TTL_MS);
+    return record;
   } catch (error) {
     console.error("[integrations] read failed", error);
     return null;
@@ -154,6 +174,9 @@ export async function disconnectIntegration(
   const supabase = await createSupabaseServerClient();
   // Disconnecting Action1 clears the organisation slot: the row could belong to
   // any of the three roles allowed to write it.
+  clearCache("integration:");
+  clearCache(provider === "action1" ? "action1-" : "tickets:");
+
   const query = supabase.from("user_integrations").delete().eq("provider", provider);
   const { error } = await (provider === "action1"
     ? query

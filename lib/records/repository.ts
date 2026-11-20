@@ -8,6 +8,7 @@ import {
 import { INDUSTRY_SEED, normaliseIndustryName } from "../industries";
 import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
+import { readCache, writeCache } from "../cache/ttl";
 import type { RoleId } from "../roles";
 import type {
   PatchApprover,
@@ -590,15 +591,23 @@ export async function createClientRecord(
  * admin, so the app calls the `assignable_users()` RPC (security definer, names
  * only). Any failure falls back to the directory the caller can already see.
  */
+/** People pickers appear on several forms; the directory moves slowly. */
+const ASSIGNABLE_TTL_MS = 30_000;
+
 export async function listAssignableUsers(): Promise<AssignableUser[]> {
   if (isSupabaseConfigured) {
+    const cached = readCache<AssignableUser[]>("assignable-users");
+    if (cached) return cached;
+
     try {
       const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase.rpc("assignable_users");
       if (error) throw error;
-      return ((data ?? []) as { id: string; full_name: string; role: string | null }[]).map(
+      const people = ((data ?? []) as { id: string; full_name: string; role: string | null }[]).map(
         (row) => ({ id: row.id, name: row.full_name, role: row.role }),
       );
+      writeCache("assignable-users", people, ASSIGNABLE_TTL_MS);
+      return people;
     } catch (error) {
       console.error("[records] assignable_users failed, falling back to the directory", error);
     }
@@ -1077,6 +1086,22 @@ function mapApproval(row: Record<string, unknown>): ApprovalRecord {
     note: s(row.note),
     createdAt: s(row.created_at, new Date().toISOString()),
   };
+}
+
+/**
+ * The nav badge needs the pending titles on every page. It is the only reader
+ * of this cached copy — the Approvals page always calls `listApprovals()` — so a
+ * decision, which clears the key, shows up immediately.
+ */
+const PENDING_APPROVALS_TTL_MS = 30_000;
+
+export async function listPendingApprovals(): Promise<ApprovalRecord[]> {
+  const cached = readCache<ApprovalRecord[]>("pending-approvals");
+  if (cached) return cached;
+
+  const pending = (await listApprovals()).filter((approval) => approval.status === "pending");
+  if (isSupabaseConfigured) writeCache("pending-approvals", pending, PENDING_APPROVALS_TTL_MS);
+  return pending;
 }
 
 export async function listApprovals(): Promise<ApprovalRecord[]> {

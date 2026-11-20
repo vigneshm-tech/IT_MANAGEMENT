@@ -8,7 +8,7 @@ import { isIntroPending } from "@/lib/auth/intro";
 import { can, visibleModules } from "@/lib/access";
 import { NAV_GROUPS } from "@/lib/modules";
 import { ROLE_BY_ID } from "@/lib/roles";
-import { listApprovals } from "@/lib/records/repository";
+import { listPendingApprovals } from "@/lib/records/repository";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -41,8 +41,7 @@ export default async function WorkspaceLayout({
   let approvals: { id: string; title: string }[] = [];
   if (can(user.role, "approvals", "approve")) {
     try {
-      approvals = (await listApprovals())
-        .filter((approval) => approval.status === "pending")
+      approvals = (await listPendingApprovals())
         .slice(0, 5)
         .map((approval) => ({ id: approval.id, title: approval.title }));
     } catch {

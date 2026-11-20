@@ -31,7 +31,13 @@ import { isTicketView, loadTickets } from "@/lib/tickets/portal";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ new?: string; view?: string; created?: string; updated?: string }>;
+  searchParams: Promise<{
+    new?: string;
+    view?: string;
+    created?: string;
+    updated?: string;
+    page?: string;
+  }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -67,7 +73,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "servers": {
-      const [{ view }, inventory] = await Promise.all([
+      const [{ view, page }, inventory] = await Promise.all([
         searchParams,
         loadServersInventory(user.id),
       ]);
@@ -76,6 +82,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           user={user}
           inventory={inventory}
           filter={isServersFilter(view) ? view : "all"}
+          page={Number.parseInt(page ?? "1", 10) || 1}
         />
       );
     }

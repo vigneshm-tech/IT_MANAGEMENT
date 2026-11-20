@@ -5,6 +5,7 @@ import { isDemoMode, isSupabaseConfigured } from "../config";
 import { findDemoUser } from "../demo-users";
 import { getRole, isRoleId, type RoleId } from "../roles";
 import { createSupabaseServerClient } from "../supabase/server";
+import { readCache, writeCache } from "../cache/ttl";
 import { findDemoDirectoryUser } from "../users/store";
 import { getSession, type SessionUser } from "./session";
 
@@ -147,22 +148,31 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
  * `profiles.status` so a suspended or removed account loses access at once
  * instead of when the 12-hour cookie expires.
  */
+/** A suspension takes effect within this window, not on every single render. */
+const STATUS_TTL_MS = 30_000;
+
 export const requireUser = cache(async (): Promise<SessionUser> => {
   const user = await getSession();
   if (!user) redirect("/login");
 
   if (isSupabaseConfigured && user.provider === "supabase") {
-    let status: string | null = null;
-    try {
-      const supabase = await createSupabaseServerClient();
-      const { data } = await supabase
-        .from("profiles")
-        .select("status")
-        .eq("id", user.id)
-        .maybeSingle();
-      status = data?.status ?? null;
-    } catch (error) {
-      console.error("[auth] profile status check failed", error);
+    const key = `profile-status:${user.id}`;
+    let status: string | null | undefined = readCache<string | null>(key);
+
+    if (status === undefined) {
+      try {
+        const supabase = await createSupabaseServerClient();
+        const { data } = await supabase
+          .from("profiles")
+          .select("status")
+          .eq("id", user.id)
+          .maybeSingle();
+        status = data?.status ?? null;
+        if (status) writeCache(key, status, STATUS_TTL_MS);
+      } catch (error) {
+        console.error("[auth] profile status check failed", error);
+        status = null;
+      }
     }
 
     if (status && status !== "active") {

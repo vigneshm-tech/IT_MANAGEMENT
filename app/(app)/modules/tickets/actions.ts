@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { clearCache } from "@/lib/cache/ttl";
 import { redirect } from "next/navigation";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
@@ -47,6 +48,7 @@ export async function createTicketAction(
     };
   }
 
+  clearCache("tickets:");
   revalidatePath("/modules/tickets");
   redirect(`/modules/tickets?created=${issueId}`);
 }
@@ -103,6 +105,7 @@ export async function updateTicketAction(
     };
   }
 
+  clearCache("tickets:");
   revalidatePath("/modules/tickets");
   revalidatePath(`/modules/tickets/${id}`);
   redirect(`/modules/tickets/${id}?updated=1`);

@@ -70,13 +70,11 @@ function buildTrend(tasks: TaskRecord[], days = 14) {
 
 export default async function OverviewPage() {
   const user = await requireUser();
-  const [tasks, approvals, renewals] = await Promise.all([
+  // One batch: the overview is the landing page, so nothing waits twice.
+  const [tasks, approvals, renewals, redmine, action1] = await Promise.all([
     listTasks(),
     listApprovals(),
     listRenewals(),
-  ]);
-
-  const [redmine, action1] = await Promise.all([
     integrationStatus(user.id, "redmine"),
     integrationStatus(user.id, "action1"),
   ]);
