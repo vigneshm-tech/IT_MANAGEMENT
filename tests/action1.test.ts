@@ -16,6 +16,7 @@ import {
   parseAction1Date,
   resolveOrganizationId,
 } from "../lib/integrations/action1";
+import { canManageAction1, integrationSlot } from "../lib/integrations/access";
 import {
   describeLastSeen,
   describeMissingUpdates,
@@ -165,6 +166,40 @@ test("failures are described in the operator's language", () => {
   assert.match(describeAction1Failure(429, ""), /rate limiting/);
   assert.match(describeAction1Failure(400, "field 'limit' is invalid"), /invalid/);
   assert.match(describeAction1Failure(503, ""), /server error/);
+});
+
+test("only super admin, IT manager and IT engineer may write the Action1 key", () => {
+  assert.equal(canManageAction1("super_admin"), true);
+  assert.equal(canManageAction1("it_manager"), true);
+  assert.equal(canManageAction1("it_engineer"), true);
+
+  for (const role of [
+    "l2_support_manager",
+    "l2_support_lead",
+    "implementation_manager",
+    "implementation_lead",
+    "development_manager",
+    "development_lead",
+    "testing_manager",
+    "testing_lead",
+    "management",
+  ] as const) {
+    assert.equal(canManageAction1(role), false, `${role} must not write the Action1 key`);
+  }
+});
+
+test("the Action1 credential is one organisation slot, Redmine stays per user", () => {
+  // Two different people saving Action1 write the same slot, so the last save is
+  // the organisation's connection.
+  assert.equal(
+    integrationSlot("u-it-manager", "action1"),
+    integrationSlot("u-it-engineer", "action1"),
+  );
+  assert.equal(integrationSlot("u-super-admin", "action1"), "organisation:action1");
+
+  // Redmine keys never leak across profiles.
+  assert.equal(integrationSlot("u-1", "redmine"), "u-1:redmine");
+  assert.notEqual(integrationSlot("u-1", "redmine"), integrationSlot("u-2", "redmine"));
 });
 
 /* -------------------------------------------------------------------------- */

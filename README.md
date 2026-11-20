@@ -333,12 +333,23 @@ same `PUT`). Saving redirects back to the issue with an “updated” banner; a
 
 ### Where the key is stored
 
-Settings writes the key to `public.user_integrations`
-(`supabase/migrations/0012_user_integrations.sql`), one row per user and
-provider. The secret is encrypted in the app with **AES-256-GCM** (key derived
-from `AUTH_SECRET`) before it reaches Postgres, and RLS restricts every row to
-`auth.uid()`. Only the last four characters are kept in the clear, for masking.
-Changing `AUTH_SECRET` invalidates saved secrets — they must be entered again.
+Settings writes credentials to `public.user_integrations`
+(`supabase/migrations/0012_user_integrations.sql`, extended by
+`0016_action1_shared_credential.sql`). The secret is encrypted in the app with
+**AES-256-GCM** (key derived from `AUTH_SECRET`) before it reaches Postgres, and
+only the last four characters are kept in the clear, for masking. Changing
+`AUTH_SECRET` invalidates saved secrets — they must be entered again.
+
+The two providers are scoped differently:
+
+- **Redmine — per profile.** Each portal reads the issues *that person* is
+  assigned, so RLS limits the row to `auth.uid()`.
+- **Action1 — per organisation.** The endpoint inventory is the company's, so
+  there is one connection: Super Admin, IT Manager and IT Engineer can all save
+  or replace it (checked in the action and again by RLS through
+  `can_manage_action1()`), and every signed-in colleague reads the newest
+  Action1 row — leadership included, so a manager can open Servers without a key
+  of their own. What is shared is the ciphertext; decryption happens in the app.
 
 Both providers share that vault; Action1 stores its non-secret client id and
 organization id in the `config` JSON column added by
@@ -377,7 +388,9 @@ Client: `lib/integrations/action1.ts` (token, endpoints, organizations plus pure
 mapping helpers), loader: `lib/servers/inventory.ts`, presentation helpers:
 `lib/servers/endpoint.ts`, UI: `components/modules/servers-view.tsx` with the
 endpoint page at `/modules/servers/<id>` (`components/modules/endpoint-detail.tsx`).
-Only super admins and the two IT roles can write the Action1 credentials.
+Super Admin, IT Manager and IT Engineer can all write the Action1 credentials;
+the connection is organisation-wide, so whoever saves it is the one the Servers
+module uses for everybody.
 
 ## 5. Local development
 

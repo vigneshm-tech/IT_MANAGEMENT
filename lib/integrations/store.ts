@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "../config";
 import { createSupabaseServerClient } from "../supabase/server";
+import { integrationSlot } from "./access";
 import { decryptSecret, encryptSecret, secretHint } from "./vault";
 
 export type IntegrationProvider = "redmine" | "action1";
@@ -18,11 +19,17 @@ export type IntegrationRecord = {
 };
 
 /**
- * Per-user credential vault.
+ * Connection vault.
+ *
+ * Redmine keys are per user: each portal reads the issues *that person* is
+ * assigned, so only its owner can read the key. Action1 is the opposite — the
+ * endpoint inventory belongs to the organisation — so its credential is shared:
+ * whoever of Super Admin, IT Manager or IT Engineer saves it, everyone reads the
+ * newest Action1 row.
  *
  * With Supabase configured the record is written to `public.user_integrations`
  * with the secret encrypted (AES-256-GCM, key derived from AUTH_SECRET), so a
- * saved key survives redeploys and is readable only by its owner through RLS.
+ * saved key survives redeploys and the ciphertext never leaves the database.
  * Local previews without Supabase fall back to process memory.
  */
 const globalForIntegrations = globalThis as unknown as {
@@ -36,9 +43,7 @@ function memory(): Map<string, IntegrationRecord> {
   return globalForIntegrations.__taskTornadoIntegrations;
 }
 
-function memoryKey(userId: string, provider: IntegrationProvider) {
-  return `${userId}:${provider}`;
-}
+export { integrationSlot };
 
 type IntegrationRow = {
   provider: IntegrationProvider;
@@ -65,7 +70,7 @@ export async function saveIntegration(
   const saved: IntegrationRecord = { ...record, updatedAt };
 
   if (!isSupabaseConfigured) {
-    memory().set(memoryKey(userId, record.provider), saved);
+    memory().set(integrationSlot(userId, record.provider), saved);
     return saved;
   }
 
@@ -95,17 +100,25 @@ export async function getIntegration(
   provider: IntegrationProvider,
 ): Promise<IntegrationRecord | null> {
   if (!isSupabaseConfigured) {
-    return memory().get(memoryKey(userId, provider)) ?? null;
+    return memory().get(integrationSlot(userId, provider)) ?? null;
   }
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
+    const base = supabase
       .from("user_integrations")
       .select("provider,base_url,secret_ciphertext,secret_hint,config,updated_at")
-      .eq("user_id", userId)
-      .eq("provider", provider)
-      .maybeSingle<IntegrationRow>();
+      .eq("provider", provider);
+
+    // Action1 rows are readable by every signed-in user (the secret stays
+    // encrypted), and the newest one is the organisation's live connection.
+    // Redmine rows are restricted to their owner by RLS.
+    const query =
+      provider === "action1"
+        ? base.order("updated_at", { ascending: false }).limit(1)
+        : base.eq("user_id", userId);
+
+    const { data, error } = await query.maybeSingle<IntegrationRow>();
 
     if (error) throw error;
     if (!data) return null;
@@ -134,16 +147,17 @@ export async function disconnectIntegration(
   provider: IntegrationProvider,
 ): Promise<void> {
   if (!isSupabaseConfigured) {
-    memory().delete(memoryKey(userId, provider));
+    memory().delete(integrationSlot(userId, provider));
     return;
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
-    .from("user_integrations")
-    .delete()
-    .eq("user_id", userId)
-    .eq("provider", provider);
+  // Disconnecting Action1 clears the organisation slot: the row could belong to
+  // any of the three roles allowed to write it.
+  const query = supabase.from("user_integrations").delete().eq("provider", provider);
+  const { error } = await (provider === "action1"
+    ? query
+    : query.eq("user_id", userId));
 
   if (error) console.error("[integrations] disconnect failed", error);
 }

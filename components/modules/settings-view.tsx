@@ -61,7 +61,9 @@ export function SettingsView({
           Connections
         </h2>
         <p className="mt-0.5 text-[12px] text-muted">
-          Keys are scoped to your profile and masked once saved.
+          The Redmine key is scoped to your profile. The Action1 connection belongs to the
+          organisation — Super Admin, IT Manager and IT Engineer can all save it, and everyone
+          reads the same endpoint inventory. Keys are masked once saved.
         </p>
 
         <div className="mt-2 divide-y divide-line border-t border-line">
@@ -111,8 +113,8 @@ export function SettingsView({
                   hint: "Leave blank to use the first organization the credential can see.",
                 },
               ]}
-              hint="Create an API key under Settings → API keys in the Action1 console, then paste its client id and secret here."
-              managedBy="IT manages the Action1 key for the organisation."
+              hint="Create an API key under Settings → API keys in the Action1 console, then paste its client id and secret here. The connection is shared, so IT Manager and IT Engineer can update it too."
+              managedBy="Super Admin, IT Manager or IT Engineer can connect Action1 for the organisation."
             />
           </div>
         </div>
