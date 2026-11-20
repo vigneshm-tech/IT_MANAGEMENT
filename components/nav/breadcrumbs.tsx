@@ -7,7 +7,7 @@ import { getModule } from "@/lib/modules";
 
 type Crumb = { label: string; href: string };
 
-function humanise(segment: string): string {
+function humanise(segment: string, parent?: string): string {
   let value = segment;
   try {
     value = decodeURIComponent(segment);
@@ -16,7 +16,11 @@ function humanise(segment: string): string {
   }
   // Task ids stay verbatim; two route words read better expanded.
   if (/^tsk-\d+$/i.test(value)) return value.toUpperCase();
-  if (value === "new") return "New task";
+  if (value === "new") {
+    if (parent === "tasks") return "New task";
+    if (parent === "tickets") return "New ticket";
+    return "New";
+  }
   if (value === "edit") return "Edit";
 
   return value
@@ -44,7 +48,7 @@ function trailFor(pathname: string): Crumb[] {
 
     const module = getModule(segment);
     crumbs.push({
-      label: module ? module.title : humanise(segment),
+      label: module ? module.title : humanise(segment, segments[index - 1]),
       href: module ? module.href : href,
     });
   }

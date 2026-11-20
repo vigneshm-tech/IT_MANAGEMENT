@@ -46,11 +46,18 @@ export async function saveIntegrationAction(
     return { error: "Only IT can configure the Action1 key." };
   }
 
-  saveIntegration(user.id, {
-    provider,
-    secret,
-    baseUrl: provider === "redmine" ? baseUrl : undefined,
-  });
+  try {
+    await saveIntegration(user.id, {
+      provider,
+      secret,
+      baseUrl: provider === "redmine" ? baseUrl : undefined,
+    });
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "The key could not be saved. Please try again.",
+    };
+  }
 
   revalidatePath("/modules/settings");
   revalidatePath("/modules/tickets");
@@ -60,8 +67,8 @@ export async function saveIntegrationAction(
     ok: true,
     message:
       provider === "redmine"
-        ? "Redmine key saved for this session."
-        : "Action1 key saved for this session.",
+        ? "Redmine key saved to your profile."
+        : "Action1 key saved to your profile.",
   };
 }
 
@@ -70,7 +77,7 @@ export async function disconnectIntegrationAction(formData: FormData): Promise<v
   const provider = providerFrom(String(formData.get("provider") ?? ""));
   if (!provider) return;
   if (provider === "action1" && !["it_manager", "it_engineer"].includes(user.role)) return;
-  disconnectIntegration(user.id, provider);
+  await disconnectIntegration(user.id, provider);
   revalidatePath("/modules/settings");
   revalidatePath("/modules/tickets");
   revalidatePath("/modules/servers");

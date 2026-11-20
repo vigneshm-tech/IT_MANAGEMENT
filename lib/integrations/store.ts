@@ -1,3 +1,7 @@
+import { isSupabaseConfigured } from "../config";
+import { createSupabaseServerClient } from "../supabase/server";
+import { decryptSecret, encryptSecret, secretHint } from "./vault";
+
 export type IntegrationProvider = "redmine" | "action1";
 
 export type IntegrationRecord = {
@@ -9,43 +13,123 @@ export type IntegrationRecord = {
 };
 
 /**
- * Placeholder credential vault for milestone 1. Records live in process memory
- * only; the production implementation will use Supabase Vault / KMS with
- * per-user encryption. Secrets are never sent back to the browser in full.
+ * Per-user credential vault.
+ *
+ * With Supabase configured the record is written to `public.user_integrations`
+ * with the secret encrypted (AES-256-GCM, key derived from AUTH_SECRET), so a
+ * saved key survives redeploys and is readable only by its owner through RLS.
+ * Local previews without Supabase fall back to process memory.
  */
 const globalForIntegrations = globalThis as unknown as {
   __taskTornadoIntegrations?: Map<string, IntegrationRecord>;
 };
 
-function store(): Map<string, IntegrationRecord> {
+function memory(): Map<string, IntegrationRecord> {
   if (!globalForIntegrations.__taskTornadoIntegrations) {
     globalForIntegrations.__taskTornadoIntegrations = new Map();
   }
   return globalForIntegrations.__taskTornadoIntegrations;
 }
 
-function keyFor(userId: string, provider: IntegrationProvider) {
+function memoryKey(userId: string, provider: IntegrationProvider) {
   return `${userId}:${provider}`;
 }
 
-export function saveIntegration(
+type IntegrationRow = {
+  provider: IntegrationProvider;
+  base_url: string | null;
+  secret_ciphertext: string;
+  secret_hint: string | null;
+  updated_at: string;
+};
+
+export async function saveIntegration(
   userId: string,
   record: Omit<IntegrationRecord, "updatedAt">,
-): IntegrationRecord {
-  const saved: IntegrationRecord = { ...record, updatedAt: new Date().toISOString() };
-  store().set(keyFor(userId, record.provider), saved);
+): Promise<IntegrationRecord> {
+  const updatedAt = new Date().toISOString();
+  const saved: IntegrationRecord = { ...record, updatedAt };
+
+  if (!isSupabaseConfigured) {
+    memory().set(memoryKey(userId, record.provider), saved);
+    return saved;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("user_integrations").upsert(
+    {
+      user_id: userId,
+      provider: record.provider,
+      base_url: record.baseUrl ?? "",
+      secret_ciphertext: encryptSecret(record.secret),
+      secret_hint: secretHint(record.secret),
+    },
+    { onConflict: "user_id,provider" },
+  );
+
+  if (error) {
+    console.error("[integrations] save failed", error);
+    throw new Error("The key could not be saved. Please try again.");
+  }
+
   return saved;
 }
 
-export function getIntegration(
+export async function getIntegration(
   userId: string,
   provider: IntegrationProvider,
-): IntegrationRecord | null {
-  return store().get(keyFor(userId, provider)) ?? null;
+): Promise<IntegrationRecord | null> {
+  if (!isSupabaseConfigured) {
+    return memory().get(memoryKey(userId, provider)) ?? null;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("user_integrations")
+      .select("provider,base_url,secret_ciphertext,secret_hint,updated_at")
+      .eq("user_id", userId)
+      .eq("provider", provider)
+      .maybeSingle<IntegrationRow>();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    const secret = decryptSecret(data.secret_ciphertext);
+    if (secret === null) {
+      console.error("[integrations] stored secret could not be decrypted (AUTH_SECRET changed?)");
+      return null;
+    }
+
+    return {
+      provider: data.provider,
+      baseUrl: data.base_url || undefined,
+      secret,
+      updatedAt: data.updated_at,
+    };
+  } catch (error) {
+    console.error("[integrations] read failed", error);
+    return null;
+  }
 }
 
-export function disconnectIntegration(userId: string, provider: IntegrationProvider): void {
-  store().delete(keyFor(userId, provider));
+export async function disconnectIntegration(
+  userId: string,
+  provider: IntegrationProvider,
+): Promise<void> {
+  if (!isSupabaseConfigured) {
+    memory().delete(memoryKey(userId, provider));
+    return;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("user_integrations")
+    .delete()
+    .eq("user_id", userId)
+    .eq("provider", provider);
+
+  if (error) console.error("[integrations] disconnect failed", error);
 }
 
 export function maskSecret(secret: string): string {
@@ -61,11 +145,11 @@ export type IntegrationStatus = {
   updatedAt?: string;
 };
 
-export function integrationStatus(
+export async function integrationStatus(
   userId: string,
   provider: IntegrationProvider,
-): IntegrationStatus {
-  const record = getIntegration(userId, provider);
+): Promise<IntegrationStatus> {
+  const record = await getIntegration(userId, provider);
   if (!record) return { connected: false, masked: "" };
   return {
     connected: true,

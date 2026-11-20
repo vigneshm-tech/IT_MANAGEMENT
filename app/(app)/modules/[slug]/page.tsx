@@ -23,11 +23,12 @@ import {
   listRenewals,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
+import { isTicketView, loadTickets } from "@/lib/tickets/portal";
 import { listDirectory } from "@/lib/users/repository";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ new?: string; view?: string }>;
+  searchParams: Promise<{ new?: string; view?: string; created?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -52,11 +53,18 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <TasksView user={user} tasks={tasks} view={view} />;
     }
 
-    case "tickets":
-      return <TicketsView status={integrationStatus(user.id, "redmine")} />;
+    case "tickets": {
+      const [{ view, created }] = await Promise.all([searchParams]);
+      return (
+        <TicketsView
+          data={await loadTickets(user.id, isTicketView(view) ? view : "mine")}
+          createdId={created}
+        />
+      );
+    }
 
     case "servers":
-      return <ServersView user={user} status={integrationStatus(user.id, "action1")} />;
+      return <ServersView user={user} status={await integrationStatus(user.id, "action1")} />;
 
     case "clients": {
       const clients = await listClients();
@@ -94,15 +102,20 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       );
     }
 
-    case "settings":
+    case "settings": {
+      const [redmine, action1] = await Promise.all([
+        integrationStatus(user.id, "redmine"),
+        integrationStatus(user.id, "action1"),
+      ]);
       return (
         <SettingsView
           user={user}
-          redmine={integrationStatus(user.id, "redmine")}
-          action1={integrationStatus(user.id, "action1")}
+          redmine={redmine}
+          action1={action1}
           canManageAction1={user.role === "it_manager" || user.role === "it_engineer"}
         />
       );
+    }
 
     default:
       notFound();

@@ -48,6 +48,8 @@ export type Column = {
 export type TableRowData = {
   id: string;
   cells: Record<string, string | number | null>;
+  /** When set, the first cell becomes a link (opens in a new tab). */
+  href?: string;
   /** Overrides the table-level actions for this row. */
   actions?: RowAction[];
 };
@@ -527,6 +529,15 @@ export function DataTable({
                   >
                     {column.type === "status" ? (
                       <StatusPill status={String(value ?? "")} label={humanise(String(value ?? ""))} />
+                    ) : isFirst && row.href ? (
+                      <a
+                        href={row.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-navy underline-offset-2 transition-colors hover:text-gold hover:underline"
+                      >
+                        {value ?? "—"}
+                      </a>
                     ) : (
                       <span
                         className={cn(

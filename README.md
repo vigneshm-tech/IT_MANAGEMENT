@@ -220,8 +220,44 @@ super-admin account live in `0004_super_admin_role.sql` and
 `0005_super_admin_account.sql`; user administration lives in
 `0007_user_administration.sql`.
 
-Redmine and Action1 have no sync worker yet: the portal and server inventory
-render honest empty states until a key is saved, rather than inventing metrics.
+## 4a. Ticket Portal (Redmine REST API)
+
+The portal reads live from Redmine using the per-user key saved in Settings. It
+implements the documented API
+([redmine.org/projects/redmine/wiki/rest_api](https://www.redmine.org/projects/redmine/wiki/rest_api)):
+
+| Call | Used for |
+| --- | --- |
+| `GET /issues.json?assigned_to_id=me&status_id=open&sort=updated_on:desc&limit=100` | “Assigned to me” (and “All open” without `assigned_to_id`) |
+| `GET /projects.json?limit=100` | project dropdown on the new-ticket form |
+| `GET /users/current.json` | credential check / login name |
+| `POST /issues.json` | raising a ticket (`Content-Type: application/json`) |
+
+Notes taken from the reference:
+
+- The key travels in the **`X-Redmine-API-Key`** header — never in the URL, so it
+  cannot leak through logs or referrers.
+- Collections are capped at `limit=100`; `total_count`, `limit` and `offset` are
+  read back for the counters.
+- Failures are translated into advice: `401` → “Redmine rejected the API key”,
+  `404` → “Check the instance URL”, `422` → Redmine's own validation text.
+- Requests time out after 12 s, so a wrong URL cannot hang the page.
+
+Client: `lib/integrations/redmine.ts` (network calls plus pure mapping helpers),
+portal loader: `lib/tickets/portal.ts`, UI: `components/modules/tickets-view.tsx`
+with the create form at `/modules/tickets/new` (inline, no popup).
+
+### Where the key is stored
+
+Settings writes the key to `public.user_integrations`
+(`supabase/migrations/0012_user_integrations.sql`), one row per user and
+provider. The secret is encrypted in the app with **AES-256-GCM** (key derived
+from `AUTH_SECRET`) before it reaches Postgres, and RLS restricts every row to
+`auth.uid()`. Only the last four characters are kept in the clear, for masking.
+Changing `AUTH_SECRET` invalidates saved secrets — they must be entered again.
+
+Action1 has no sync worker yet: the server inventory renders an honest empty
+state until a key is saved, rather than inventing metrics.
 
 ## 5. Local development
 
@@ -320,16 +356,19 @@ lib/
   records/repository.ts  Clients, patching, approvals, renewals
   tasks/repository.ts    Tasks (Supabase with in-memory fallback)
   auth/                  Session token/cookie, Supabase + demo sign-in
-  integrations/store.ts  Per-user Redmine / Action1 key vault
+  integrations/store.ts  Per-user Redmine / Action1 key vault (Supabase, encrypted)
+  integrations/vault.ts  AES-256-GCM envelope for stored secrets
+  integrations/redmine.ts Redmine REST client (issues, projects, create)
+  tickets/portal.ts      Portal loader: credentials, issues, projects
 supabase/migrations/     RBAC, tasks, business records + RLS
 tests/                   node:test suites
 ```
 
 ## 8. Roadmap
 
-1. Redmine sync (assigned tickets, close with comment) using per-user keys.
+1. Redmine write-back beyond create: comment and close issues from the portal.
 2. Action1 sync for the server inventory and patching compliance.
 3. Record history: comments, attachments and an audit log viewer.
 4. Notification jobs (renewal reminders, approval nudges).
 5. Role administration UI for IT Manager backed by `profiles.role`.
-6. Move integration keys to Supabase Vault with rotation.
+6. Key rotation and audit trail for the integration vault.

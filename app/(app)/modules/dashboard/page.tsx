@@ -75,8 +75,10 @@ export default async function OverviewPage() {
     listRenewals(),
   ]);
 
-  const redmine = integrationStatus(user.id, "redmine");
-  const action1 = integrationStatus(user.id, "action1");
+  const [redmine, action1] = await Promise.all([
+    integrationStatus(user.id, "redmine"),
+    integrationStatus(user.id, "action1"),
+  ]);
   const now = new Date();
 
   const openTasks = tasks.filter((task) => task.status !== "done");
