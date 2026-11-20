@@ -28,6 +28,7 @@ export function SearchSelect({
   ariaLabel,
   defaultValue = "",
   searchPlaceholder = "Search",
+  panelInline = false,
 }: {
   name: string;
   options: SearchSelectOption[];
@@ -37,6 +38,12 @@ export function SearchSelect({
   ariaLabel: string;
   defaultValue?: string;
   searchPlaceholder?: string;
+  /**
+   * Open the list in the flow instead of floating over the form. Use it in
+   * compact forms (the Approvals sign-off bar) where the floating panel would
+   * cover the field beside it and the buttons underneath.
+   */
+  panelInline?: boolean;
 }) {
   const legacy = defaultValue && !options.some((option) => option.value === defaultValue);
 
@@ -106,7 +113,13 @@ export function SearchSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full min-w-[240px] rounded-md border border-line-strong bg-surface shadow-[0_10px_26px_rgba(23,44,82,0.12)]">
+        <div
+          className={
+            panelInline
+              ? "mt-1 w-full rounded-md border border-line-strong bg-surface shadow-[0_10px_26px_rgba(23,44,82,0.12)]"
+              : "absolute z-30 mt-1 w-full min-w-[240px] rounded-md border border-line-strong bg-surface shadow-[0_10px_26px_rgba(23,44,82,0.12)]"
+          }
+        >
           <div className="border-b border-line p-1.5">
             <input
               autoFocus

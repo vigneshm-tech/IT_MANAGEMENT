@@ -55,45 +55,105 @@ export function PatchDecisionForm({
         </div>
       )}
 
-      <div
-        className={
-          compact
-            ? "grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]"
-            : "grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2"
-        }
-      >
-        <div>
-          <span className="field-label">Verified by</span>
-          {people.length > 0 ? (
-            <SearchSelect
-              name="verificationPersonId"
-              options={people.map((person) => ({
-                value: person.id,
-                label: person.name,
-                hint: person.role ?? undefined,
-              }))}
-              placeholder="Select the person who verified"
-              emptyLabel="No active staff found"
-              ariaLabel={`Verified by for ${plan.endpointName}`}
-              searchPlaceholder="Search people"
-            />
-          ) : (
-            <p className="text-[12px] text-muted">No active staff available.</p>
-          )}
-        </div>
+      {compact ? (
+        // One approval bar: picker, note and the decision sit side by side at
+        // the same height, and the picker opens in the flow (panelInline) so it
+        // can never cover the note or the buttons.
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-full min-w-0 sm:w-56">
+            <span className="field-label">Verified by</span>
+            {people.length > 0 ? (
+              <SearchSelect
+                name="verificationPersonId"
+                options={people.map((person) => ({
+                  value: person.id,
+                  label: person.name,
+                  hint: person.role ?? undefined,
+                }))}
+                placeholder="Select the person who verified"
+                emptyLabel="No active staff found"
+                ariaLabel={`Verified by for ${plan.endpointName}`}
+                searchPlaceholder="Search people"
+                panelInline
+              />
+            ) : (
+              <p className="text-[12px] text-muted">No active staff available.</p>
+            )}
+          </div>
 
-        <div>
-          <label htmlFor={`decision-note-${plan.id}`} className="field-label">
-            Note
-          </label>
-          <input id={`decision-note-${plan.id}`} name="note" maxLength={500} className="field" />
+          <div className="min-w-0 flex-1 basis-48">
+            <label htmlFor={`decision-note-${plan.id}`} className="field-label">
+              Note
+            </label>
+            <input
+              id={`decision-note-${plan.id}`}
+              name="note"
+              maxLength={500}
+              placeholder="What was checked"
+              className="field h-9"
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>
+              {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+              Approve
+            </Button>
+            <Button
+              type="submit"
+              name="decision"
+              value="reject"
+              variant="secondary"
+              size="sm"
+              disabled={pending}
+              className="border-danger/40 text-danger hover:bg-danger-soft"
+            >
+              Reject
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <span className="field-label">Verified by</span>
+            {people.length > 0 ? (
+              <SearchSelect
+                name="verificationPersonId"
+                options={people.map((person) => ({
+                  value: person.id,
+                  label: person.name,
+                  hint: person.role ?? undefined,
+                }))}
+                placeholder="Select the person who verified"
+                emptyLabel="No active staff found"
+                ariaLabel={`Verified by for ${plan.endpointName}`}
+                searchPlaceholder="Search people"
+                panelInline
+              />
+            ) : (
+              <p className="text-[12px] text-muted">No active staff available.</p>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <label htmlFor={`decision-note-${plan.id}`} className="field-label">
+              Note
+            </label>
+            <input
+              id={`decision-note-${plan.id}`}
+              name="note"
+              maxLength={500}
+              placeholder="What was checked"
+              className="field h-9"
+            />
+          </div>
+        </div>
+      )}
 
       {state.error && (
         <p
           role="alert"
-          className="mx-4 mb-3 flex items-start gap-2 border border-[#eccfcd] bg-danger-soft px-3 py-2 text-[12.5px] text-danger"
+          className={`${compact ? "mt-2" : "mx-4 mb-3"} flex items-start gap-2 border border-[#eccfcd] bg-danger-soft px-3 py-2 text-[12.5px] text-danger`}
         >
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           {state.error}
@@ -103,45 +163,41 @@ export function PatchDecisionForm({
       {state.ok && (
         <p
           role="status"
-          className="mx-4 mb-3 flex items-start gap-2 border border-[#cfe4d4] bg-success-soft px-3 py-2 text-[12.5px] text-success"
+          className={`${compact ? "mt-2" : "mx-4 mb-3"} flex items-start gap-2 border border-[#cfe4d4] bg-success-soft px-3 py-2 text-[12.5px] text-success`}
         >
           <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           {state.message}
         </p>
       )}
 
-      <div
-        className={
-          compact
-            ? "flex flex-wrap items-center justify-end gap-2"
-            : "flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-2.5"
-        }
-      >
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className={buttonClass({ variant: "secondary", size: "sm" })}
+      {!compact && (
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-2.5">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className={buttonClass({ variant: "secondary", size: "sm" })}
+            >
+              Cancel
+            </button>
+          )}
+          <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>
+            {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+            Approve
+          </Button>
+          <Button
+            type="submit"
+            name="decision"
+            value="reject"
+            variant="secondary"
+            size="sm"
+            disabled={pending}
+            className="border-danger/40 text-danger hover:bg-danger-soft"
           >
-            Cancel
-          </button>
-        )}
-        <Button type="submit" name="decision" value="approve" size="sm" disabled={pending}>
-          {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
-          Approve
-        </Button>
-        <Button
-          type="submit"
-          name="decision"
-          value="reject"
-          variant="secondary"
-          size="sm"
-          disabled={pending}
-          className="border-danger/40 text-danger hover:bg-danger-soft"
-        >
-          Reject
-        </Button>
-      </div>
+            Reject
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
