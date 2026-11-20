@@ -21,7 +21,7 @@ import {
   planStatus,
   verificationNames,
 } from "@/lib/patching/plan";
-import { PrintReportButton } from "./print-button";
+import { ReportActions } from "./report-actions";
 
 export const metadata: Metadata = { title: "Patching report" };
 
@@ -99,9 +99,9 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2" data-print="hide">
+      <div className="flex flex-wrap items-start justify-between gap-2" data-print="hide">
         {back}
-        <PrintReportButton />
+        <ReportActions plans={ids.join(",")} />
       </div>
 
       <article className="print-sheet border border-line bg-surface px-6 py-6 sm:px-8">

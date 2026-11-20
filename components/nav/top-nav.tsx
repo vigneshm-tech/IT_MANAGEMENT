@@ -255,7 +255,10 @@ export function TopNav({
 
   return (
     <div ref={shellRef}>
-      <header className="sticky top-0 z-50 w-full border-b border-line bg-surface">
+      <header
+        className="sticky top-0 z-50 w-full border-b border-line bg-surface"
+        data-print="hide"
+      >
         <div className="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 xl:px-10">
           <Link
             href="/modules"

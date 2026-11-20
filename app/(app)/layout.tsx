@@ -100,7 +100,7 @@ export default async function WorkspaceLayout({
         <LaunchIntro active={introPending}>{children}</LaunchIntro>
       </main>
 
-      <footer className="border-t border-line">
+      <footer className="border-t border-line" data-print="hide">
         <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-4 text-[11.5px] text-muted sm:px-6 lg:px-8 xl:px-10">
           <span className="font-logo text-[12px] leading-none tracking-[0.02em] text-navy">
             TaskTornado

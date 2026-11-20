@@ -247,15 +247,22 @@ table[data-density="compact"] [data-slot="table-head"] {
 }
 
 /* Print — the patching report is the only sheet meant for paper.
-   Chrome (navigation, breadcrumbs, footer, in-page buttons) steps aside. */
+   The app chrome steps aside, and only the chrome: an earlier blanket
+   `header, footer` rule also hid the report's own masthead, which is where the
+   wordmark lives, so the logo never reached the paper. */
+@page {
+  size: A4 portrait;
+  /* Room for the sheet's own margins; the browser still prints its own header
+     and footer inside the gap unless the dialog's checkbox is cleared, which is
+     why the report also offers a PDF drawn on the server. */
+  margin: 13mm 12mm 14mm;
+}
+
 @media print {
   body {
     background: #ffffff;
   }
 
-  header,
-  nav[aria-label="Breadcrumb"],
-  footer,
   [data-print="hide"] {
     display: none !important;
   }

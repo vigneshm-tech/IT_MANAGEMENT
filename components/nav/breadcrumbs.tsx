@@ -64,7 +64,11 @@ export function Breadcrumbs() {
   if (crumbs.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="w-full border-b border-line bg-surface">
+    <nav
+      aria-label="Breadcrumb"
+      className="w-full border-b border-line bg-surface"
+      data-print="hide"
+    >
       <ol className="flex w-full flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2 text-[11.5px] leading-none sm:px-6 lg:px-8 xl:px-10">
         {crumbs.map((crumb, index) => {
           const current = index === crumbs.length - 1;
