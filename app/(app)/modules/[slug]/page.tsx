@@ -21,8 +21,9 @@ import {
   listApprovals,
   listClients,
   listCustomFields,
+  listAssignableUsers,
   listIndustries,
-  listPatchPlans,
+  listPatchSchedules,
   listRenewals,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
@@ -87,12 +88,18 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "patching": {
-      const [plans, clients] = await Promise.all([listPatchPlans(), listClients()]);
+      const [inventory, schedules, people] = await Promise.all([
+        loadServersInventory(user.id),
+        listPatchSchedules(),
+        listAssignableUsers(),
+      ]);
       return (
         <PatchingView
           user={user}
-          plans={plans}
-          clients={clients.filter((client) => client.status === "active").map((client) => client.name)}
+          title={module.title}
+          inventory={inventory}
+          schedules={schedules}
+          people={people}
         />
       );
     }

@@ -245,3 +245,33 @@ table[data-density="compact"] [data-slot="table-head"] {
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
 }
+
+/* Print — the patching report is the only sheet meant for paper.
+   Chrome (navigation, breadcrumbs, footer, in-page buttons) steps aside. */
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  header,
+  nav[aria-label="Breadcrumb"],
+  footer,
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .print-sheet {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .print-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

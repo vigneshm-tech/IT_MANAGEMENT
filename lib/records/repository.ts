@@ -9,10 +9,17 @@ import { INDUSTRY_SEED, normaliseIndustryName } from "../industries";
 import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import type { RoleId } from "../roles";
+import type {
+  PatchApprover,
+  PatchScheduleRecord,
+  SelectedEndpoint,
+} from "../patching/plan";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
 /* -------------------------------------------------------------------------- */
+
+export type { PatchApprover, PatchScheduleRecord, SelectedEndpoint };
 
 export type ClientStatus = "active" | "inactive";
 export type PatchStatus = "planned" | "in_progress" | "completed";
@@ -138,6 +145,7 @@ type Store = {
   customValues: Record<string, string>;
   clients: ClientRecord[];
   patchPlans: PatchPlanRecord[];
+  patchSchedules: PatchScheduleRecord[];
   approvals: ApprovalRecord[];
   renewals: RenewalRecord[];
 };
@@ -275,6 +283,7 @@ function demoStore(): Store {
           updatedAt: iso(-150),
         },
       ],
+      patchSchedules: [],
       patchPlans: [
         {
           id: "PP-2041",
@@ -424,6 +433,7 @@ function demoStore(): Store {
   if (!Array.isArray(store.industries)) store.industries = seededIndustries();
   if (!Array.isArray(store.customFields)) store.customFields = [];
   if (!store.customValues || typeof store.customValues !== "object") store.customValues = {};
+  if (!Array.isArray(store.patchSchedules)) store.patchSchedules = [];
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
     if (!type.module) type.module = TASK_ACTIVITY_MODULE;
@@ -1354,4 +1364,279 @@ export function daysUntil(isoDate: string, now: Date = new Date()): number {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
   return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Patching plans, one per endpoint                                          */
+/* -------------------------------------------------------------------------- */
+
+function mapApprover(row: Record<string, unknown>): PatchApprover {
+  const status = s(row.status, "pending");
+  return {
+    approverId: s(row.approver_id),
+    approverName: s(row.approver_name),
+    status: status === "approved" || status === "rejected" ? status : "pending",
+    verificationName: s(row.verification_name),
+    note: s(row.note),
+    decidedAt: typeof row.decided_at === "string" ? row.decided_at : null,
+  };
+}
+
+function mapSchedule(
+  row: Record<string, unknown>,
+  approvers: PatchApprover[],
+): PatchScheduleRecord {
+  return {
+    id: s(row.id),
+    endpointId: s(row.endpoint_id),
+    endpointName: s(row.endpoint_name),
+    missingCount: n(row.missing_count),
+    otherCount: n(row.other_count),
+    plannedDate: s(row.planned_date).slice(0, 10),
+    handlerId: s(row.handler_id),
+    handlerName: s(row.handler_name),
+    approvers,
+    note: s(row.note),
+    createdByName: s(row.created_by_name),
+    createdAt: s(row.created_at, new Date().toISOString()),
+    updatedAt: s(row.updated_at, s(row.created_at, new Date().toISOString())),
+  };
+}
+
+export async function listPatchSchedules(): Promise<PatchScheduleRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().patchSchedules].sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("patch_schedules")
+      .select("*")
+      .order("planned_date", { ascending: true })
+      .limit(500);
+    if (error) throw error;
+
+    const schedules = (data ?? []) as Record<string, unknown>[];
+    if (schedules.length === 0) return [];
+
+    const ids = schedules.map((row) => s(row.id)).filter(Boolean);
+    const { data: approverRows, error: approverError } = await supabase
+      .from("patch_schedule_approvers")
+      .select("*")
+      .in("schedule_id", ids);
+    if (approverError) throw approverError;
+
+    const bySchedule = new Map<string, PatchApprover[]>();
+    for (const row of (approverRows ?? []) as Record<string, unknown>[]) {
+      const key = s(row.schedule_id);
+      const list = bySchedule.get(key) ?? [];
+      list.push(mapApprover(row));
+      bySchedule.set(key, list);
+    }
+
+    return schedules.map((row) => mapSchedule(row, bySchedule.get(s(row.id)) ?? []));
+  } catch (error) {
+    console.error("[records] patch schedules select failed", error);
+    return [];
+  }
+}
+
+export type PatchScheduleInput = {
+  endpoints: SelectedEndpoint[];
+  plannedDate: string;
+  handlerId: string;
+  handlerName: string;
+  approvers: { id: string; name: string }[];
+  note: string;
+};
+
+/**
+ * Writes one plan per endpoint. Scheduling an endpoint that already has a plan
+ * replaces its date, handler and approvers, and resets every decision to
+ * pending — a changed plan has to be signed off again.
+ */
+export async function savePatchSchedules(
+  user: SessionUser,
+  input: PatchScheduleInput,
+): Promise<PatchScheduleRecord[]> {
+  const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const saved: PatchScheduleRecord[] = [];
+
+    for (const endpoint of input.endpoints) {
+      const existing = store.patchSchedules.find((plan) => plan.endpointId === endpoint.id);
+      const approvers: PatchApprover[] = input.approvers.map((approver) => ({
+        approverId: approver.id,
+        approverName: approver.name,
+        status: "pending",
+        verificationName: "",
+        note: "",
+        decidedAt: null,
+      }));
+
+      if (existing) {
+        Object.assign(existing, {
+          endpointName: endpoint.name,
+          missingCount: endpoint.missing,
+          otherCount: endpoint.other,
+          plannedDate: input.plannedDate,
+          handlerId: input.handlerId,
+          handlerName: input.handlerName,
+          approvers,
+          note: input.note,
+          updatedAt: now,
+        });
+        saved.push(existing);
+      } else {
+        const record: PatchScheduleRecord = {
+          id: nextId("PS", store.patchSchedules),
+          endpointId: endpoint.id,
+          endpointName: endpoint.name,
+          missingCount: endpoint.missing,
+          otherCount: endpoint.other,
+          plannedDate: input.plannedDate,
+          handlerId: input.handlerId,
+          handlerName: input.handlerName,
+          approvers,
+          note: input.note,
+          createdByName: user.name,
+          createdAt: now,
+          updatedAt: now,
+        };
+        store.patchSchedules.unshift(record);
+        saved.push(record);
+      }
+    }
+
+    return saved;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const saved: PatchScheduleRecord[] = [];
+
+  for (const endpoint of input.endpoints) {
+    const { data: existingRows, error: findError } = await supabase
+      .from("patch_schedules")
+      .select("id")
+      .eq("endpoint_id", endpoint.id)
+      .limit(1);
+    if (findError) throw findError;
+
+    const values = {
+      endpoint_id: endpoint.id,
+      endpoint_name: endpoint.name,
+      missing_count: endpoint.missing,
+      other_count: endpoint.other,
+      planned_date: input.plannedDate,
+      handler_id: input.handlerId || null,
+      handler_name: input.handlerName,
+      note: input.note,
+    };
+
+    let scheduleId = s((existingRows?.[0] as Record<string, unknown> | undefined)?.id);
+
+    if (scheduleId) {
+      const { error } = await supabase
+        .from("patch_schedules")
+        .update(values)
+        .eq("id", scheduleId);
+      if (error) throw error;
+
+      const { error: clearError } = await supabase
+        .from("patch_schedule_approvers")
+        .delete()
+        .eq("schedule_id", scheduleId);
+      if (clearError) throw clearError;
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("patch_schedules")
+        .insert({ ...values, created_by: user.id, created_by_name: user.name })
+        .select("id")
+        .single();
+      if (error || !inserted) throw error ?? new Error("Schedule insert failed");
+      scheduleId = s((inserted as Record<string, unknown>).id);
+    }
+
+    const { error: approverError } = await supabase.from("patch_schedule_approvers").insert(
+      input.approvers.map((approver) => ({
+        schedule_id: scheduleId,
+        approver_id: approver.id,
+        approver_name: approver.name,
+      })),
+    );
+    if (approverError) throw approverError;
+
+    saved.push({
+      id: scheduleId,
+      endpointId: endpoint.id,
+      endpointName: endpoint.name,
+      missingCount: endpoint.missing,
+      otherCount: endpoint.other,
+      plannedDate: input.plannedDate,
+      handlerId: input.handlerId,
+      handlerName: input.handlerName,
+      approvers: input.approvers.map((approver) => ({
+        approverId: approver.id,
+        approverName: approver.name,
+        status: "pending",
+        verificationName: "",
+        note: "",
+        decidedAt: null,
+      })),
+      note: input.note,
+      createdByName: user.name,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  return saved;
+}
+
+/**
+ * Records the signed-in person's decision on a plan. The verification name is
+ * collected here, at approval time, and printed on the report.
+ */
+export async function decidePatchSchedule(input: {
+  scheduleId: string;
+  approverId: string;
+  decision: "approved" | "rejected";
+  verificationName: string;
+  note: string;
+}): Promise<boolean> {
+  const decidedAt = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    const plan = demoStore().patchSchedules.find((item) => item.id === input.scheduleId);
+    const approver = plan?.approvers.find((item) => item.approverId === input.approverId);
+    if (!plan || !approver) return false;
+    approver.status = input.decision;
+    approver.verificationName = input.verificationName;
+    approver.note = input.note;
+    approver.decidedAt = decidedAt;
+    plan.updatedAt = decidedAt;
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("patch_schedule_approvers")
+    .update({
+      status: input.decision,
+      verification_name: input.verificationName,
+      note: input.note,
+      decided_at: decidedAt,
+    })
+    .eq("schedule_id", input.scheduleId)
+    .eq("approver_id", input.approverId)
+    .select("schedule_id");
+
+  if (error) {
+    console.error("[records] patch decision failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
 }

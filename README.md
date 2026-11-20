@@ -341,6 +341,50 @@ The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](li
 edit those two files to change policy. `lib/access.ts` exposes `can()`,
 `canAccessModule()`, `visibleModules()` and `accessMap()`.
 
+### Patching Plans
+
+`/modules/patching` is the endpoint register for patching. Each row is one
+server from the Servers module (Action1), so the counts and the plan sit
+together:
+
+| Column | Source |
+| --- | --- |
+| Endpoint | `endpoints/managed/{orgId}` — the name links to `/modules/servers/<id>`, whose Patching tab lists the updates themselves |
+| Missing patches | `missing_critical` as Action1 reports it (`—` when the tenant returns no patch fields) |
+| Other updates | `missing_other` |
+| Scheduled plan | `patch_schedules.planned_date` with the IT member who handles it beneath |
+| Approval | Approved / Rejected / Pending, derived from the approvers' decisions |
+
+- **Scheduling** is inline, never a dialog. Tick one or more endpoints (the
+  header checkbox takes the whole filtered list), then *Schedule plans*: one
+  planned date, one IT member, and any number of approvers (multi-select of the
+  staff directory), plus an optional note. Saving writes one plan per endpoint
+  and sends the approval to the people named.
+- Scheduling an endpoint that already has a plan replaces the date, handler and
+  approvers and resets every decision to pending — a changed plan is signed off
+  again.
+- **Approval** is per person: an approver opens *Approve* on the row, names the
+  person who verified the patching (required to approve, not to reject) and
+  decides. A plan is Approved when every approver has approved, Rejected when
+  anyone rejects, and Pending until then. Only the named approvers can decide —
+  the same rule the RLS on `patch_schedule_approvers` enforces
+  (`approver_id = auth.uid()` or leadership).
+- **Report**: with endpoints ticked, *Prepare report* opens
+  `/modules/patching/report?plans=…`. The sheet carries the wordmark, and per
+  endpoint: planned date, endpoint name, IT member handling the patching,
+  approved provided by, verified by, and the patch table — S.No, patch name
+  (with its KB), CVE and severity. Patch data is read live from Action1 when the
+  report opens; a tenant that is unreachable prints a line instead of an empty
+  table. *Print or save as PDF* hands the sheet to the browser; the print
+  stylesheet hides the navigation, breadcrumbs, footer and in-page buttons.
+- Limits: 25 endpoints per schedule action and per report, 10 approvers per
+  plan, planned dates must be today or later (IST).
+
+Data lives in `patch_schedules` (one row per endpoint, `endpoint_id` unique) and
+`patch_schedule_approvers` (one row per approver, carrying the decision, the
+verification name and the note) — migration `0021`. The older
+`patch_plans` table is untouched but no longer shown.
+
 ## 4. Data
 
 | Table | Rows in this build | Notes |

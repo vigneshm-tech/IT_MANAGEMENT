@@ -228,6 +228,68 @@ export async function loadEndpointDetail(
   }
 }
 
+
+/** Missing updates for several endpoints at once, for the patching report. */
+export type PatchLists =
+  | { kind: "not_connected" }
+  | { kind: "unconfigured"; missing: string[] }
+  | { kind: "error"; message: string; status: number }
+  | {
+      kind: "ready";
+      organizationId: string;
+      lists: Record<string, { updates: Action1MissingUpdate[]; total: number; error?: string }>;
+    };
+
+/** Endpoint ids per call are capped by the caller; the token is fetched once. */
+export async function loadPatchLists(
+  userId: string,
+  endpointIds: string[],
+): Promise<PatchLists> {
+  const record = await getIntegration(userId, "action1");
+  if (!record) return { kind: "not_connected" };
+
+  const missing = missingAction1Settings(record);
+  if (missing.length > 0) return { kind: "unconfigured", missing };
+
+  const config = action1Config(record);
+
+  try {
+    const token = (await fetchAccessToken(config)).accessToken;
+    const organizationId = await resolveOrganizationId(config, { token });
+    const lists: Record<string, { updates: Action1MissingUpdate[]; total: number; error?: string }> = {};
+
+    // Four at a time keeps a ten-endpoint report well inside the request budget.
+    for (let index = 0; index < endpointIds.length; index += 4) {
+      const batch = endpointIds.slice(index, index + 4);
+      await Promise.all(
+        batch.map(async (endpointId) => {
+          try {
+            const page = await fetchEndpointMissingUpdates(
+              config,
+              { orgId: organizationId, endpointId },
+              { token },
+            );
+            lists[endpointId] = { updates: page.items, total: page.totalCount };
+          } catch (error) {
+            lists[endpointId] = {
+              updates: [],
+              total: 0,
+              error:
+                error instanceof Action1Error
+                  ? error.message
+                  : "Action1 did not return this endpoint's updates.",
+            };
+          }
+        }),
+      );
+    }
+
+    return { kind: "ready", organizationId, lists };
+  } catch (error) {
+    return failure(error) as PatchLists;
+  }
+}
+
 /** One entry of the server picker on the task form. */
 export type ServerOption = {
   /** The value stored on the task — the endpoint name as Action1 reports it. */

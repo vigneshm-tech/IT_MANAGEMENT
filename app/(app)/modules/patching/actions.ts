@@ -3,65 +3,135 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
-import { requiredText, type FormState } from "@/lib/forms";
+import type { FormState } from "@/lib/forms";
 import {
-  createPatchPlan,
-  setPatchPlanStatus,
-  type PatchStatus,
+  decidePatchSchedule,
+  listAssignableUsers,
+  listPatchSchedules,
+  savePatchSchedules,
 } from "@/lib/records/repository";
-import { isAssignableRole } from "@/lib/roles";
+import {
+  decisionError,
+  decodeEndpoints,
+  formatPlannedDate,
+  isApprover,
+  schedulePlanError,
+} from "@/lib/patching/plan";
 
-const RINGS = ["A", "B", "C"] as const;
+export type ScheduleState = FormState & { scheduled?: number };
 
-export async function createPatchPlanAction(
-  _previous: FormState,
+/**
+ * Schedules the selected endpoints in one go: the same date, the same IT
+ * handler, the same approvers. Approval requests go to the named people, who
+ * decide from the register.
+ */
+export async function schedulePatchPlansAction(
+  _previous: ScheduleState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<ScheduleState> {
   const user = await requireUser();
   if (!can(user.role, "patching", "edit")) {
-    return { error: "You don’t have permission to create patching plans." };
+    return { error: "You don’t have permission to schedule patching." };
   }
 
-  const title = requiredText(formData, "title", 2);
-  const clientName = String(formData.get("clientName") ?? "").trim();
-  const windowDate = String(formData.get("windowDate") ?? "");
-  const ring = String(formData.get("ring") ?? "A");
-  const ownerRole = String(formData.get("ownerRole") ?? "");
-  const notes = String(formData.get("notes") ?? "").trim();
+  const endpoints = decodeEndpoints(String(formData.get("endpoints") ?? ""));
+  const plannedDate = String(formData.get("plannedDate") ?? "").trim();
+  const handlerId = String(formData.get("handlerId") ?? "").trim();
+  const approverIds = formData
+    .getAll("approvers")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
 
-  if (!title) return { error: "Enter a plan name." };
-  if (!windowDate) return { error: "Choose the maintenance window date." };
-  if (!RINGS.includes(ring as (typeof RINGS)[number])) return { error: "Select a patch ring." };
-  if (!isAssignableRole(ownerRole)) return { error: "Select an owner." };
+  const error = schedulePlanError({ endpoints, plannedDate, handlerId, approverIds });
+  if (error) return { error };
+
+  const people = await listAssignableUsers();
+  const handler = people.find((person) => person.id === handlerId);
+  if (!handler) return { error: "Select the IT member who handles the patching." };
+
+  const approvers = [...new Set(approverIds)]
+    .map((id) => people.find((person) => person.id === id))
+    .filter((person): person is { id: string; name: string; role: string | null } => Boolean(person));
+  if (approvers.length !== new Set(approverIds).size) {
+    return { error: "Choose the approvers from the staff list." };
+  }
 
   try {
-    const record = await createPatchPlan(user, {
-      title,
-      clientName,
-      windowDate: new Date(`${windowDate}T22:00:00+05:30`).toISOString(),
-      ring: ring as "A" | "B" | "C",
-      ownerRole,
-      notes,
+    const saved = await savePatchSchedules(user, {
+      endpoints,
+      plannedDate,
+      handlerId: handler.id,
+      handlerName: handler.name,
+      approvers: approvers.map((person) => ({ id: person.id, name: person.name })),
+      note,
     });
+
     revalidatePath("/modules/patching");
     revalidatePath("/modules/dashboard");
-    return { ok: true, message: `${record.title} scheduled.` };
+
+    return {
+      ok: true,
+      scheduled: saved.length,
+      message: `${saved.length} ${saved.length === 1 ? "endpoint" : "endpoints"} planned for ${formatPlannedDate(
+        plannedDate,
+      )}.`,
+    };
   } catch (error) {
-    console.error("[patching] create failed", error);
+    console.error("[patching] schedule failed", error);
     return { error: "The plan could not be saved. Please try again." };
   }
 }
 
-export async function updatePatchPlanStatusAction(formData: FormData): Promise<void> {
+/**
+ * An approver's decision. The verification name is captured here — the report
+ * prints it as "Verified by".
+ */
+export async function decidePatchPlanAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "patching", "edit")) return;
 
-  const id = String(formData.get("id") ?? "");
-  const value = String(formData.get("value") ?? "");
-  const status: PatchStatus | null =
-    value === "start" ? "in_progress" : value === "complete" ? "completed" : null;
-  if (!id || !status) return;
+  const scheduleId = String(formData.get("scheduleId") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim();
+  const verificationId = String(formData.get("verificationPersonId") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500);
 
-  await setPatchPlanStatus(id, status);
+  const error = decisionError({ decision, verificationName: verificationId });
+  if (error) return { error };
+
+  const plans = await listPatchSchedules();
+  const plan = plans.find((item) => item.id === scheduleId);
+  if (!plan) return { error: "That plan no longer exists." };
+  if (!isApprover(plan.approvers, user.id)) {
+    return { error: "Only the people named as approvers can decide this plan." };
+  }
+
+  let verificationName = "";
+  if (decision === "approve") {
+    const people = await listAssignableUsers();
+    const verifier = people.find((person) => person.id === verificationId);
+    if (!verifier) return { error: "Name the person who verified the patching." };
+    verificationName = verifier.name;
+  }
+
+  const saved = await decidePatchSchedule({
+    scheduleId,
+    approverId: user.id,
+    decision: decision === "approve" ? "approved" : "rejected",
+    verificationName,
+    note,
+  });
+  if (!saved) return { error: "The decision could not be saved. Please try again." };
+
   revalidatePath("/modules/patching");
+  revalidatePath("/modules/dashboard");
+  return {
+    ok: true,
+    message:
+      decision === "approve"
+        ? `${plan.endpointName} approved.`
+        : `${plan.endpointName} rejected.`,
+  };
 }
