@@ -6,7 +6,7 @@ import { ClientsView } from "@/components/modules/clients-view";
 import { MastersView } from "@/components/modules/masters-view";
 import { PatchingView } from "@/components/modules/patching-view";
 import { RenewalsView } from "@/components/modules/renewals-view";
-import { ServersView } from "@/components/modules/servers-view";
+import { isServersFilter, ServersView } from "@/components/modules/servers-view";
 import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
 import { UsersView } from "@/components/modules/users-view";
@@ -14,6 +14,8 @@ import { TicketsView } from "@/components/modules/tickets-view";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
+import { canManageAction1 } from "@/lib/integrations/access";
+import { loadServersInventory } from "@/lib/servers/inventory";
 import { getModule } from "@/lib/modules";
 import {
   listActivityTypes,
@@ -65,8 +67,21 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       );
     }
 
-    case "servers":
-      return <ServersView user={user} status={await integrationStatus(user.id, "action1")} />;
+    case "servers": {
+      const [{ view }, status, inventory] = await Promise.all([
+        searchParams,
+        integrationStatus(user.id, "action1"),
+        loadServersInventory(user.id),
+      ]);
+      return (
+        <ServersView
+          user={user}
+          status={status}
+          inventory={inventory}
+          filter={isServersFilter(view) ? view : "all"}
+        />
+      );
+    }
 
     case "clients": {
       const [{ created, updated }, clients] = await Promise.all([searchParams, listClients()]);
@@ -131,7 +146,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           user={user}
           redmine={redmine}
           action1={action1}
-          canManageAction1={user.role === "it_manager" || user.role === "it_engineer"}
+          canManageAction1={canManageAction1(user.role)}
         />
       );
     }

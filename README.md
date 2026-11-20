@@ -288,7 +288,8 @@ rows are inserted as the signed-in user, updates are limited to the creator or
 leadership, and approvals can only be decided by leadership. Schemas live in
 `supabase/migrations/0001_rbac.sql`, `0002_tasks.sql`,
 `0003_business_records.sql`, `0013_client_contacts.sql` and
-`0014_industries_custom_fields.sql`; the hidden role, its directory policy and the first
+`0014_industries_custom_fields.sql` (plus `0015_integration_config.sql` for the
+integration settings column); the hidden role, its directory policy and the first
 super-admin account live in `0004_super_admin_role.sql` and
 `0005_super_admin_account.sql`; user administration lives in
 `0007_user_administration.sql`.
@@ -339,8 +340,44 @@ from `AUTH_SECRET`) before it reaches Postgres, and RLS restricts every row to
 `auth.uid()`. Only the last four characters are kept in the clear, for masking.
 Changing `AUTH_SECRET` invalidates saved secrets — they must be entered again.
 
-Action1 has no sync worker yet: the server inventory renders an honest empty
-state until a key is saved, rather than inventing metrics.
+Both providers share that vault; Action1 stores its non-secret client id and
+organization id in the `config` JSON column added by
+`0015_integration_config.sql`.
+
+## 4b. Servers (Action1 API)
+
+The Servers module has no local table — it reads the managed endpoint inventory
+from Action1 on every load, using the organisation's API credentials from
+Settings. It implements the published reference
+([app.na-2.action1.com/apidocs](https://app.na-2.action1.com/apidocs/), API
+v3.0, North America 2):
+
+| Call | Used for |
+| --- | --- |
+| `POST /oauth2/token` (client credentials) | exchanging the client id + secret for a bearer token (1 h TTL), once per request |
+| `GET /organizations` | resolving the organization id when none is configured |
+| `GET /endpoints/managed/{orgId}?from=0&limit=50&fields=*` | paged endpoint inventory (name, OS, status, last seen, IP, agent version, missing updates, reboot) |
+| `GET /endpoints/managed/{orgId}/{endpointId}?fields=*` | the endpoint detail page |
+
+Notes taken from the reference:
+
+- The token goes in an `Authorization: Bearer …` header; the client secret is
+  never put in a URL.
+- Collections are `ResultPage` objects — `items`, `total_items`, `limit` and
+  `next_page` — and the module pages them with `from`/`limit` until the
+  inventory is complete, capped at 200 endpoints so one huge tenant cannot stall
+  the page. `fields=*` asks for the extended field set (patch counts, hardware).
+- Action1 dates arrive as `YYYY-MM-DD_HH-mm-ss` in UTC and are normalised
+  before formatting in IST.
+- Failures are translated into advice: `401` → “Action1 rejected the
+  credentials”, `403` → permissions, `404` → organization id, `429` → rate
+  limiting, `5xx` → Action1's own server error. Requests time out after 12 s.
+
+Client: `lib/integrations/action1.ts` (token, endpoints, organizations plus pure
+mapping helpers), loader: `lib/servers/inventory.ts`, presentation helpers:
+`lib/servers/endpoint.ts`, UI: `components/modules/servers-view.tsx` with the
+endpoint page at `/modules/servers/<id>` (`components/modules/endpoint-detail.tsx`).
+Only super admins and the two IT roles can write the Action1 credentials.
 
 ## 5. Local development
 
@@ -427,6 +464,7 @@ app/
     modules/[slug]/      Tasks, tickets, servers, clients, patching,
                          approvals, renewals, settings
     modules/tasks/       Board views, /new, /<id>, /<id>/edit
+    modules/servers/     Endpoint inventory, /<id> endpoint detail
 components/
   nav/top-nav.tsx        Two-zone header: wordmark, command palette, notifications
   ui/table.tsx           shadcn/ui table primitives (components.json included)
@@ -442,6 +480,9 @@ lib/
   integrations/store.ts  Per-user Redmine / Action1 key vault (Supabase, encrypted)
   integrations/vault.ts  AES-256-GCM envelope for stored secrets
   integrations/redmine.ts Redmine REST client (issues, projects, create, update)
+  integrations/action1.ts Action1 client (OAuth token, endpoints, organizations)
+  servers/inventory.ts   Server inventory loader + endpoint detail state
+  servers/endpoint.ts    Pure inventory helpers (summary, patch/reboot wording)
   tickets/portal.ts      Portal loaders: credentials, issue list, one issue
 supabase/migrations/     RBAC, tasks, business records + RLS
 tests/                   node:test suites
@@ -450,7 +491,7 @@ tests/                   node:test suites
 ## 8. Roadmap
 
 1. Redmine attachments from the portal (issue uploads token).
-2. Action1 sync for the server inventory and patching compliance.
+2. Action1 patching actions from the inventory (deploy updates, reboot rings).
 3. Record history: comments, attachments and an audit log viewer.
 4. Notification jobs (renewal reminders, approval nudges).
 5. Role administration UI for IT Manager backed by `profiles.role`.

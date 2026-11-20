@@ -8,6 +8,9 @@ import { ROLE_BY_ID } from "@/lib/roles";
 import { logoutAction } from "@/lib/auth/actions";
 import { formatDateTime } from "@/lib/format";
 
+/** North America console; the field also accepts app.action1.com or .../api/3.0. */
+const DEFAULT_ACTION1_ADDRESS = "https://app.na-2.action1.com";
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -88,9 +91,27 @@ export function SettingsView({
               provider="action1"
               status={action1}
               canManage={canManageAction1}
-              needsUrl={false}
-              secretPlaceholder="Paste the Action1 API key"
-              hint="Only IT can configure the organisation-wide Action1 key."
+              needsUrl
+              urlRequired={false}
+              urlLabel="API address"
+              urlPlaceholder={DEFAULT_ACTION1_ADDRESS}
+              secretLabel="Client secret"
+              secretPlaceholder="Paste the client secret"
+              extraFields={[
+                {
+                  name: "clientId",
+                  label: "Client ID",
+                  placeholder: "Client ID from Action1",
+                  required: true,
+                },
+                {
+                  name: "orgId",
+                  label: "Organization ID",
+                  placeholder: "Optional — first organization",
+                  hint: "Leave blank to use the first organization the credential can see.",
+                },
+              ]}
+              hint="Create an API key under Settings → API keys in the Action1 console, then paste its client id and secret here."
               managedBy="IT manages the Action1 key for the organisation."
             />
           </div>

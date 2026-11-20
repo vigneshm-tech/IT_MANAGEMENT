@@ -9,6 +9,11 @@ export type IntegrationRecord = {
   /** Redmine needs the instance URL as well as the key. */
   baseUrl?: string;
   secret: string;
+  /**
+   * Non-secret settings that belong with the credential — Action1's client id
+   * and organization id, for example. Stored as JSON, never encrypted.
+   */
+  config?: Record<string, string>;
   updatedAt: string;
 };
 
@@ -40,8 +45,17 @@ type IntegrationRow = {
   base_url: string | null;
   secret_ciphertext: string;
   secret_hint: string | null;
+  config: Record<string, string> | null;
   updated_at: string;
 };
+
+function readConfig(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => typeof item === "string")
+    .map(([key, item]) => [key, item as string]);
+  return Object.fromEntries(entries);
+}
 
 export async function saveIntegration(
   userId: string,
@@ -63,6 +77,7 @@ export async function saveIntegration(
       base_url: record.baseUrl ?? "",
       secret_ciphertext: encryptSecret(record.secret),
       secret_hint: secretHint(record.secret),
+      config: record.config ?? {},
     },
     { onConflict: "user_id,provider" },
   );
@@ -87,7 +102,7 @@ export async function getIntegration(
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("user_integrations")
-      .select("provider,base_url,secret_ciphertext,secret_hint,updated_at")
+      .select("provider,base_url,secret_ciphertext,secret_hint,config,updated_at")
       .eq("user_id", userId)
       .eq("provider", provider)
       .maybeSingle<IntegrationRow>();
@@ -105,6 +120,7 @@ export async function getIntegration(
       provider: data.provider,
       baseUrl: data.base_url || undefined,
       secret,
+      config: readConfig(data.config),
       updatedAt: data.updated_at,
     };
   } catch (error) {
@@ -142,6 +158,8 @@ export type IntegrationStatus = {
   connected: boolean;
   masked: string;
   baseUrl?: string;
+  /** Non-secret settings, so the form can prefill them. */
+  config?: Record<string, string>;
   updatedAt?: string;
 };
 
@@ -155,6 +173,7 @@ export async function integrationStatus(
     connected: true,
     masked: maskSecret(record.secret),
     baseUrl: record.baseUrl,
+    config: record.config ?? {},
     updatedAt: record.updatedAt,
   };
 }
