@@ -138,6 +138,7 @@ export function TicketsView({
       due: issue.dueDate ? formatDate(issue.dueDate) : "—",
       updated: issue.updatedOn ? formatDate(issue.updatedOn) : "—",
     },
+    actions: [{ label: "Edit", href: `/modules/tickets/${issue.id}`, tone: "primary" as const }],
   }));
 
   return (
@@ -244,7 +245,7 @@ export function TicketsView({
         footer={
           <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted">
             <ExternalLink className="h-3 w-3" aria-hidden />
-            Subject opens the issue in Redmine
+            Subject opens the issue in Redmine · Edit updates it here
           </span>
         }
       />

@@ -3,16 +3,27 @@ import http from "node:http";
 import { after, test } from "node:test";
 import {
   RedmineError,
+  buildIssueUpdate,
   buildIssuesPath,
   clampLimit,
   createIssue,
   describeFailure,
+  fetchIssue,
   fetchIssues,
+  fetchPriorities,
+  fetchProjectMembers,
+  fetchStatuses,
   mapIssue,
   mapIssuePage,
+  mapIssueDetail,
+  mapJournals,
+  mapMembers,
+  mapPriorities,
   mapProjects,
+  mapStatuses,
   normaliseBaseUrl,
   redmineIssueUrl,
+  updateIssue,
 } from "../lib/integrations/redmine";
 
 /* -------------------------------------------------------------------------- */
@@ -157,6 +168,84 @@ function startServer(): Promise<void> {
         return;
       }
 
+      if (request.method === "GET" && request.url?.startsWith("/issues/1042.json")) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            issue: {
+              id: 1042,
+              subject: "Patch ring 2 stalled",
+              description: "Ring 2 stopped syncing.",
+              project: { id: 3, name: "Acme" },
+              tracker: { id: 1, name: "Bug" },
+              status: { id: 2, name: "In Progress" },
+              priority: { id: 3, name: "High" },
+              author: { id: 9, name: "Meera" },
+              assigned_to: { id: 9, name: "Meera Raghavan" },
+              created_on: "2026-11-01T10:00:00Z",
+              updated_on: "2026-11-02T11:30:00Z",
+              journals: [
+                { id: 1, user: { id: 9, name: "Meera" }, notes: "Taken.", created_on: "2026-11-02T09:00:00Z" },
+                { id: 2, user: { id: 4, name: "Arun" }, notes: "", created_on: "2026-11-02T10:00:00Z" },
+                { id: 3, user: { id: 4, name: "Arun" }, notes: "Ring 2 restarted.", created_on: "2026-11-02T11:30:00Z" },
+              ],
+            },
+          }),
+        );
+        return;
+      }
+
+      if (request.method === "PUT" && request.url?.startsWith("/issues/")) {
+        const payload = JSON.parse(body);
+        if (!payload.issue?.subject) {
+          response.writeHead(422, { "content-type": "application/json" });
+          response.end(JSON.stringify({ errors: ["Subject cannot be blank"] }));
+          return;
+        }
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+
+      if (request.url?.startsWith("/issue_statuses.json")) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            issue_statuses: [
+              { id: 1, name: "New", is_default: true },
+              { id: 2, name: "In Progress", is_default: false },
+            ],
+          }),
+        );
+        return;
+      }
+
+      if (request.url?.startsWith("/enumerations/issue_priorities.json")) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            issue_priorities: [
+              { id: 2, name: "Normal" },
+              { id: 3, name: "High" },
+            ],
+          }),
+        );
+        return;
+      }
+
+      if (request.url?.startsWith("/projects/3/memberships.json")) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            memberships: [
+              { id: 1, user: { id: 9, name: "Meera Raghavan" } },
+              { id: 2, user: { id: 4, firstname: "Arun", lastname: "Kumar" } },
+            ],
+          }),
+        );
+        return;
+      }
+
       if (request.url?.startsWith("/projects.json")) {
         response.writeHead(200, { "content-type": "application/json" });
         response.end(JSON.stringify({ projects: [{ id: 3, name: "Acme", identifier: "acme" }] }));
@@ -266,6 +355,154 @@ test("an unreachable instance fails politely instead of hanging", async () => {
     (error: unknown) => {
       assert.ok(error instanceof RedmineError);
       assert.match(error.message, /Could not reach Redmine/);
+      return true;
+    },
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Reading and updating one issue                                            */
+/* -------------------------------------------------------------------------- */
+
+test("issue detail keeps the ids the editor needs and drops empty notes", () => {
+  const detail = mapIssueDetail(
+    {
+      issue: {
+        id: 12,
+        subject: "Printer offline",
+        description: "Floor 2",
+        project: { id: 3, name: "Acme" },
+        tracker: { id: 1, name: "Bug" },
+        status: { id: 2, name: "In Progress" },
+        priority: { id: 3, name: "High" },
+        author: { id: 9, name: "Meera" },
+        journals: [
+          { id: 1, user: { id: 9, name: "Meera" }, notes: "Taken", created_on: "2026-11-02T09:00:00Z" },
+          { id: 2, user: { id: 4, name: "Arun" }, notes: "  ", created_on: "2026-11-02T10:00:00Z" },
+        ],
+      },
+    },
+    "https://rm.example.com",
+  );
+
+  assert.equal(detail.id, 12);
+  assert.equal(detail.statusId, 2);
+  assert.equal(detail.priorityId, 3);
+  assert.equal(detail.projectId, 3);
+  assert.equal(detail.assigneeId, null);
+  assert.equal(detail.url, "https://rm.example.com/issues/12");
+  assert.equal(detail.journals.length, 1);
+  assert.equal(detail.journals[0].notes, "Taken");
+});
+
+test("status, priority and member payloads map to flat option lists", () => {
+  assert.deepEqual(mapStatuses({ issue_statuses: [{ id: 1, name: "New", is_default: true }] }), [
+    { id: 1, name: "New", isDefault: true },
+  ]);
+  assert.deepEqual(mapPriorities({ issue_priorities: [{ id: 3, name: "High" }] }), [
+    { id: 3, name: "High" },
+  ]);
+  assert.deepEqual(
+    mapMembers({
+      memberships: [
+        { user: { id: 9, name: "Meera Raghavan" } },
+        { user: { id: 4, firstname: "Arun", lastname: "Kumar" } },
+        { group: { id: 7, name: "Service desk" } },
+      ],
+    }),
+    [
+      { id: 9, name: "Meera Raghavan" },
+      { id: 4, name: "Arun Kumar" },
+    ],
+  );
+  assert.deepEqual(mapJournals({}), []);
+  assert.deepEqual(mapMembers({ memberships: "nope" }), []);
+});
+
+test("the update body only carries the fields that changed", () => {
+  assert.deepEqual(buildIssueUpdate({ notes: "   " }), { issue: {} });
+  assert.deepEqual(
+    buildIssueUpdate({
+      subject: "Printer offline",
+      statusId: 2,
+      priorityId: 3,
+      assigneeId: null,
+      description: "",
+      notes: "  Ring 2 restarted.  ",
+    }),
+    {
+      issue: {
+        subject: "Printer offline",
+        description: "",
+        status_id: 2,
+        priority_id: 3,
+        assigned_to_id: "",
+        notes: "Ring 2 restarted.",
+      },
+    },
+  );
+});
+
+test("fetching one issue asks for its journals", async () => {
+  await serverReady;
+  requests.length = 0;
+
+  const issue = await fetchIssue({ baseUrl, apiKey: "good-key-123456" }, 1042);
+
+  assert.equal(issue.subject, "Patch ring 2 stalled");
+  assert.equal(issue.statusId, 2);
+  assert.equal(issue.assigneeId, 9);
+  assert.equal(issue.journals.length, 2);
+
+  const [request] = requests;
+  assert.match(String(request.url), /include=journals/);
+  assert.equal(request.headers["x-redmine-api-key"], "good-key-123456");
+});
+
+test("lookups read statuses, priorities and project members", async () => {
+  await serverReady;
+
+  const config = { baseUrl, apiKey: "good-key-123456" };
+  const [statuses, priorities, members] = await Promise.all([
+    fetchStatuses(config),
+    fetchPriorities(config),
+    fetchProjectMembers(config, 3),
+  ]);
+
+  assert.deepEqual(statuses.map((status) => status.name), ["New", "In Progress"]);
+  assert.equal(statuses[0].isDefault, true);
+  assert.deepEqual(priorities.map((priority) => priority.name), ["Normal", "High"]);
+  assert.deepEqual(members.map((member) => member.name), ["Meera Raghavan", "Arun Kumar"]);
+});
+
+test("updating an issue PUTs JSON and accepts an empty 204", async () => {
+  await serverReady;
+  requests.length = 0;
+
+  await updateIssue({ baseUrl, apiKey: "good-key-123456" }, 1042, {
+    subject: "Printer offline again",
+    statusId: 2,
+    notes: "Checked the queue.",
+  });
+
+  const [request] = requests;
+  assert.equal(request.method, "PUT");
+  assert.equal(request.headers["content-type"], "application/json");
+  assert.match(String(request.url), /^\/issues\/1042\.json/);
+  assert.deepEqual(JSON.parse(request.body), {
+    issue: { subject: "Printer offline again", status_id: 2, notes: "Checked the queue." },
+  });
+});
+
+test("a validation failure surfaces Redmine's own message", async () => {
+  await serverReady;
+
+  await assert.rejects(
+    () => updateIssue({ baseUrl, apiKey: "good-key-123456" }, 1042, { statusId: 2 }),
+    (error: unknown) => {
+      assert.ok(error instanceof RedmineError);
+      assert.equal(error.status, 422);
+      assert.match(error.message, /Subject cannot be blank/);
       return true;
     },
   );

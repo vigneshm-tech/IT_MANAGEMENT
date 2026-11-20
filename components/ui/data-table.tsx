@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -59,9 +60,12 @@ export type TableRow = TableRowData;
 
 export type RowAction = {
   label: string;
-  value: string;
+  /** Only needed for form-posted actions; links use `href` instead. */
+  value?: string;
   tone?: "default" | "primary" | "danger";
   confirm?: string;
+  /** Navigates instead of posting — used for Edit and designed confirms. */
+  href?: string;
 };
 
 /** Reads this browser's saved preferences; failures simply mean "defaults". */
@@ -278,7 +282,8 @@ export function DataTable({
   const showsActions = Boolean(
     renderRowExtras ||
       rowExtras ||
-      (rowAction && (rowActions?.length || rows.some((row) => row.actions?.length))),
+      (rowAction && (rowActions?.length || rows.some((row) => row.actions?.length))) ||
+      rows.some((row) => row.actions?.some((action) => action.href)),
   );
 
   const customised =
@@ -563,31 +568,48 @@ export function DataTable({
                     {rowExtras?.[row.id]}
                     {renderRowExtras?.(row)}
                     {rowAction && (
-                      <form action={rowAction} className="inline-flex items-center gap-1">
+                      <form id={`row-actions-${row.id}`} action={rowAction} className="contents">
                         <input type="hidden" name="id" value={row.id} />
-                        {(row.actions ?? rowActions ?? []).map((action) => (
-                          <button
-                            key={action.value}
-                            type="submit"
-                            name="value"
-                            value={action.value}
-                            onClick={(event) => {
-                              if (action.confirm && !window.confirm(action.confirm)) {
-                                event.preventDefault();
-                              }
-                            }}
-                            className={cn(
-                              "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
-                              action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
-                              action.tone === "danger" && "text-danger hover:bg-danger-soft",
-                              (!action.tone || action.tone === "default") &&
-                                "text-muted hover:bg-[#eef2f8] hover:text-navy",
-                            )}
-                          >
-                            {action.label}
-                          </button>
-                        ))}
                       </form>
+                    )}
+                    {(row.actions ?? rowActions ?? []).map((action) =>
+                      action.href ? (
+                        <Link
+                          key={action.label}
+                          href={action.href}
+                          className={cn(
+                            "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
+                            action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
+                            action.tone === "danger" && "text-danger hover:bg-danger-soft",
+                            (!action.tone || action.tone === "default") &&
+                              "text-muted hover:bg-[#eef2f8] hover:text-navy",
+                          )}
+                        >
+                          {action.label}
+                        </Link>
+                      ) : (
+                        <button
+                          key={action.value ?? action.label}
+                          type="submit"
+                          form={`row-actions-${row.id}`}
+                          name="value"
+                          value={action.value}
+                          onClick={(event) => {
+                            if (action.confirm && !window.confirm(action.confirm)) {
+                              event.preventDefault();
+                            }
+                          }}
+                          className={cn(
+                            "rounded px-2 py-1 text-[11.5px] font-medium transition-colors",
+                            action.tone === "primary" && "text-navy hover:bg-[#eef2f8]",
+                            action.tone === "danger" && "text-danger hover:bg-danger-soft",
+                            (!action.tone || action.tone === "default") &&
+                              "text-muted hover:bg-[#eef2f8] hover:text-navy",
+                          )}
+                        >
+                          {action.label}
+                        </button>
+                      ),
                     )}
                   </div>
                 </TableCell>

@@ -22,6 +22,7 @@ function humanise(segment: string, parent?: string): string {
     return "New";
   }
   if (value === "edit") return "Edit";
+  if (/^\d+$/.test(value) && parent === "tickets") return `Ticket #${value}`;
 
   return value
     .replace(/[-_]+/g, " ")

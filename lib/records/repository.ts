@@ -756,6 +756,25 @@ export async function createActivityType(
   );
 }
 
+/** Renames a type, or moves it to another module. Uniqueness is per module. */
+export async function updateActivityType(
+  id: string,
+  rawName: string,
+  module: string,
+): Promise<boolean> {
+  const name = normaliseActivityTypeName(rawName);
+
+  if (!isSupabaseConfigured) {
+    const record = demoStore().activityTypes.find((type) => type.id === id);
+    if (!record) return false;
+    record.name = name;
+    record.module = module;
+    return true;
+  }
+
+  return patchRow("activity_types", id, { name, module });
+}
+
 export async function setActivityTypeStatus(
   id: string,
   status: ActivityTypeStatus,

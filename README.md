@@ -187,9 +187,16 @@ type is immediately offered on `/modules/tasks/new` and the edit form.
 - Names are trimmed, inner whitespace collapsed and unique **per module**
   (`activity_types_module_name_unique`), so "Service request" can exist for both
   Task Management and Ticket Portal. Validation lives in `lib/activity-types.ts`.
+- **Edit** opens `/modules/masters/activity-types/<id>` — a full page (no popup)
+  that renames the entry or moves it to another module, then returns to the
+  register with a confirmation line. Renaming does not rewrite records that
+  already stored the old wording.
 - **Deactivate** retires a type without touching tasks that already recorded it —
   only active types appear in the form. **Delete** removes it from the register;
-  stored task text is left alone.
+  stored task text is left alone. Deletion never fires straight from the row:
+  `?delete=<id>` opens an in-page confirmation panel (what is filed where, what
+  happens to existing records, *Yes, delete this type* / *Keep it*), so there is
+  no browser dialog and no accidental click-through.
 - The register is seeded with the eight types that used to be hard-coded, so an
   existing board sees no change.
 - Server-side, `createTaskAction` / `updateTaskAction` re-check the submitted
@@ -232,6 +239,10 @@ implements the documented API
 | `GET /projects.json?limit=100` | project dropdown on the new-ticket form |
 | `GET /users/current.json` | credential check / login name |
 | `POST /issues.json` | raising a ticket (`Content-Type: application/json`) |
+| `GET /issues/<id>.json?include=journals` | one ticket plus its journal comments |
+| `GET /issue_statuses.json`, `GET /enumerations/issue_priorities.json` | status and priority dropdowns on the edit page |
+| `GET /projects/<id>/memberships.json?limit=100` | assignee dropdown on the edit page |
+| `PUT /issues/<id>.json` | saving subject, description, status, priority, assignee and an update comment (Redmine answers `204`) |
 
 Notes taken from the reference:
 
@@ -246,6 +257,12 @@ Notes taken from the reference:
 Client: `lib/integrations/redmine.ts` (network calls plus pure mapping helpers),
 portal loader: `lib/tickets/portal.ts`, UI: `components/modules/tickets-view.tsx`
 with the create form at `/modules/tickets/new` (inline, no popup).
+
+Each portal row has an **Edit** action that opens `/modules/tickets/<id>` — a
+full page showing the issue, its journal and an inline edit form (subject,
+description, status, priority, assignee and an optional comment merged into the
+same `PUT`). Saving redirects back to the issue with an “updated” banner; a
+`422` from Redmine is shown against the form instead of being swallowed.
 
 ### Where the key is stored
 
@@ -358,15 +375,15 @@ lib/
   auth/                  Session token/cookie, Supabase + demo sign-in
   integrations/store.ts  Per-user Redmine / Action1 key vault (Supabase, encrypted)
   integrations/vault.ts  AES-256-GCM envelope for stored secrets
-  integrations/redmine.ts Redmine REST client (issues, projects, create)
-  tickets/portal.ts      Portal loader: credentials, issues, projects
+  integrations/redmine.ts Redmine REST client (issues, projects, create, update)
+  tickets/portal.ts      Portal loaders: credentials, issue list, one issue
 supabase/migrations/     RBAC, tasks, business records + RLS
 tests/                   node:test suites
 ```
 
 ## 8. Roadmap
 
-1. Redmine write-back beyond create: comment and close issues from the portal.
+1. Redmine attachments from the portal (issue uploads token).
 2. Action1 sync for the server inventory and patching compliance.
 3. Record history: comments, attachments and an audit log viewer.
 4. Notification jobs (renewal reminders, approval nudges).

@@ -82,3 +82,47 @@ test("the seed keeps the previously hard-coded vocabulary", () => {
     "Other",
   ]);
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Repository: renaming an entry and retiring it                             */
+/* -------------------------------------------------------------------------- */
+
+test("an existing type can be renamed, moved between modules and deleted", async () => {
+  const {
+    createActivityType,
+    deleteActivityType,
+    listActivityTypes,
+    setActivityTypeStatus,
+    updateActivityType,
+  } = await import("../lib/records/repository");
+
+  const user = {
+    id: "test-user",
+    name: "Test Manager",
+    email: "test.manager@tasktornado.dev",
+    role: "it_manager",
+  } as never;
+
+  const created = await createActivityType(user, "  Vulnerability   window ", "tasks");
+  assert.equal(created.name, "Vulnerability window");
+
+  assert.equal(await updateActivityType(created.id, "Security window", "servers"), true);
+
+  const afterRename = (await listActivityTypes()).find((item) => item.id === created.id);
+  assert.equal(afterRename?.name, "Security window");
+  assert.equal(afterRename?.module, "servers");
+  // Renaming keeps the row's identity, so references elsewhere stay intact.
+  assert.equal(afterRename?.id, created.id);
+
+  assert.equal(await setActivityTypeStatus(created.id, "inactive"), true);
+  assert.equal(
+    (await listActivityTypes()).find((item) => item.id === created.id)?.status,
+    "inactive",
+  );
+
+  assert.equal(await deleteActivityType(created.id), true);
+  assert.equal(
+    (await listActivityTypes()).find((item) => item.id === created.id),
+    undefined,
+  );
+});

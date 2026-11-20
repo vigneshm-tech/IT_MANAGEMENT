@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Plus, Tags } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  Plus,
+  Tags,
+  X,
+} from "lucide-react";
 import { useActionState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
@@ -34,9 +43,15 @@ const COLUMNS: Column[] = [
 export function ActivityTypesView({
   items,
   canEdit,
+  deleteId,
+  notice,
 }: {
   items: ActivityTypeRecord[];
   canEdit: boolean;
+  /** Set by `?delete=<id>` — the entry awaiting our own confirmation panel. */
+  deleteId?: string;
+  /** One-line result of a save or a delete, shown above the table. */
+  notice?: { tone: "success" | "muted"; text: string };
 }) {
   const [state, formAction, pending] = useActionState(addActivityTypeAction, {} as FormState);
 
@@ -53,20 +68,30 @@ export function ActivityTypesView({
         year: "numeric",
       }),
     },
-    actions: [
-      {
-        label: item.status === "active" ? "Deactivate" : "Activate",
-        value: "toggle",
-        tone: "primary" as const,
-      },
-      {
-        label: "Delete",
-        value: "delete",
-        tone: "danger" as const,
-        confirm: `Delete "${item.name}"? Tasks keep the text they already stored.`,
-      },
-    ],
+    actions: canEdit
+      ? [
+          {
+            label: "Edit",
+            href: `/modules/masters/activity-types/${item.id}`,
+            tone: "default" as const,
+          },
+          {
+            label: item.status === "active" ? "Deactivate" : "Activate",
+            value: "toggle",
+            tone: "primary" as const,
+          },
+          {
+            // Deletion is confirmed in a designed panel on this page, never in
+            // a browser dialog — the link only asks the page to open it.
+            label: "Delete",
+            href: `/modules/masters/activity-types?delete=${item.id}`,
+            tone: "danger" as const,
+          },
+        ]
+      : [],
   }));
+
+  const pendingDelete = deleteId ? items.find((item) => item.id === deleteId) : undefined;
 
   const active = items.filter((item) => item.status === "active").length;
   const taskTypes = items.filter(
@@ -91,6 +116,80 @@ export function ActivityTypesView({
           retire it without touching the tasks that already recorded it.
         </p>
       </PageHeader>
+
+      {notice && (
+        <div
+          className={
+            notice.tone === "success"
+              ? "flex items-start justify-between gap-3 border border-[#cfe4d4] bg-success-soft px-4 py-2.5"
+              : "flex items-start justify-between gap-3 border border-line bg-surface px-4 py-2.5"
+          }
+        >
+          <p
+            className={
+              notice.tone === "success"
+                ? "flex items-center gap-2 text-[12.5px] text-success"
+                : "flex items-center gap-2 text-[12.5px] text-muted"
+            }
+          >
+            {notice.tone === "success" && <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+            {notice.text}
+          </p>
+          <Link
+            href="/modules/masters/activity-types"
+            aria-label="Dismiss"
+            className="rounded p-1 text-muted transition-colors hover:bg-[#eef2f8] hover:text-navy"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <section
+          aria-labelledby="delete-activity-type"
+          className="border border-[#e6d6bb] bg-[#fffdf7]"
+        >
+          <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
+            <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f5ebd8]">
+              <AlertTriangle className="h-3.5 w-3.5 text-[#a98433]" aria-hidden />
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <h2
+                id="delete-activity-type"
+                className="text-[13px] font-semibold tracking-[-0.005em] text-navy"
+              >
+                Delete &ldquo;{pendingDelete.name}&rdquo; from the register?
+              </h2>
+              <p className="mt-1 max-w-[62ch] text-[12.5px] leading-relaxed text-muted">
+                Filed under {activityModuleLabel(pendingDelete.module)}. Records that already stored
+                this name keep their text — no task, ticket or board entry changes. The type simply
+                stops being offered from now on, and the entry cannot be restored afterwards.
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <form action={activityTypeRowAction} className="inline-flex">
+                  <input type="hidden" name="id" value={pendingDelete.id} />
+                  <input type="hidden" name="value" value="delete" />
+                  <Button type="submit" variant="danger" size="sm">
+                    Yes, delete this type
+                  </Button>
+                </form>
+                <Link
+                  href="/modules/masters/activity-types"
+                  className={buttonClass({ variant: "ghost", size: "sm" })}
+                >
+                  Keep it
+                </Link>
+                <span className="text-[11.5px] text-muted">
+                  Or deactivate it instead to retire it but keep the entry.
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {canEdit && (
         <form

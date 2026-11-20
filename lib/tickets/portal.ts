@@ -1,9 +1,17 @@
 import { getIntegration, maskSecret } from "../integrations/store";
 import {
+  fetchIssue,
   fetchIssues,
+  fetchPriorities,
+  fetchProjectMembers,
   fetchProjects,
+  fetchStatuses,
+  type IssuePriorityOption,
+  type IssueStatusOption,
+  type ProjectMember,
   type RedmineConfig,
   type RedmineIssue,
+  type RedmineIssueDetail,
 } from "../integrations/redmine";
 
 export type TicketView = "mine" | "all";
@@ -119,4 +127,47 @@ export function summarise(issues: RedmineIssue[], today = new Date()) {
   const unassigned = issues.filter((issue) => !issue.assignee).length;
 
   return { open: issues.length, overdue, urgent, unassigned };
+}
+
+export type TicketEditorData =
+  | { state: "disconnected" }
+  | { state: "error"; error: string }
+  | {
+      state: "ready";
+      baseUrl: string;
+      issue: RedmineIssueDetail;
+      statuses: IssueStatusOption[];
+      priorities: IssuePriorityOption[];
+      members: ProjectMember[];
+    };
+
+/**
+ * Everything the ticket page needs to show and update one issue. Lookup tables
+ * (statuses, priorities, project members) degrade to empty lists so a Redmine
+ * permission gap never blocks reading the issue itself.
+ */
+export async function loadTicketEditor(
+  userId: string,
+  id: string,
+): Promise<TicketEditorData> {
+  const record = await getIntegration(userId, "redmine");
+  if (!record || !record.baseUrl) return { state: "disconnected" };
+
+  const config: RedmineConfig = { baseUrl: record.baseUrl, apiKey: record.secret };
+
+  try {
+    const issue = await fetchIssue(config, id);
+    const [statuses, priorities, members] = await Promise.all([
+      fetchStatuses(config).catch(() => []),
+      fetchPriorities(config).catch(() => []),
+      fetchProjectMembers(config, issue.projectId).catch(() => []),
+    ]);
+
+    return { state: "ready", baseUrl: record.baseUrl, issue, statuses, priorities, members };
+  } catch (error) {
+    return {
+      state: "error",
+      error: error instanceof Error ? error.message : "Could not read that ticket from Redmine.",
+    };
+  }
 }

@@ -63,6 +63,37 @@ export type NewIssueInput = {
   assignedToId?: string | number;
 };
 
+export type RedmineJournal = {
+  id: number;
+  user: RedmineRef;
+  notes: string;
+  createdOn: string;
+};
+
+export type RedmineIssueDetail = RedmineIssue & {
+  journals: RedmineJournal[];
+  statusId: number;
+  priorityId: number;
+  projectId: number;
+  trackerId: number;
+  assigneeId: number | null;
+};
+
+export type IssueStatusOption = { id: number; name: string; isDefault: boolean };
+export type IssuePriorityOption = { id: number; name: string };
+export type ProjectMember = { id: number; name: string };
+
+/** Fields the portal may change on an existing issue. */
+export type IssueUpdate = {
+  subject?: string;
+  description?: string;
+  statusId?: number;
+  priorityId?: number;
+  assigneeId?: number | null;
+  /** A comment appended as a journal entry with the change. */
+  notes?: string;
+};
+
 export class RedmineError extends Error {
   readonly status: number;
 
@@ -162,6 +193,94 @@ export function mapProjects(payload: unknown): { id: number; name: string; ident
       identifier: String(project.identifier ?? ""),
     };
   });
+}
+
+export function mapJournals(payload: unknown): RedmineJournal[] {
+  const list = (payload as { journals?: unknown })?.journals;
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .map((entry) => {
+      const journal = (entry ?? {}) as Record<string, unknown>;
+      return {
+        id: Number(journal.id) || 0,
+        user: asRef(journal.user),
+        notes: String(journal.notes ?? ""),
+        createdOn: String(journal.created_on ?? ""),
+      };
+    })
+    .filter((journal) => journal.notes.trim().length > 0);
+}
+
+export function mapIssueDetail(payload: unknown, baseUrl: string): RedmineIssueDetail {
+  const issue = ((payload ?? {}) as { issue?: Record<string, unknown> }).issue ?? {};
+  const base = mapIssue(issue, baseUrl);
+
+  return {
+    ...base,
+    journals: mapJournals(issue),
+    statusId: Number((issue.status as { id?: unknown })?.id) || 0,
+    priorityId: Number((issue.priority as { id?: unknown })?.id) || 0,
+    projectId: Number((issue.project as { id?: unknown })?.id) || 0,
+    trackerId: Number((issue.tracker as { id?: unknown })?.id) || 0,
+    assigneeId: issue.assigned_to ? Number((issue.assigned_to as { id?: unknown }).id) || 0 : null,
+  };
+}
+
+export function mapStatuses(payload: unknown): IssueStatusOption[] {
+  const list = (payload as { issue_statuses?: unknown })?.issue_statuses;
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => {
+    const status = (entry ?? {}) as Record<string, unknown>;
+    return {
+      id: Number(status.id) || 0,
+      name: String(status.name ?? ""),
+      isDefault: Boolean(status.is_default),
+    };
+  });
+}
+
+export function mapPriorities(payload: unknown): IssuePriorityOption[] {
+  const list = (payload as { issue_priorities?: unknown })?.issue_priorities;
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => {
+    const priority = (entry ?? {}) as Record<string, unknown>;
+    return { id: Number(priority.id) || 0, name: String(priority.name ?? "") };
+  });
+}
+
+export function mapMembers(payload: unknown): ProjectMember[] {
+  const list = (payload as { memberships?: unknown })?.memberships;
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .map((entry) => {
+      const membership = (entry ?? {}) as Record<string, unknown>;
+      const user = (membership.user ?? {}) as Record<string, unknown>;
+      const id = Number(user.id) || 0;
+      const name =
+        String(user.name ?? "") ||
+        [user.firstname, user.lastname].filter(Boolean).join(" ") ||
+        String(user.login ?? "");
+      return { id, name: name || `User ${id}` };
+    })
+    .filter((member) => member.id > 0);
+}
+
+/** Builds the `{"issue": {…}}` body for `PUT /issues/<id>.json`. */
+export function buildIssueUpdate(update: IssueUpdate): { issue: Record<string, unknown> } {
+  const issue: Record<string, unknown> = {};
+
+  if (update.subject !== undefined) issue.subject = update.subject;
+  if (update.description !== undefined) issue.description = update.description;
+  if (update.statusId !== undefined) issue.status_id = update.statusId;
+  if (update.priorityId !== undefined) issue.priority_id = update.priorityId;
+  if (update.assigneeId !== undefined) {
+    issue.assigned_to_id = update.assigneeId === null ? "" : update.assigneeId;
+  }
+  if (update.notes?.trim()) issue.notes = update.notes.trim();
+
+  return { issue };
 }
 
 /** Turns a Redmine error body into something a human can act on. */
@@ -312,4 +431,67 @@ export async function verifyConnection(
       error: error instanceof Error ? error.message : "Could not reach Redmine.",
     };
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Reading and updating a single issue                                       */
+/* -------------------------------------------------------------------------- */
+
+export async function fetchIssue(
+  config: RedmineConfig,
+  id: number | string,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<RedmineIssueDetail> {
+  const payload = await request<unknown>(
+    config,
+    `/issues/${encodeURIComponent(String(id))}.json?include=journals`,
+    options,
+  );
+  const detail = mapIssueDetail(payload, config.baseUrl);
+  if (!detail.id) throw new RedmineError("Redmine returned no issue for that id.", 0);
+  return detail;
+}
+
+export async function fetchStatuses(
+  config: RedmineConfig,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<IssueStatusOption[]> {
+  return mapStatuses(await request<unknown>(config, "/issue_statuses.json", options));
+}
+
+export async function fetchPriorities(
+  config: RedmineConfig,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<IssuePriorityOption[]> {
+  return mapPriorities(await request<unknown>(config, "/enumerations/issue_priorities.json", options));
+}
+
+export async function fetchProjectMembers(
+  config: RedmineConfig,
+  projectId: number | string,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<ProjectMember[]> {
+  const payload = await request<unknown>(
+    config,
+    `/projects/${encodeURIComponent(String(projectId))}/memberships.json?limit=100`,
+    options,
+  );
+  return mapMembers(payload);
+}
+
+/**
+ * `PUT /issues/<id>.json`. Redmine answers 204 with no body on success; adding
+ * `notes` writes a journal entry alongside the change.
+ */
+export async function updateIssue(
+  config: RedmineConfig,
+  id: number | string,
+  update: IssueUpdate,
+  options: { fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  await request<unknown>(config, `/issues/${encodeURIComponent(String(id))}.json`, {
+    ...options,
+    method: "PUT",
+    body: buildIssueUpdate(update),
+  });
 }
