@@ -5,6 +5,9 @@ import {
   ACTION1_PATCH_FIELDS,
   Action1Error,
   action1ConsoleUrl,
+  fetchEndpointMissingUpdates,
+  mapMissingUpdate,
+  mapMissingUpdatePage,
   action1EndpointUrl,
   describeAction1Failure,
   fetchAccessToken,
@@ -22,6 +25,10 @@ import {
   describeLastSeen,
   describeMissingUpdates,
   describePatchHeadline,
+  describeVersionMove,
+  severityBucket,
+  summariseUpdates,
+  updateCategory,
   isRebootRequired,
   missingAction1Settings,
   rebootLabel,
@@ -345,6 +352,119 @@ test("the connection is only called complete with a client id and secret", () =>
 });
 
 /* -------------------------------------------------------------------------- */
+/*  Missing updates                                                           */
+/* -------------------------------------------------------------------------- */
+
+const UPDATE_ROW = {
+  id: "u-1",
+  name: "2026-10 Cumulative Update for Windows Server 2022 (KB5061234)",
+  vendor: "Microsoft",
+  security_severity: "Critical",
+  update_type: "Windows update",
+  kb: 5061234,
+  security_CVE: ["CVE-2026-1111", "CVE-2026-2222"],
+  installed_version: "10.0.20348.1",
+  release_date: "2026-10-14",
+  approval_status: "Approved",
+  size: "742 MB",
+  optional_or_recommended: "Recommended",
+  reboot_required: true,
+};
+
+test("a missing update is mapped with its KB, CVE, severity and versions", () => {
+  const update = mapMissingUpdate(UPDATE_ROW);
+
+  assert.equal(update.name, UPDATE_ROW.name);
+  assert.equal(update.vendor, "Microsoft");
+  assert.equal(update.severity, "Critical");
+  assert.equal(update.kb, "KB5061234");
+  assert.equal(update.cve, "CVE-2026-1111, CVE-2026-2222");
+  assert.equal(update.currentVersion, "10.0.20348.1");
+  assert.equal(update.releaseDate, "2026-10-14T00:00:00.000Z");
+  assert.equal(update.approval, "Approved");
+  assert.equal(update.size, "742 MB");
+  assert.equal(update.optional, false);
+  assert.equal(update.rebootRequired, "true");
+});
+
+test("package/version shaped update rows and versions[] are read too", () => {
+  const nested = mapMissingUpdate({
+    id: "u-2",
+    package: { id: "pkg-1", name: "Mozilla Firefox", vendor: "Mozilla" },
+    versions: [
+      {
+        id: "v-2",
+        version: "141.0",
+        security_severity: "Important",
+        release_date: "2026-09-30",
+        approval_status: "New",
+        kb_number: "KB9001",
+        security_CVE: "CVE-2026-3333",
+      },
+    ],
+  });
+
+  assert.equal(nested.name, "Mozilla Firefox");
+  assert.equal(nested.vendor, "Mozilla");
+  assert.equal(nested.availableVersion, "141.0");
+  assert.equal(nested.severity, "Important");
+  assert.equal(nested.releaseDate, "2026-09-30T00:00:00.000Z");
+  assert.equal(nested.kb, "KB9001");
+  assert.equal(nested.cve, "CVE-2026-3333");
+  assert.equal(nested.approval, "New");
+  assert.equal(nested.optional, null);
+});
+
+test("the update page keeps the total so the table can say what it is showing", () => {
+  const page = mapMissingUpdatePage({ items: [UPDATE_ROW], total_items: "12" });
+  assert.equal(page.items.length, 1);
+  assert.equal(page.totalCount, 12);
+
+  const empty = mapMissingUpdatePage({ items: [] });
+  assert.deepEqual(empty.items, []);
+  assert.equal(empty.totalCount, 0);
+});
+
+test("severities fold into the five console buckets and are counted", () => {
+  assert.equal(severityBucket("Critical"), "critical");
+  assert.equal(severityBucket(" important "), "important");
+  assert.equal(severityBucket("Moderate"), "moderate");
+  assert.equal(severityBucket("Low"), "low");
+  assert.equal(severityBucket("Unspecified"), "other");
+  assert.equal(severityBucket(""), "other");
+
+  const summary = summariseUpdates([
+    mapMissingUpdate({ id: "a", security_severity: "Critical" }),
+    mapMissingUpdate({ id: "b", security_severity: "Critical" }),
+    mapMissingUpdate({ id: "c", security_severity: "Important" }),
+    mapMissingUpdate({ id: "d" }),
+  ]);
+  assert.equal(summary.total, 4);
+  assert.equal(summary.critical, 2);
+  assert.equal(summary.important, 1);
+  assert.equal(summary.other, 1);
+
+  const windows = mapMissingUpdate({ id: "w", update_type: "Windows update", name: "KB5061234" });
+  const app = mapMissingUpdate({ id: "p", update_type: "App", name: "7-Zip", vendor: "Igor Pavlov" });
+  const bare = mapMissingUpdate({ id: "x", name: "Something" });
+  assert.equal(updateCategory(windows), "Windows");
+  assert.equal(updateCategory(app), "Application");
+  assert.equal(updateCategory(bare), "Other");
+
+  assert.equal(
+    describeVersionMove(mapMissingUpdate({ installed_version: "1.0", available_version: "2.0" })),
+    "1.0 → 2.0",
+  );
+  assert.equal(
+    describeVersionMove(mapMissingUpdate({ installed_version: "1.0" })),
+    "1.0",
+    "a Windows cumulative update only reports the installed build",
+  );
+  assert.equal(describeVersionMove(mapMissingUpdate({ available_version: "141.0" })), "→ 141.0");
+  assert.equal(describeVersionMove(mapMissingUpdate({})), "—");
+});
+
+/* -------------------------------------------------------------------------- */
 /*  HTTP contract                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -424,6 +544,22 @@ function startServer(): Promise<void> {
           items: [{ id: "org-1", name: "Acme" }, { id: "org-2", name: "Globex" }],
           total_items: 2,
         });
+      }
+
+      if (url.includes("/missing-updates")) {
+        const endpointId = url.split("?")[0].split("/")[4];
+        if (endpointId !== "e-1" && endpointId !== "e-2") {
+          return json(404, { message: "No update list for that endpoint" });
+        }
+        return json(200, { type: "ResultPage", items: [UPDATE_ROW], total_items: 1, limit: 100 });
+      }
+
+      if (url.startsWith("/updates/org-1")) {
+        const params = new URL(url, "http://localhost").searchParams;
+        if (!["e-1", "e-fallback"].includes(String(params.get("endpoint_id")))) {
+          return json(404, { message: "Unknown endpoint" });
+        }
+        return json(200, { type: "ResultPage", items: [UPDATE_ROW], total_items: 1 });
       }
 
       if (url.startsWith("/endpoints/managed/org-1/")) {
@@ -578,6 +714,56 @@ test("the token is fetched once when the inventory loads", async () => {
   const organizations = await resolveOrganizationId(config(), { token: token.accessToken });
   assert.equal(organizations, "org-1");
   assert.equal(tokenRequests, 1);
+});
+
+test("missing updates are read from the endpoint route", async () => {
+  await serverReady;
+  seen.length = 0;
+
+  const page = await fetchEndpointMissingUpdates(
+    config(),
+    { orgId: "org-1", endpointId: "e-1" },
+    { token: "token-abc" },
+  );
+
+  assert.equal(page.totalCount, 1);
+  assert.equal(page.items[0].kb, "KB5061234");
+  assert.equal(page.items[0].severity, "Critical");
+
+  const request = new URL(seen[0].url, "http://localhost");
+  assert.equal(request.pathname, "/endpoints/managed/org-1/e-1/missing-updates");
+  assert.equal(request.searchParams.get("limit"), "100");
+  assert.equal(request.searchParams.get("fields"), "*");
+  assert.equal(seen[0].authorization, "Bearer token-abc");
+});
+
+test("an older tenant falls back to the org update listing for one endpoint", async () => {
+  await serverReady;
+  seen.length = 0;
+
+  // This endpoint does not exist on the per-endpoint route, but does on /updates.
+  const page = await fetchEndpointMissingUpdates(
+    config(),
+    { orgId: "org-1", endpointId: "e-fallback" },
+    { token: "token-abc" },
+  );
+
+  assert.equal(page.items.length, 1);
+  assert.equal(seen.length, 2, "endpoint route first, then the org listing");
+  assert.match(seen[0].url, /\/missing-updates/);
+  const fallback = new URL(seen[1].url, "http://localhost");
+  assert.equal(fallback.pathname, "/updates/org-1");
+  assert.equal(fallback.searchParams.get("endpoint_id"), "e-fallback");
+
+  await assert.rejects(
+    () =>
+      fetchEndpointMissingUpdates(
+        config(),
+        { orgId: "org-1", endpointId: "e-404" },
+        { token: "token-abc" },
+      ),
+    (error: unknown) => error instanceof Action1Error && error.status === 404,
+  );
 });
 
 test("a configured organization id skips /organizations", async () => {

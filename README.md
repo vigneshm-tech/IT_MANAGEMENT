@@ -369,6 +369,7 @@ v3.0, North America 2):
 | `GET /organizations` | resolving the organization id when none is configured |
 | `GET /endpoints/managed/{orgId}?from=0&limit=50&fields=*` | paged endpoint inventory (name, OS, status, last seen, IP, agent version, missing updates, reboot) |
 | `GET /endpoints/managed/{orgId}/{endpointId}?fields=*` | the endpoint detail page |
+| `GET /endpoints/managed/{orgId}/{endpointId}/missing-updates?from=0&limit=100&fields=*` | the updates behind the counts — name, KB, CVE, severity, current and available version, release date, approval (falls back to `/updates/{orgId}?endpoint_id=…` when a tenant 404s the per-endpoint route) |
 
 Notes taken from the reference:
 
@@ -391,10 +392,15 @@ Notes taken from the reference:
   credentials”, `403` → permissions, `404` → organization id, `429` → rate
   limiting, `5xx` → Action1's own server error. Requests time out after 12 s.
 
-Client: `lib/integrations/action1.ts` (token, endpoints, organizations plus pure
-mapping helpers), loader: `lib/servers/inventory.ts`, presentation helpers:
-`lib/servers/endpoint.ts`, UI: `components/modules/servers-view.tsx` with the
-endpoint page at `/modules/servers/<id>` (`components/modules/endpoint-detail.tsx`).
+Client: `lib/integrations/action1.ts` (token, endpoints, missing updates,
+organizations plus pure mapping helpers), loader: `lib/servers/inventory.ts`,
+presentation helpers: `lib/servers/endpoint.ts`, UI:
+`components/modules/servers-view.tsx`, and the endpoint page at
+`/modules/servers/<id>` — `components/modules/endpoint-tabs.tsx` splits it into
+**Overview / Patching / Hardware / Network** tabs. The Patching tab lists the
+missing updates themselves (not just the counts), filterable by severity
+Critical / Important / Moderate / Low / Other, with KB and CVE references, the
+installed → available version, release date and approval state.
 Super Admin, IT Manager and IT Engineer can all write the Action1 credentials;
 the connection is organisation-wide, so whoever saves it is the one the Servers
 module uses for everybody.

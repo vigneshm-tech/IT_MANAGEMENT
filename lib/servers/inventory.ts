@@ -3,11 +3,13 @@ import {
   Action1Error,
   fetchAccessToken,
   fetchEndpoint,
+  fetchEndpointMissingUpdates,
   fetchEndpoints,
   normaliseAction1BaseUrl,
   resolveOrganizationId,
   type Action1Config,
   type Action1Endpoint,
+  type Action1MissingUpdate,
 } from "../integrations/action1";
 import { getIntegration } from "../integrations/store";
 import { MAX_ENDPOINTS, missingAction1Settings, PAGE_SIZE } from "./endpoint";
@@ -169,7 +171,16 @@ export type EndpointDetail =
   | { kind: "not_connected" }
   | { kind: "unconfigured"; missing: string[] }
   | { kind: "error"; message: string; status: number }
-  | { kind: "ready"; endpoint: Action1Endpoint; organizationId: string };
+  | {
+      kind: "ready";
+      endpoint: Action1Endpoint;
+      organizationId: string;
+      /** The updates behind the counts, newest severity first. */
+      updates: Action1MissingUpdate[];
+      updateTotal: number;
+      /** Set when the endpoint loaded but its update list did not. */
+      updatesError?: string;
+    };
 
 /** `GET /endpoints/managed/{orgId}/{endpointId}` for the detail page. */
 export async function loadEndpointDetail(
@@ -188,7 +199,29 @@ export async function loadEndpointDetail(
     const token = (await fetchAccessToken(config)).accessToken;
     const organizationId = await resolveOrganizationId(config, { token });
     const endpoint = await fetchEndpoint(config, { orgId: organizationId, endpointId }, { token });
-    return { kind: "ready", endpoint, organizationId };
+
+    // The list is a second call, so a failure there must not blank the page.
+    let updates: Action1MissingUpdate[] = [];
+    let updateTotal = 0;
+    let updatesError: string | undefined;
+
+    try {
+      const page = await fetchEndpointMissingUpdates(
+        config,
+        { orgId: organizationId, endpointId },
+        { token },
+      );
+      updates = page.items;
+      updateTotal = page.totalCount;
+    } catch (error) {
+      updatesError =
+        error instanceof Action1Error
+          ? error.message
+          : "Action1 did not return the missing updates for this endpoint.";
+      updateTotal = endpoint.missingCritical ?? 0;
+    }
+
+    return { kind: "ready", endpoint, organizationId, updates, updateTotal, updatesError };
   } catch (error) {
     const state = failure(error);
     return state.kind === "error" ? state : { kind: "error", message: "Unknown error", status: 0 };

@@ -438,6 +438,187 @@ export async function fetchEndpoint(
   return endpoint;
 }
 
+
+/* -------------------------------------------------------------------------- */
+/*  Missing updates                                                           */
+/* -------------------------------------------------------------------------- */
+
+export const ACTION1_UPDATE_LIMIT = 100;
+
+/** One update an endpoint is missing, as `/…/{endpointId}/missing-updates` lists it. */
+export type Action1MissingUpdate = {
+  id: string;
+  name: string;
+  vendor: string;
+  /** "KB5031234" when Action1 reports a KB for the update. */
+  kb: string;
+  /** Critical / Important / Moderate / Low / Unspecified. */
+  severity: string;
+  cve: string;
+  /** Windows update, application update, …
+   */
+  updateType: string;
+  /** What the endpoint has now and what Action1 would install. */
+  currentVersion: string;
+  availableVersion: string;
+  releaseDate: string;
+  approval: string;
+  size: string;
+  rebootRequired: string;
+  optional: boolean | null;
+};
+
+/** Reads the first string/number it finds among the candidate keys. */
+function pick(source: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    if (typeof value === "boolean") return value ? "true" : "false";
+  }
+  return "";
+}
+
+/** CVEs arrive as a list, a comma string or a single value. */
+function readCve(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        typeof item === "string"
+          ? item
+          : typeof item === "object" && item
+            ? pick(item as Record<string, unknown>, ["id", "cve", "name"])
+            : "",
+      )
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (typeof value === "string") return value.trim();
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return readCve(record.ids ?? record.items ?? record.list ?? "");
+  }
+  return "";
+}
+
+/** "KB5031234" from a number, a string or a nested KB object. */
+function readKb(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return `KB${value}`;
+  if (typeof value === "string" && value.trim() !== "") {
+    const text = value.trim();
+    return /^kb\d+$/i.test(text) ? text.toUpperCase() : text;
+  }
+  if (value && typeof value === "object") {
+    return readKb((value as Record<string, unknown>).id ?? (value as Record<string, unknown>).value);
+  }
+  return "";
+}
+
+export function mapMissingUpdate(raw: unknown): Action1MissingUpdate {
+  const item = (raw ?? {}) as Record<string, unknown>;
+  // Update rows come either flat, or with `package` and `version` objects.
+  const versionList = Array.isArray(item.versions) ? (item.versions as unknown[]) : [];
+  const version = (
+    item.version && typeof item.version === "object" ? item.version : (versionList[0] ?? {})
+  ) as Record<string, unknown>;
+  const pkg = (item.package ?? {}) as Record<string, unknown>;
+  const versions = versionList;
+
+  const name =
+    pick(item, ["name", "update_name", "title", "package_name"]) ||
+    pick(pkg, ["name"]) ||
+    pick(version, ["name"]) ||
+    "Unnamed update";
+
+  const optionalText = pick(item, ["optional_or_recommended", "optional"]).toLowerCase();
+
+  return {
+    id: pick(item, ["id", "update_id", "packageId"]),
+    name,
+    vendor: pick(item, ["vendor", "publisher"]) || pick(pkg, ["vendor", "publisher"]),
+    kb: readKb(item.kb ?? item.kb_number ?? item.kb_id ?? version.kb_number ?? version.kb),
+    severity:
+      pick(item, ["security_severity", "severity"]) || pick(version, ["security_severity", "severity"]),
+    cve: readCve(item.security_CVE ?? item.cve ?? version.security_CVE ?? version.cve ?? ""),
+    updateType: pick(item, ["update_type", "type", "classification"]) || pick(version, ["update_type"]),
+    currentVersion:
+      pick(item, ["installed_version", "current_version", "original_version"]) ||
+      pick(pkg, ["installed_version"]),
+    availableVersion:
+      pick(item, ["available_version", "latest_version", "target_version"]) ||
+      pick(version, ["version"]) ||
+      pick(pkg, ["version"]),
+    releaseDate: parseAction1Date(
+      pick(item, ["release_date", "released", "releaseDate"]) ||
+        pick(version, ["release_date"]),
+    ),
+    approval: pick(item, ["approval_status", "approval"]) || pick(version, ["approval_status"]),
+    size: pick(item, ["size", "update_size", "file_size"]),
+    rebootRequired: pick(item, ["reboot_required", "reboot_needed", "reboot"]),
+    optional:
+      optionalText === ""
+        ? null
+        : optionalText === "optional" || optionalText === "true" || optionalText === "yes",
+  };
+}
+
+export type Action1UpdatePage = {
+  items: Action1MissingUpdate[];
+  totalCount: number;
+};
+
+export function mapMissingUpdatePage(payload: unknown): Action1UpdatePage {
+  const page = (payload ?? {}) as Record<string, unknown>;
+  const items = Array.isArray(page.items) ? page.items : Array.isArray(payload) ? payload : [];
+
+  return {
+    items: items.filter((item) => item && typeof item === "object").map(mapMissingUpdate),
+    totalCount: count(page.total_items) ?? items.length,
+  };
+}
+
+/**
+ * `GET /endpoints/managed/{orgId}/{endpointId}/missing-updates` — the updates
+ * behind the counts: name, KB, severity, CVE, current and available version.
+ */
+export async function fetchEndpointMissingUpdates(
+  config: Action1Config,
+  params: { orgId: string; endpointId: string; limit?: number; severity?: string },
+  options: { fetchImpl?: typeof fetch; token?: string } = {},
+): Promise<Action1UpdatePage> {
+  const token = options.token ?? (await resolveToken(config, options));
+  const limit = Math.min(Math.max(params.limit ?? ACTION1_UPDATE_LIMIT, 1), ACTION1_UPDATE_LIMIT);
+
+  const query = new URLSearchParams({ from: "0", limit: String(limit), fields: "*" });
+  if (params.severity) query.set("security_severity", params.severity);
+
+  const path = `/endpoints/managed/${encodeURIComponent(params.orgId)}/${encodeURIComponent(
+    params.endpointId,
+  )}/missing-updates?${query.toString()}`;
+
+  try {
+    const payload = await request<unknown>(config, path, token, options);
+    return mapMissingUpdatePage(payload);
+  } catch (error) {
+    // Older tenants answer 404 for the per-endpoint route; the org-wide listing
+    // filters by endpoint id instead.
+    if (!(error instanceof Action1Error) || error.status !== 404) throw error;
+    const fallback = new URLSearchParams({
+      from: "0",
+      limit: String(limit),
+      fields: "*",
+      endpoint_id: params.endpointId,
+    });
+    const payload = await request<unknown>(
+      config,
+      `/updates/${encodeURIComponent(params.orgId)}?${fallback.toString()}`,
+      token,
+      options,
+    );
+    return mapMissingUpdatePage(payload);
+  }
+}
+
 /** Uses the configured org, or the first one the credential can see. */
 export async function resolveOrganizationId(
   config: Action1Config,

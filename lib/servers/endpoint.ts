@@ -1,4 +1,4 @@
-import type { Action1Endpoint } from "../integrations/action1";
+import type { Action1Endpoint, Action1MissingUpdate } from "../integrations/action1";
 
 /**
  * Pure helpers for the server inventory: no network, no cookies, so they can
@@ -101,6 +101,74 @@ export function describeMissingUpdates(endpoint: Action1Endpoint): string {
       : "Up to date";
   }
   return parts.join(" · ");
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Missing updates                                                           */
+/* -------------------------------------------------------------------------- */
+
+export type UpdateSeverity = "critical" | "important" | "moderate" | "low" | "other";
+
+export const SEVERITY_LABELS: Record<UpdateSeverity, string> = {
+  critical: "Critical",
+  important: "Important",
+  moderate: "Moderate",
+  low: "Low",
+  other: "Other",
+};
+
+export const SEVERITY_ORDER: UpdateSeverity[] = [
+  "critical",
+  "important",
+  "moderate",
+  "low",
+  "other",
+];
+
+/** Action1 severities fold into the five buckets the console shows. */
+export function severityBucket(value: string): UpdateSeverity {
+  const text = value.trim().toLowerCase();
+  if (text === "critical") return "critical";
+  if (text === "important" || text === "high") return "important";
+  if (text === "moderate" || text === "medium") return "moderate";
+  if (text === "low") return "low";
+  return "other";
+}
+
+export type UpdateSummary = Record<UpdateSeverity, number> & { total: number };
+
+export function summariseUpdates(updates: Action1MissingUpdate[]): UpdateSummary {
+  const summary: UpdateSummary = {
+    critical: 0,
+    important: 0,
+    moderate: 0,
+    low: 0,
+    other: 0,
+    total: updates.length,
+  };
+  for (const update of updates) summary[severityBucket(update.severity)] += 1;
+  return summary;
+}
+
+/** Where an update came from — OS patches first, then applications. */
+export function updateCategory(update: Action1MissingUpdate): "Windows" | "Application" | "Other" {
+  const text = `${update.updateType} ${update.name}`.toLowerCase();
+  if (/windows|security update|kb\d|\.net|edge|office/.test(text)) return "Windows";
+  if (update.updateType || update.vendor) return "Application";
+  return "Other";
+}
+
+/**
+ * "1.2.3 → 1.2.4" when both ends are known, "→ 1.2.4" when Action1 only says
+ * what it would install, and the installed build when it only knows that.
+ */
+export function describeVersionMove(update: Action1MissingUpdate): string {
+  const current = update.currentVersion;
+  const available = update.availableVersion;
+  if (current && available) return `${current} → ${available}`;
+  if (available) return `→ ${available}`;
+  if (current) return current;
+  return "—";
 }
 
 /** One-line patch state for the endpoint header. */
