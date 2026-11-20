@@ -204,6 +204,38 @@ type is immediately offered on `/modules/tasks/new` and the edit form.
 - Editing the register needs `masters.edit` (IT Manager and leadership), enforced
   in the UI and by RLS (`public.can_edit_masters()`).
 
+### Clients
+
+`/modules/clients` is the account register and `/modules/clients/new` is the
+full-page create form (no popup). One client records:
+
+| Field | Where it goes |
+| --- | --- |
+| Client name | `clients.name`, required |
+| Short code / license code | `clients.code`, upper case; derived from the name when left blank |
+| Industry | `clients.industry` |
+| Primary contact name / email / mobile | `primary_contact_name`, `primary_contact_email`, `primary_mobile_country` + `primary_mobile` |
+| Secondary contact name / email / mobile | the `secondary_*` twins |
+| Account owner | `clients.owner_role` (role, drives the ownership groups) |
+| Assigned user | `assigned_user_id` + a denormalised `assigned_user_name` |
+| Created / last update | `created_at` and `updated_at`, stamped by the database — never typed |
+
+- **Country code with search.** The mobile fields are a searchable picker
+  (`components/ui/country-code-field.tsx`) over `lib/countries.ts` — 250
+  countries, searchable by name, ISO code or dial code ("india", "IN" and "+91"
+  all reach India). The picker stores the ISO code; the number is stored as
+  digits only (6–15, checked by `clients_*_mobile_digits`).
+- **Validation** lives in `lib/clients.ts` (pure, tested): name 2–160, code
+  ≤20 with `A–Z 0–9 - _ . /`, industry ≤80, and for each contact a valid email
+  plus a valid mobile whenever a number is typed.
+- **Assigned user** is resolved server-side against the directory, so a crafted
+  post cannot invent a name. Profiles are readable only by the super admin, so
+  the app calls the `assignable_users()` RPC (security definer, names only) and
+  falls back to the directory it can already see.
+- The register shows every field as a column (all of them visible by default;
+  the table scrolls sideways and the Columns control can hide any of them).
+  Deactivate keeps history, as with the other registers.
+
 The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
 edit those two files to change policy. `lib/access.ts` exposes `can()`,
 `canAccessModule()`, `visibleModules()` and `accessMap()`.
@@ -213,7 +245,7 @@ edit those two files to change policy. `lib/access.ts` exposes `can()`,
 | Table | Rows in this build | Notes |
 | --- | --- | --- |
 | `tasks` | 5 seeded + runtime | Teams, priority, due date, status |
-| `clients` | 4 seeded | Contact, industry, owner, active flag |
+| `clients` | 4 seeded | Two contacts + mobiles, industry, owner, assignee, stamps |
 | `patch_plans` | 3 seeded | Window, ring, owner, status |
 | `approvals` | 4 seeded | Change/access/patch/purchase, decision trail |
 | `renewals` | 4 seeded | Value, currency, notice period, status |
@@ -221,8 +253,8 @@ edit those two files to change policy. `lib/access.ts` exposes `can()`,
 All four record tables (plus `tasks`) have RLS: any authenticated user can read,
 rows are inserted as the signed-in user, updates are limited to the creator or
 leadership, and approvals can only be decided by leadership. Schemas live in
-`supabase/migrations/0001_rbac.sql`, `0002_tasks.sql` and
-`0003_business_records.sql`; the hidden role, its directory policy and the first
+`supabase/migrations/0001_rbac.sql`, `0002_tasks.sql`,
+`0003_business_records.sql` and `0013_client_contacts.sql`; the hidden role, its directory policy and the first
 super-admin account live in `0004_super_admin_role.sql` and
 `0005_super_admin_account.sql`; user administration lives in
 `0007_user_administration.sql`.

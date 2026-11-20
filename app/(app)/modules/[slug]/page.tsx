@@ -67,8 +67,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <ServersView user={user} status={await integrationStatus(user.id, "action1")} />;
 
     case "clients": {
-      const clients = await listClients();
-      return <ClientsView user={user} clients={clients} />;
+      const [{ created }, clients] = await Promise.all([searchParams, listClients()]);
+      return <ClientsView user={user} clients={clients} createdId={created} />;
     }
 
     case "patching": {

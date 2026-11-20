@@ -19,6 +19,7 @@ function humanise(segment: string, parent?: string): string {
   if (value === "new") {
     if (parent === "tasks") return "New task";
     if (parent === "tickets") return "New ticket";
+    if (parent === "clients") return "New client";
     return "New";
   }
   if (value === "edit") return "Edit";

@@ -6,6 +6,7 @@ import {
   TASK_ACTIVITY_MODULE,
 } from "../activity-types";
 import type { SessionUser } from "../auth/token";
+import { listDirectory } from "../users/repository";
 import type { RoleId } from "../roles";
 
 /* -------------------------------------------------------------------------- */
@@ -17,16 +18,45 @@ export type PatchStatus = "planned" | "in_progress" | "completed";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type RenewalStatus = "active" | "due" | "renewed" | "expired";
 
+/** One of the two contacts a client record carries. */
+export type ClientContact = {
+  name: string;
+  email: string;
+  /** ISO-3166 alpha-2 of the mobile's country code, e.g. "IN". */
+  mobileCountry: string;
+  /** Digits only, so "+91 98400 12345" is stored as "9840012345". */
+  mobile: string;
+};
+
 export type ClientRecord = {
   id: string;
   name: string;
+  /** Short code / license code used across the workspace. */
   code: string;
-  contactName: string;
-  contactEmail: string;
   industry: string;
+  primary: ClientContact;
+  secondary: ClientContact;
   ownerRole: RoleId;
+  assignedUserId: string;
+  assignedUserName: string;
   status: ClientStatus;
+  /** Captured by the database on insert. */
   createdAt: string;
+  /** Captured by the database trigger on every update. */
+  updatedAt: string;
+};
+
+/** What the client form submits; ids and timestamps are never client input. */
+export type ClientInput = Omit<
+  ClientRecord,
+  "id" | "status" | "createdAt" | "updatedAt"
+>;
+
+/** Someone a client can be assigned to. */
+export type AssignableUser = {
+  id: string;
+  name: string;
+  role: string | null;
 };
 
 export type PatchPlanRecord = {
@@ -119,45 +149,97 @@ function demoStore(): Store {
           id: "CL-1001",
           name: "Acme Manufacturing",
           code: "ACME",
-          contactName: "Ritu Shah",
-          contactEmail: "ritu.shah@acme.example",
           industry: "Manufacturing",
+          primary: {
+            name: "Ritu Shah",
+            email: "ritu.shah@acme.example",
+            mobileCountry: "IN",
+            mobile: "9840012345",
+          },
+          secondary: {
+            name: "Vikram Rao",
+            email: "vikram.rao@acme.example",
+            mobileCountry: "IN",
+            mobile: "9840098765",
+          },
           ownerRole: "implementation_lead",
+          assignedUserId: "u-impl-lead",
+          assignedUserName: "Priya Nair",
           status: "active",
           createdAt: iso(-120),
+          updatedAt: iso(-12),
         },
         {
           id: "CL-1002",
           name: "Northwind Logistics",
           code: "NWL",
-          contactName: "Daniel Roy",
-          contactEmail: "daniel.roy@northwind.example",
           industry: "Logistics",
+          primary: {
+            name: "Daniel Roy",
+            email: "daniel.roy@northwind.example",
+            mobileCountry: "IN",
+            mobile: "9940112233",
+          },
+          secondary: {
+            name: "",
+            email: "",
+            mobileCountry: "IN",
+            mobile: "",
+          },
           ownerRole: "l2_support_lead",
+          assignedUserId: "u-l2-lead",
+          assignedUserName: "Karthik Raman",
           status: "active",
           createdAt: iso(-80),
+          updatedAt: iso(-9),
         },
         {
           id: "CL-1003",
           name: "Sterling Health",
           code: "STH",
-          contactName: "Meera Iyer",
-          contactEmail: "meera.iyer@sterling.example",
           industry: "Healthcare",
+          primary: {
+            name: "Meera Iyer",
+            email: "meera.iyer@sterling.example",
+            mobileCountry: "IN",
+            mobile: "9845566778",
+          },
+          secondary: {
+            name: "Rahul Deshpande",
+            email: "rahul.d@sterling.example",
+            mobileCountry: "IN",
+            mobile: "9845566790",
+          },
           ownerRole: "implementation_manager",
+          assignedUserId: "u-impl-engineer",
+          assignedUserName: "Vikram Shetty",
           status: "active",
           createdAt: iso(-45),
+          updatedAt: iso(-4),
         },
         {
           id: "CL-1004",
           name: "Vantage Retail",
           code: "VTR",
-          contactName: "Arjun Kapoor",
-          contactEmail: "arjun.kapoor@vantage.example",
           industry: "Retail",
+          primary: {
+            name: "Arjun Kapoor",
+            email: "arjun.kapoor@vantage.example",
+            mobileCountry: "IN",
+            mobile: "9003344556",
+          },
+          secondary: {
+            name: "",
+            email: "",
+            mobileCountry: "IN",
+            mobile: "",
+          },
           ownerRole: "development_lead",
+          assignedUserId: "u-dev-engineer",
+          assignedUserName: "Rahul Menon",
           status: "inactive",
           createdAt: iso(-200),
+          updatedAt: iso(-150),
         },
       ],
       patchPlans: [
@@ -374,17 +456,34 @@ function n(value: unknown, fallback = 0): number {
 /*  Clients                                                                   */
 /* -------------------------------------------------------------------------- */
 
+function mapClientContact(
+  row: Record<string, unknown>,
+  prefix: "primary" | "secondary",
+): ClientContact {
+  return {
+    name: s(row[`${prefix}_contact_name`]),
+    email: s(row[`${prefix}_contact_email`]),
+    mobileCountry: s(row[`${prefix}_mobile_country`], "IN") || "IN",
+    mobile: s(row[`${prefix}_mobile`]),
+  };
+}
+
 function mapClient(row: Record<string, unknown>): ClientRecord {
+  const createdAt = s(row.created_at, new Date().toISOString());
   return {
     id: s(row.id),
     name: s(row.name),
     code: s(row.code),
-    contactName: s(row.contact_name),
-    contactEmail: s(row.contact_email),
     industry: s(row.industry),
+    primary: mapClientContact(row, "primary"),
+    secondary: mapClientContact(row, "secondary"),
     ownerRole: s(row.owner_role, "implementation_lead") as RoleId,
+    assignedUserId: s(row.assigned_user_id),
+    assignedUserName: s(row.assigned_user_name),
     status: s(row.status, "active") as ClientStatus,
-    createdAt: s(row.created_at, new Date().toISOString()),
+    createdAt,
+    // The database trigger owns this; the fallback keeps older rows readable.
+    updatedAt: s(row.updated_at, createdAt),
   };
 }
 
@@ -400,17 +499,17 @@ export async function listClients(): Promise<ClientRecord[]> {
 
 export async function createClientRecord(
   user: SessionUser,
-  input: Omit<ClientRecord, "id" | "status" | "createdAt" | "ownerRole"> & {
-    ownerRole: RoleId;
-  },
+  input: ClientInput,
 ): Promise<ClientRecord> {
   if (!isSupabaseConfigured) {
     const store = demoStore();
+    const now = new Date().toISOString();
     const record: ClientRecord = {
       ...input,
       id: nextId("CL", store.clients),
       status: "active",
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
     store.clients.unshift(record);
     return record;
@@ -421,15 +520,48 @@ export async function createClientRecord(
     {
       name: input.name,
       code: input.code,
-      contact_name: input.contactName,
-      contact_email: input.contactEmail,
       industry: input.industry,
+      primary_contact_name: input.primary.name,
+      primary_contact_email: input.primary.email,
+      primary_mobile_country: input.primary.mobileCountry || "IN",
+      primary_mobile: input.primary.mobile,
+      secondary_contact_name: input.secondary.name,
+      secondary_contact_email: input.secondary.email,
+      secondary_mobile_country: input.secondary.mobileCountry || "IN",
+      secondary_mobile: input.secondary.mobile,
       owner_role: input.ownerRole,
+      assigned_user_id: input.assignedUserId || null,
+      assigned_user_name: input.assignedUserName,
       status: "active",
       created_by: user.id,
     },
     mapClient,
   );
+}
+
+/**
+ * People a client can be assigned to. Profiles are readable only by the super
+ * admin, so the app calls the `assignable_users()` RPC (security definer, names
+ * only). Any failure falls back to the directory the caller can already see.
+ */
+export async function listAssignableUsers(): Promise<AssignableUser[]> {
+  if (isSupabaseConfigured) {
+    try {
+      const supabase = await createSupabaseServerClient();
+      const { data, error } = await supabase.rpc("assignable_users");
+      if (error) throw error;
+      return ((data ?? []) as { id: string; full_name: string; role: string | null }[]).map(
+        (row) => ({ id: row.id, name: row.full_name, role: row.role }),
+      );
+    } catch (error) {
+      console.error("[records] assignable_users failed, falling back to the directory", error);
+    }
+  }
+
+  const { users } = await listDirectory();
+  return users
+    .filter((person) => person.status === "active" && person.role)
+    .map((person) => ({ id: person.id, name: person.name, role: person.role }));
 }
 
 export async function setClientStatus(id: string, status: ClientStatus): Promise<boolean> {
