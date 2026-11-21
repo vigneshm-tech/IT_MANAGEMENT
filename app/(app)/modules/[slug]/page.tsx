@@ -11,6 +11,7 @@ import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { canAccessModule } from "@/lib/access";
+import { approvalView } from "@/lib/approvals/views";
 import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
 import { canManageAction1 } from "@/lib/integrations/access";
@@ -115,7 +116,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     case "approvals": {
       // Patch plans a named approver still has to answer live here next to the
       // request approvals — the same person may never open Patching Plans.
-      const [approvals, patchApprovals, people] = await Promise.all([
+      const [{ view }, approvals, patchApprovals, people] = await Promise.all([
+        searchParams,
         listApprovals(),
         listPatchInbox(user.id),
         listAssignableUsers(),
@@ -124,6 +126,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
         <ApprovalsView
           user={user}
           approvals={approvals}
+          view={approvalView(view)}
           patchApprovals={patchApprovals}
           people={people}
         />

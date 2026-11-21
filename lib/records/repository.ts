@@ -86,6 +86,8 @@ export type ApprovalRecord = {
   id: string;
   title: string;
   category: "change" | "access" | "patch" | "purchase";
+  /** Who raised it — `null` on rows written before the id was carried over. */
+  requesterId: string | null;
   requesterName: string;
   requesterRole: RoleId;
   status: ApprovalStatus;
@@ -327,6 +329,7 @@ function demoStore(): Store {
           id: "AP-3301",
           title: "Emergency patch exception for radiology servers",
           category: "patch",
+          requesterId: "u-it-engineer",
           requesterName: "Arun Prakash",
           requesterRole: "it_engineer",
           status: "pending",
@@ -339,6 +342,7 @@ function demoStore(): Store {
           id: "AP-3300",
           title: "Production database access for release 4.8",
           category: "access",
+          requesterId: "u-dev-engineer",
           requesterName: "Rahul Menon",
           requesterRole: "development_engineer",
           status: "pending",
@@ -351,6 +355,7 @@ function demoStore(): Store {
           id: "AP-3299",
           title: "Change request: SSO certificate rotation",
           category: "change",
+          requesterId: "u-dev-lead",
           requesterName: "Sneha Pillai",
           requesterRole: "development_lead",
           status: "pending",
@@ -363,6 +368,7 @@ function demoStore(): Store {
           id: "AP-3298",
           title: "Annual Action1 licence renewal",
           category: "purchase",
+          requesterId: "u-it-manager",
           requesterName: "Meera Raghavan",
           requesterRole: "it_manager",
           status: "approved",
@@ -370,6 +376,32 @@ function demoStore(): Store {
           decidedAt: iso(-5),
           note: "Approved as part of the annual budget.",
           createdAt: iso(-9),
+        },
+        {
+          id: "AP-3297",
+          title: "Standby laptop for the design team",
+          category: "purchase",
+          requesterId: "u-super-admin",
+          requesterName: "Vignesh",
+          requesterRole: "super_admin",
+          status: "approved",
+          decidedBy: "Ramesh Subramanian",
+          decidedAt: iso(-11),
+          note: "One spare unit so a failure does not stall a delivery.",
+          createdAt: iso(-16),
+        },
+        {
+          id: "AP-3296",
+          title: "Firewall rule for the new branch office",
+          category: "change",
+          requesterId: "u-it-engineer",
+          requesterName: "Arun Prakash",
+          requesterRole: "it_engineer",
+          status: "rejected",
+          decidedBy: "Meera Raghavan",
+          decidedAt: iso(-13),
+          note: "Raised before the branch circuit was provisioned — re-raise once it is.",
+          createdAt: iso(-18),
         },
       ],
       renewals: [
@@ -1080,6 +1112,7 @@ function mapApproval(row: Record<string, unknown>): ApprovalRecord {
     id: s(row.id),
     title: s(row.title),
     category: s(row.category, "change") as ApprovalRecord["category"],
+    requesterId: typeof row.created_by === "string" ? row.created_by : null,
     requesterName: s(row.requester_name),
     requesterRole: s(row.requester_role, "management") as RoleId,
     status: s(row.status, "pending") as ApprovalStatus,
@@ -1125,6 +1158,7 @@ export async function createApproval(
     const record: ApprovalRecord = {
       ...input,
       id: nextId("AP", store.approvals),
+      requesterId: user.id,
       requesterName: user.name,
       requesterRole: user.role,
       status: "pending",
