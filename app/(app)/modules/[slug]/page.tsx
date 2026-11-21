@@ -116,10 +116,13 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     case "approvals": {
       // Patch plans a named approver still has to answer live here next to the
       // request approvals — the same person may never open Patching Plans.
-      const [{ view }, approvals, patchApprovals, people] = await Promise.all([
+      const [{ view }, approvals, patchApprovals, plans, people] = await Promise.all([
         searchParams,
         listApprovals(),
         listPatchInbox(user.id),
+        // Every plan, so the Approved and Rejected tabs also list the patch
+        // sign-offs that have been decided — not only the requests.
+        listPatchSchedules(),
         listAssignableUsers(),
       ]);
       return (
@@ -127,6 +130,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           user={user}
           approvals={approvals}
           view={approvalView(view)}
+          plans={plans}
           patchApprovals={patchApprovals}
           people={people}
         />

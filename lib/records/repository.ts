@@ -1468,6 +1468,7 @@ function mapSchedule(
     outcomeAt: typeof row.outcome_at === "string" ? row.outcome_at : null,
     note: s(row.note),
     createdByName: s(row.created_by_name),
+    createdById: typeof row.created_by === "string" ? row.created_by : null,
     createdAt: s(row.created_at, new Date().toISOString()),
     updatedAt: s(row.updated_at, s(row.created_at, new Date().toISOString())),
   };
@@ -1582,6 +1583,8 @@ export async function savePatchSchedules(
           outcomeByName: "",
           outcomeAt: null,
           note: input.note,
+          // The plan keeps its original author; a reschedule is not a new ask.
+          createdById: existing.createdById ?? user.id,
           updatedAt: now,
         });
         saved.push(existing);
@@ -1601,6 +1604,7 @@ export async function savePatchSchedules(
           outcomeAt: null,
           note: input.note,
           createdByName: user.name,
+          createdById: user.id,
           createdAt: now,
           updatedAt: now,
         };
@@ -1692,6 +1696,7 @@ export async function savePatchSchedules(
       outcomeAt: null,
       note: input.note,
       createdByName: user.name,
+      createdById: user.id,
       createdAt: now,
       updatedAt: now,
     });

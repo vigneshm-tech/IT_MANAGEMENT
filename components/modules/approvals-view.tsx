@@ -12,12 +12,17 @@ import { createApprovalAction, decideApprovalAction } from "@/app/(app)/modules/
 import type { ApprovalRecord, AssignableUser, PatchScheduleRecord } from "@/lib/records/repository";
 import {
   approvalView,
-  approvalViewCounts,
   approvalViewMeta,
   approvalsForView,
   approvalViewsFor,
   type ApprovalView,
 } from "@/lib/approvals/views";
+import {
+  approvalItems,
+  itemCounts,
+  itemsForView,
+  REQUEST_TYPE_LABEL,
+} from "@/lib/approvals/history";
 import { formatDayMonth } from "@/lib/format";
 import { formatPlannedDate } from "@/lib/patching/plan";
 
@@ -36,13 +41,6 @@ const COLUMNS: Record<ApprovalView, Column[]> = {
   requested: [TITLE, REF, TYPE, SUBMITTED, DECIDED_BY, DECIDED_ON, STATUS],
   approved: [TITLE, REF, TYPE, RAISED_BY, DECIDED_BY, DECIDED_ON],
   rejected: [TITLE, REF, TYPE, RAISED_BY, DECIDED_BY, DECIDED_ON],
-};
-
-const TYPE_LABEL: Record<ApprovalRecord["category"], string> = {
-  change: "Change",
-  access: "Access",
-  patch: "Patch",
-  purchase: "Purchase",
 };
 
 const VIEW_ICON: Record<ApprovalView, typeof Inbox> = {
@@ -90,7 +88,7 @@ function cellsFor(approval: ApprovalRecord) {
   return {
     title: approval.title,
     id: approval.id,
-    category: TYPE_LABEL[approval.category],
+    category: REQUEST_TYPE_LABEL[approval.category],
     requester: `${approval.requesterName} · ${ROLE_BY_ID[approval.requesterRole]?.label ?? "—"}`,
     created: formatDayMonth(approval.createdAt),
     decidedBy: approval.decidedBy ?? "—",
@@ -103,6 +101,7 @@ export function ApprovalsView({
   user,
   approvals,
   view = "received",
+  plans = [],
   patchApprovals = [],
   people = [],
 }: {
@@ -110,6 +109,8 @@ export function ApprovalsView({
   approvals: ApprovalRecord[];
   /** Which of the four lists to show: received, requested, approved, rejected. */
   view?: ApprovalView | string;
+  /** Every patch plan, so signed-off ones can appear in the history tabs. */
+  plans?: PatchScheduleRecord[];
   /** Patch plans this person was named on and has not decided yet. */
   patchApprovals?: PatchScheduleRecord[];
   /** Staff directory for the "Verified by" picker. */
@@ -123,20 +124,37 @@ export function ApprovalsView({
   const requested = approvalView(view);
   const active: ApprovalView = views.some((tab) => tab.id === requested) ? requested : views[0].id;
   const meta = approvalViewMeta(active);
-  const counts = approvalViewCounts(approvals, user, patchApprovals.length);
-  const list = approvalsForView(approvals, active, user);
+  // Requests and patch sign-offs are one ledger: the tabs count and list both,
+  // so a plan signed off here is findable under Approved afterwards.
+  const items = approvalItems(approvals, plans);
+  const counts = itemCounts(items, user, patchApprovals.length);
 
-  const rows: TableRow[] = list.map((approval) => ({
-    id: approval.id,
-    cells: cellsFor(approval),
-    actions:
-      active === "received" && canApprove && approval.status === "pending"
-        ? [
-            { label: "Approve", value: "approve", tone: "primary" as const },
-            { label: "Reject", value: "reject", tone: "danger" as const },
-          ]
-        : [],
-  }));
+  const rows: TableRow[] =
+    active === "received"
+      ? approvalsForView(approvals, "received", user).map((approval) => ({
+          id: approval.id,
+          cells: cellsFor(approval),
+          actions: canApprove
+            ? [
+                { label: "Approve", value: "approve", tone: "primary" as const },
+                { label: "Reject", value: "reject", tone: "danger" as const },
+              ]
+            : [],
+        }))
+      : itemsForView(items, active, user).map((item) => ({
+          id: item.id,
+          href: item.kind === "patching" ? item.href : undefined,
+          cells: {
+            title: item.title,
+            id: item.id,
+            category: item.type,
+            requester: item.requesterDetail,
+            created: formatDayMonth(item.createdAt),
+            decidedBy: item.decidedBy,
+            decidedAt: item.decidedAt ? formatDayMonth(item.decidedAt) : "—",
+            status: item.status,
+          },
+        }));
 
   const emptyState = (() => {
     switch (active) {
@@ -157,7 +175,7 @@ export function ApprovalsView({
           <EmptyState
             icon={Send}
             title="You have not raised a request"
-            description="Access, change, patch exceptions and purchases you ask for show up here with their decision."
+            description="Access, change, patch exceptions and purchases you ask for — and the patch plans you schedule — show up here with their decision."
             action={raiseRequestDialog("Raise the first request")}
           />
         );
@@ -166,7 +184,7 @@ export function ApprovalsView({
           <EmptyState
             icon={BadgeCheck}
             title="Nothing approved yet"
-            description="Requests that have been approved stay here with who approved them and when."
+            description="Approved requests and signed-off patch plans stay here with who approved them and when."
           />
         );
       case "rejected":
@@ -174,7 +192,7 @@ export function ApprovalsView({
           <EmptyState
             icon={Ban}
             title="Nothing turned down"
-            description="Rejected requests stay here with the reason the approver gave."
+            description="Rejected requests and refused patch plans stay here with the reason the approver gave."
           />
         );
     }

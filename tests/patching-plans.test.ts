@@ -271,6 +271,7 @@ function plan(id: string, approvers: PatchApprover[], plannedDate = "2026-11-20"
     outcomeAt: null,
     note: "",
     createdByName: "Ravi",
+    createdById: "usr-ravi",
     createdAt: "2026-11-18T09:00:00.000Z",
     updatedAt: "2026-11-18T09:00:00.000Z",
   };

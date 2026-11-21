@@ -83,6 +83,8 @@ export type PatchScheduleRecord = {
   outcomeAt: string | null;
   note: string;
   createdByName: string;
+  /** Who scheduled it — `null` on rows written before the id was mapped. */
+  createdById: string | null;
   createdAt: string;
   updatedAt: string;
 };
