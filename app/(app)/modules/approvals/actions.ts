@@ -5,9 +5,13 @@ import { clearCache } from "@/lib/cache/ttl";
 import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import { requiredText, type FormState } from "@/lib/forms";
-import { createApproval, decideApproval, type ApprovalStatus } from "@/lib/records/repository";
-
-const CATEGORIES = ["change", "access", "patch", "purchase"] as const;
+import {
+  createApproval,
+  decideApproval,
+  listRequestTypes,
+  type ApprovalStatus,
+} from "@/lib/records/repository";
+import { isActiveRequestType } from "@/lib/request-types";
 
 export async function createApprovalAction(
   _previous: FormState,
@@ -19,22 +23,27 @@ export async function createApprovalAction(
   }
 
   const title = requiredText(formData, "title", 4);
-  const category = String(formData.get("category") ?? "change");
+  const category = String(formData.get("category") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
 
   if (!title) return { error: "Describe the request in at least 4 characters." };
-  if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number])) {
+  // The register is the only source of types — an id that was retired (or never
+  // existed) must not slip in from a stale tab.
+  const requestTypes = await listRequestTypes();
+  if (!category) {
     return { error: "Select a request type." };
+  }
+  if (!isActiveRequestType(category, requestTypes)) {
+    return {
+      error: "That request type is no longer active. Pick one from the current list in Masters → Request types.",
+    };
   }
 
   try {
-    const record = await createApproval(user, {
-      title,
-      category: category as (typeof CATEGORIES)[number],
-      note,
-    });
+    const record = await createApproval(user, { title, category, note });
     revalidatePath("/modules/approvals");
     revalidatePath("/modules/dashboard");
+    revalidatePath("/modules/masters/request-types");
     return { ok: true, message: `Request ${record.id} submitted.` };
   } catch (error) {
     console.error("[approvals] create failed", error);

@@ -1,5 +1,6 @@
 import { planStatus, type PatchScheduleRecord } from "@/lib/patching/plan";
 import { ROLE_BY_ID } from "@/lib/roles";
+import { requestTypeLabel } from "@/lib/request-types";
 import type { ApprovalRecord } from "@/lib/records/repository";
 import type { ApprovalView } from "./views";
 
@@ -15,13 +16,6 @@ import type { ApprovalView } from "./views";
 
 export type ApprovalKind = "request" | "patching";
 export type ApprovalItemStatus = "pending" | "approved" | "rejected";
-
-export const REQUEST_TYPE_LABEL: Record<ApprovalRecord["category"], string> = {
-  change: "Change",
-  access: "Access",
-  patch: "Patch exception",
-  purchase: "Purchase",
-};
 
 export type ApprovalItem = {
   id: string;
@@ -49,11 +43,18 @@ function names(values: string[], fallback = "—") {
   return unique.length > 0 ? unique.join(", ") : fallback;
 }
 
-export function requestItem(approval: ApprovalRecord): ApprovalItem {
+/**
+ * `labels` is the request type register (id → name); without it an id is
+ * humanised, so history never renders a blank Type cell.
+ */
+export function requestItem(
+  approval: ApprovalRecord,
+  labels: Record<string, string> = {},
+): ApprovalItem {
   return {
     id: approval.id,
     kind: "request",
-    type: REQUEST_TYPE_LABEL[approval.category],
+    type: labels[approval.category] ?? requestTypeLabel(approval.category),
     title: approval.title,
     requester: approval.requesterName,
     requesterDetail: `${approval.requesterName} · ${ROLE_BY_ID[approval.requesterRole]?.label ?? "—"}`,
@@ -97,8 +98,9 @@ export function patchingItem(plan: PatchScheduleRecord): ApprovalItem {
 export function approvalItems(
   requests: ApprovalRecord[],
   plans: PatchScheduleRecord[],
+  labels: Record<string, string> = {},
 ): ApprovalItem[] {
-  return [...requests.map(requestItem), ...plans.map(patchingItem)];
+  return [...requests.map((request) => requestItem(request, labels)), ...plans.map(patchingItem)];
 }
 
 type Person = { id: string; name: string };

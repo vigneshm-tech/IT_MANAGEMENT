@@ -9,7 +9,12 @@ import { can } from "@/lib/access";
 import { ROLE_BY_ID } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { createApprovalAction, decideApprovalAction } from "@/app/(app)/modules/approvals/actions";
-import type { ApprovalRecord, AssignableUser, PatchScheduleRecord } from "@/lib/records/repository";
+import type {
+  ApprovalRecord,
+  AssignableUser,
+  PatchScheduleRecord,
+  RequestTypeRecord,
+} from "@/lib/records/repository";
 import {
   approvalView,
   approvalViewMeta,
@@ -17,12 +22,12 @@ import {
   approvalViewsFor,
   type ApprovalView,
 } from "@/lib/approvals/views";
+import { approvalItems, itemCounts, itemsForView } from "@/lib/approvals/history";
 import {
-  approvalItems,
-  itemCounts,
-  itemsForView,
-  REQUEST_TYPE_LABEL,
-} from "@/lib/approvals/history";
+  requestTypeLabel,
+  requestTypeLabels,
+  requestTypeOptions,
+} from "@/lib/request-types";
 import { formatDayMonth } from "@/lib/format";
 import { formatPlannedDate } from "@/lib/patching/plan";
 
@@ -50,7 +55,11 @@ const VIEW_ICON: Record<ApprovalView, typeof Inbox> = {
   rejected: Ban,
 };
 
-function fields(): FieldDef[] {
+/** The Request type list comes from Masters → Request types, active rows only. */
+function fields(requestTypes: RequestTypeRecord[]): FieldDef[] {
+  const options = requestTypeOptions(requestTypes);
+  const preferred = options.find((option) => option.value === "access") ?? options[0];
+
   return [
     { name: "title", label: "What are you requesting?", type: "text", required: true, span: 2, placeholder: "Access to the production database for release 4.8" },
     {
@@ -58,37 +67,32 @@ function fields(): FieldDef[] {
       label: "Request type",
       type: "select",
       required: true,
-      defaultValue: "access",
-      options: [
-        { value: "change", label: "Change request" },
-        { value: "access", label: "Access" },
-        { value: "patch", label: "Patch exception" },
-        { value: "purchase", label: "Purchase" },
-      ],
+      defaultValue: preferred?.value ?? "",
+      options: options.length > 0 ? options : [{ value: "", label: "No active request types — add one in Masters" }],
     },
     { name: "note", label: "Justification", type: "textarea", span: 2, placeholder: "Scope, duration and why it is needed" },
   ];
 }
 
-function raiseRequestDialog(triggerLabel: string) {
+function raiseRequestDialog(triggerLabel: string, requestTypes: RequestTypeRecord[]) {
   return (
     <RecordDialog
       title="New request"
-      description="Requests route to managers, leads and management for a decision."
+      description="Requests route to managers, leads and management for a decision. The type list is maintained in Masters → Request types."
       triggerLabel={triggerLabel}
       submitLabel="Submit request"
-      fields={fields()}
+      fields={fields(requestTypes)}
       action={createApprovalAction}
       size="lg"
     />
   );
 }
 
-function cellsFor(approval: ApprovalRecord) {
+function cellsFor(approval: ApprovalRecord, labels: Record<string, string>) {
   return {
     title: approval.title,
     id: approval.id,
-    category: REQUEST_TYPE_LABEL[approval.category],
+    category: labels[approval.category] ?? requestTypeLabel(approval.category),
     requester: `${approval.requesterName} · ${ROLE_BY_ID[approval.requesterRole]?.label ?? "—"}`,
     created: formatDayMonth(approval.createdAt),
     decidedBy: approval.decidedBy ?? "—",
@@ -104,6 +108,7 @@ export function ApprovalsView({
   plans = [],
   patchApprovals = [],
   people = [],
+  requestTypes = [],
 }: {
   user: SessionUser;
   approvals: ApprovalRecord[];
@@ -115,6 +120,8 @@ export function ApprovalsView({
   patchApprovals?: PatchScheduleRecord[];
   /** Staff directory for the "Verified by" picker. */
   people?: AssignableUser[];
+  /** Masters → Request types. The form offers the active ones; history reads all. */
+  requestTypes?: RequestTypeRecord[];
 }) {
   const canApprove = can(user.role, "approvals", "approve");
   const views = approvalViewsFor(canApprove);
@@ -126,14 +133,15 @@ export function ApprovalsView({
   const meta = approvalViewMeta(active);
   // Requests and patch sign-offs are one ledger: the tabs count and list both,
   // so a plan signed off here is findable under Approved afterwards.
-  const items = approvalItems(approvals, plans);
+  const labels = requestTypeLabels(requestTypes);
+  const items = approvalItems(approvals, plans, labels);
   const counts = itemCounts(items, user, patchApprovals.length);
 
   const rows: TableRow[] =
     active === "received"
       ? approvalsForView(approvals, "received", user).map((approval) => ({
           id: approval.id,
-          cells: cellsFor(approval),
+          cells: cellsFor(approval, labels),
           actions: canApprove
             ? [
                 { label: "Approve", value: "approve", tone: "primary" as const },
@@ -176,7 +184,7 @@ export function ApprovalsView({
             icon={Send}
             title="You have not raised a request"
             description="Access, change, patch exceptions and purchases you ask for — and the patch plans you schedule — show up here with their decision."
-            action={raiseRequestDialog("Raise the first request")}
+            action={raiseRequestDialog("Raise the first request", requestTypes)}
           />
         );
       case "approved":
@@ -200,7 +208,7 @@ export function ApprovalsView({
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Approvals" actions={raiseRequestDialog("Raise request")} />
+      <PageHeader title="Approvals" actions={raiseRequestDialog("Raise request", requestTypes)} />
 
       <div
         role="group"

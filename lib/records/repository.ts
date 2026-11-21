@@ -6,6 +6,11 @@ import {
   TASK_ACTIVITY_MODULE,
 } from "../activity-types";
 import { INDUSTRY_SEED, normaliseIndustryName } from "../industries";
+import {
+  REQUEST_TYPE_SEED,
+  freeRequestTypeId,
+  normaliseRequestTypeName,
+} from "../request-types";
 import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import { readCache, writeCache } from "../cache/ttl";
@@ -85,7 +90,8 @@ export type PatchPlanRecord = {
 export type ApprovalRecord = {
   id: string;
   title: string;
-  category: "change" | "access" | "patch" | "purchase";
+  /** A request type id from public.request_types — see lib/request-types. */
+  category: string;
   /** Who raised it — `null` on rows written before the id was carried over. */
   requesterId: string | null;
   requesterName: string;
@@ -100,6 +106,13 @@ export type ApprovalRecord = {
 export type ActivityTypeStatus = "active" | "inactive";
 
 export type IndustryRecord = {
+  id: string;
+  name: string;
+  status: ActivityTypeStatus;
+  createdAt: string;
+};
+
+export type RequestTypeRecord = {
   id: string;
   name: string;
   status: ActivityTypeStatus;
@@ -145,6 +158,7 @@ export type RenewalRecord = {
 type Store = {
   activityTypes: ActivityTypeRecord[];
   industries: IndustryRecord[];
+  requestTypes: RequestTypeRecord[];
   customFields: CustomFieldRecord[];
   /** `fieldId\u0000recordId` → answer, mirroring `custom_field_values`. */
   customValues: Record<string, string>;
@@ -183,11 +197,21 @@ function seededIndustries(): IndustryRecord[] {
   }));
 }
 
+function seededRequestTypes(): RequestTypeRecord[] {
+  return REQUEST_TYPE_SEED.map((type) => ({
+    id: type.id,
+    name: type.name,
+    status: "active" as ActivityTypeStatus,
+    createdAt: iso(-200 + type.sortOrder),
+  }));
+}
+
 function demoStore(): Store {
   if (!globalForRecords.__taskTornadoRecords) {
     globalForRecords.__taskTornadoRecords = {
       activityTypes: seededActivityTypes(),
       industries: seededIndustries(),
+      requestTypes: seededRequestTypes(),
       customFields: [],
       customValues: {},
       clients: [
@@ -832,6 +856,117 @@ export async function deleteIndustry(id: string): Promise<boolean> {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Request types (master data for the approval form)                         */
+/* -------------------------------------------------------------------------- */
+
+function mapRequestType(row: Record<string, unknown>): RequestTypeRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** Every request type, active first, then alphabetically. */
+export async function listRequestTypes(): Promise<RequestTypeRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().requestTypes].sort(byStatusThenName);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("request_types")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true })
+      .limit(200);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapRequestType(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[records] falling back to the demo request types", error);
+    return [...demoStore().requestTypes].sort(byStatusThenName);
+  }
+}
+
+/** The id is the slug, so a rename never rewrites approvals already filed. */
+export async function createRequestType(
+  user: SessionUser,
+  rawName: string,
+): Promise<RequestTypeRecord> {
+  const name = normaliseRequestTypeName(rawName);
+  const existing = await listRequestTypes();
+  const id = freeRequestTypeId(name, existing);
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: RequestTypeRecord = {
+      id,
+      name,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    store.requestTypes.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "request_types",
+    {
+      id,
+      name,
+      status: "active",
+      sort_order: 100 + existing.length * 10,
+      created_by: user.id,
+    },
+    mapRequestType,
+  );
+}
+
+export async function updateRequestType(id: string, rawName: string): Promise<boolean> {
+  const name = normaliseRequestTypeName(rawName);
+
+  if (!isSupabaseConfigured) {
+    const record = demoStore().requestTypes.find((type) => type.id === id);
+    if (!record) return false;
+    record.name = name;
+    return true;
+  }
+
+  return patchRow("request_types", id, { name });
+}
+
+export async function setRequestTypeStatus(
+  id: string,
+  status: ActivityTypeStatus,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const record = demoStore().requestTypes.find((type) => type.id === id);
+    if (!record) return false;
+    record.status = status;
+    return true;
+  }
+  return patchRow("request_types", id, { status });
+}
+
+export async function deleteRequestType(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.requestTypes.findIndex((type) => type.id === id);
+    if (index < 0) return false;
+    store.requestTypes.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("request_types").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Custom fields (master data, filed per module)                             */
 /* -------------------------------------------------------------------------- */
 
@@ -1111,7 +1246,7 @@ function mapApproval(row: Record<string, unknown>): ApprovalRecord {
   return {
     id: s(row.id),
     title: s(row.title),
-    category: s(row.category, "change") as ApprovalRecord["category"],
+    category: s(row.category, "change"),
     requesterId: typeof row.created_by === "string" ? row.created_by : null,
     requesterName: s(row.requester_name),
     requesterRole: s(row.requester_role, "management") as RoleId,
@@ -1151,7 +1286,7 @@ export async function listApprovals(): Promise<ApprovalRecord[]> {
 
 export async function createApproval(
   user: SessionUser,
-  input: { title: string; category: ApprovalRecord["category"]; note: string },
+  input: { title: string; category: string; note: string },
 ): Promise<ApprovalRecord> {
   if (!isSupabaseConfigured) {
     const store = demoStore();

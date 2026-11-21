@@ -5,7 +5,7 @@ import { canAccessModule } from "@/lib/access";
 import type { ModuleId } from "@/lib/modules";
 import type { SessionUser } from "@/lib/auth/token";
 
-type CountKey = "activityTypes" | "industries" | "customFields";
+type CountKey = "activityTypes" | "industries" | "requestTypes" | "customFields";
 
 /**
  * Master registers owned by this hub. Clients, renewals and patching plans are
@@ -34,6 +34,14 @@ const REGISTERS: {
     summary: "The Industry list the client form draws from",
     href: "/modules/masters/industries",
     noun: "industries",
+    guard: "masters",
+  },
+  {
+    key: "requestTypes",
+    title: "Request types",
+    summary: "The Request type list the approval form offers",
+    href: "/modules/masters/request-types",
+    noun: "types",
     guard: "masters",
   },
   {

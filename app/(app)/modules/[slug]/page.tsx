@@ -27,6 +27,7 @@ import {
   listPatchInbox,
   listPatchSchedules,
   listRenewals,
+  listRequestTypes,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
 import { isTicketView, loadTickets } from "@/lib/tickets/portal";
@@ -133,6 +134,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           plans={plans}
           patchApprovals={patchApprovals}
           people={people}
+          requestTypes={await listRequestTypes()}
         />
       );
     }
@@ -141,9 +143,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
     case "masters": {
-      const [activityTypes, industries, customFields] = await Promise.all([
+      const [activityTypes, industries, requestTypes, customFields] = await Promise.all([
         listActivityTypes(),
         listIndustries(),
+        listRequestTypes(),
         listCustomFields(),
       ]);
       return (
@@ -152,6 +155,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           counts={{
             activityTypes: activityTypes.length,
             industries: industries.length,
+            requestTypes: requestTypes.length,
             customFields: customFields.length,
           }}
         />
