@@ -1,47 +1,57 @@
 import Link from "next/link";
-import {
-  AlertTriangle,
-  CircleDot,
-  CloudOff,
-  ExternalLink,
-  KeyRound,
-  Plus,
-  RefreshCw,
-  Ticket,
-  UserRound,
-} from "lucide-react";
+import { AlertTriangle, Inbox, Plus, Ticket as TicketIcon, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { buttonClass } from "@/components/ui/button";
-import type { TicketPortalData, TicketView } from "@/lib/tickets/portal";
-import { summarise } from "@/lib/tickets/portal";
-import { formatDate } from "@/lib/format";
+import type { SessionUser } from "@/lib/auth/token";
+import type { TicketRecord } from "@/lib/records/repository";
+import {
+  TICKET_VIEWS,
+  byRecentActivity,
+  isOverdue,
+  isTicketView,
+  priorityMeta,
+  stateMeta,
+  ticketsForView,
+  viewCounts,
+  type TicketView,
+} from "@/lib/tickets/core";
+import { formatDayMonth } from "@/lib/format";
+
+const VIEW_ICON: Record<TicketView, typeof Inbox> = {
+  mine: UserRound,
+  unassigned: Inbox,
+  open: TicketIcon,
+  closed: TicketIcon,
+};
 
 const COLUMNS: Column[] = [
-  { key: "id", label: "#", type: "mono", width: "74px" },
+  { key: "id", label: "#", type: "mono", width: "92px" },
   { key: "subject", label: "Subject" },
-  { key: "project", label: "Project", type: "muted", width: "170px" },
-  { key: "tracker", label: "Tracker", type: "muted", width: "120px" },
-  { key: "status", label: "Status", type: "status", width: "130px" },
-  { key: "priority", label: "Priority", type: "muted", width: "110px" },
-  { key: "assignee", label: "Assignee", type: "muted", width: "150px" },
-  { key: "due", label: "Due", type: "muted", width: "100px" },
+  { key: "queue", label: "Queue", type: "muted", width: "150px" },
+  { key: "priority", label: "Priority", width: "96px" },
+  { key: "state", label: "State", type: "status", width: "100px" },
+  { key: "owner", label: "Owner", type: "muted", width: "150px" },
+  { key: "requester", label: "Raised by", type: "muted", width: "150px" },
   { key: "updated", label: "Updated", type: "muted", width: "110px" },
 ];
 
-const TABS: { id: TicketView; label: string }[] = [
-  { id: "mine", label: "Assigned to me" },
-  { id: "all", label: "All open" },
-];
-
-function Stat({ label, value, tone }: { label: string; value: number; tone?: "danger" }) {
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  tone?: "danger";
+}) {
   return (
     <div>
       <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">{label}</dt>
       <dd
         className={
-          tone === "danger" && value > 0
+          tone === "danger" && Number(value) > 0
             ? "mt-1 text-[17px] font-medium tabular-nums text-danger"
             : "mt-1 text-[17px] font-medium tabular-nums text-navy"
         }
@@ -52,203 +62,227 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: "da
   );
 }
 
+function rowsFor(tickets: TicketRecord[], view: TicketView, userId: string): TableRow[] {
+  return ticketsForView(tickets, view, userId)
+    .sort(byRecentActivity)
+    .map((ticket) => {
+      const priority = priorityMeta(ticket.priority);
+      const state = stateMeta(ticket.state);
+      const overdue = isOverdue(ticket);
+      return {
+        id: ticket.id,
+        href: `/modules/tickets/${ticket.id}`,
+        hrefTarget: "_self" as const,
+        cells: {
+          id: ticket.id,
+          subject: ticket.subject,
+          queue: ticket.queueName || "—",
+          priority: overdue ? `${priority.label} · overdue` : priority.label,
+          state: state.label,
+          owner: ticket.ownerName || "Unassigned",
+          requester: ticket.requesterName || "—",
+          updated: formatDayMonth(ticket.updatedAt),
+        },
+      };
+    });
+}
+
 export function TicketsView({
-  data,
-  createdId,
+  user,
+  tickets,
+  view,
+  created,
+  agent,
 }: {
-  data: TicketPortalData;
-  /** Set after a ticket was created in this session. */
-  createdId?: string;
+  user: SessionUser;
+  tickets: TicketRecord[];
+  view?: string;
+  created?: string;
+  /** Agents see the whole board; everyone else only what they raised or own. */
+  agent: boolean;
 }) {
-  if (data.state === "disconnected") {
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          title="Ticket Portal"
-          actions={
-            <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>
-              Add API key
-            </Link>
-          }
-        />
-        <EmptyState
-          icon={KeyRound}
-          title="Connect your Redmine account"
-          description="Save your Redmine instance URL and personal API key in Settings. The portal then lists your open issues and lets you raise new ones without leaving TaskTornado."
-          action={
-            <Link href="/modules/settings" className={buttonClass()}>
-              Open Settings
-            </Link>
-          }
-        />
-      </div>
-    );
-  }
-
-  if (data.state === "error") {
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          title="Ticket Portal"
-          actions={
-            <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>
-              Manage key
-            </Link>
-          }
-        />
-        <div className="border border-[#eccfcd] bg-danger-soft px-4 py-3">
-          <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-danger">
-            <CloudOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>
-              <span className="font-medium">Redmine could not be read.</span> {data.error}
-            </span>
-          </p>
-          <p className="mt-1.5 text-[11.5px] text-[#8a4a46]">
-            {data.baseUrl} · key {data.masked}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link
-              href="/modules/tickets"
-              className={buttonClass({ variant: "secondary", size: "sm" })}
-            >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-              Try again
-            </Link>
-            <Link href="/modules/settings" className={buttonClass({ variant: "ghost", size: "sm" })}>
-              Update the key
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const stats = summarise(data.issues);
-  const rows: TableRow[] = data.issues.map((issue) => ({
-    id: String(issue.id),
-    href: issue.url,
-    cells: {
-      id: `#${issue.id}`,
-      subject: issue.subject,
-      project: issue.project.name,
-      tracker: issue.tracker.name,
-      status: issue.status.name,
-      priority: issue.priority.name,
-      assignee: issue.assignee?.name ?? "Unassigned",
-      due: issue.dueDate ? formatDate(issue.dueDate) : "—",
-      updated: issue.updatedOn ? formatDate(issue.updatedOn) : "—",
-    },
-    actions: [{ label: "Edit", href: `/modules/tickets/${issue.id}`, tone: "primary" as const }],
-  }));
+  // The row-level rule already limits the query on the server; this keeps the
+  // demo store honest and stops an agent-only tab from showing for others.
+  const scoped = agent
+    ? tickets
+    : tickets.filter(
+        (ticket) => ticket.requesterId === user.id || ticket.ownerId === user.id,
+      );
+  const requested: TicketView = isTicketView(view) ? view : "mine";
+  const active: TicketView = !agent && requested !== "closed" ? "mine" : requested;
+  const counts = agent
+    ? viewCounts(scoped, user.id)
+    : {
+        mine: scoped.filter((ticket) => ticket.state !== "closed").length,
+        unassigned: 0,
+        open: scoped.filter((ticket) => ticket.state !== "closed").length,
+        closed: scoped.filter((ticket) => ticket.state === "closed").length,
+      };
+  const tabs = agent ? TICKET_VIEWS : TICKET_VIEWS.filter((tab) => tab.id === "mine" || tab.id === "closed");
+  const open = scoped.filter((ticket) => ticket.state !== "closed");
+  const stats = {
+    open: open.length,
+    unassigned: counts.unassigned,
+    urgent: open.filter((ticket) => ticket.priority === "urgent" || ticket.priority === "high").length,
+    overdue: open.filter((ticket) => isOverdue(ticket)).length,
+  };
+  const rows = agent
+    ? rowsFor(scoped, active, user.id)
+    : scoped
+        .filter((ticket) => (active === "closed" ? ticket.state === "closed" : ticket.state !== "closed"))
+        .sort(byRecentActivity)
+        .map((ticket) => ({
+          id: ticket.id,
+          href: `/modules/tickets/${ticket.id}`,
+          hrefTarget: "_self" as const,
+          cells: {
+            id: ticket.id,
+            subject: ticket.subject,
+            queue: ticket.queueName || "—",
+            priority: isOverdue(ticket)
+              ? `${priorityMeta(ticket.priority).label} · overdue`
+              : priorityMeta(ticket.priority).label,
+            state: stateMeta(ticket.state).label,
+            owner: ticket.ownerName || "Unassigned",
+            requester: ticket.requesterName || "—",
+            updated: formatDayMonth(ticket.updatedAt),
+          },
+        }));
+  const createdTicket = created ? tickets.find((ticket) => ticket.id === created) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <PageHeader
-        title="Ticket Portal"
+        title="Tickets"
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href="/modules/settings"
+              href="/modules/tickets/redmine"
               className={buttonClass({ variant: "secondary", size: "sm" })}
             >
-              Manage key
+              Redmine portal
             </Link>
-            <Link
-              href="/modules/tickets/new"
-              className={buttonClass({ variant: "primary", size: "sm" })}
-            >
+            <Link href="/modules/tickets/new" className={buttonClass({ size: "sm" })}>
               <Plus className="h-3.5 w-3.5" aria-hidden />
               New ticket
             </Link>
           </div>
         }
       >
-        <p className="text-[12px] text-muted">
-          {data.baseUrl} · key {data.masked} · {data.totalCount} open in Redmine
+        <p className="text-[12.5px] text-muted">
+          Queues, states and history live in TaskTornado. Pick a ticket to reply, take it or close it.
         </p>
       </PageHeader>
 
-      {createdId && (
+      {createdTicket && (
         <div className="flex flex-wrap items-center gap-2 border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
-          <Ticket className="h-3.5 w-3.5" aria-hidden />
-          Ticket #{createdId} was created in Redmine.
-          <a
-            href={`${data.baseUrl.replace(/\/+$/, "")}/issues/${createdId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
-          >
-            Open it <ExternalLink className="h-3 w-3" aria-hidden />
-          </a>
+          <TicketIcon className="h-3.5 w-3.5" aria-hidden />
+          {createdTicket.id} was raised in {createdTicket.queueName || "the queue"}.
+          <Link href={`/modules/tickets/${createdTicket.id}`} className="underline">
+            Open it
+          </Link>
         </div>
       )}
 
       <dl className="flex flex-wrap items-center gap-x-10 gap-y-3 border-y border-line py-3.5">
-        <Stat label={data.view === "mine" ? "Assigned to me" : "Open issues"} value={stats.open} />
+        <Stat label="Open" value={stats.open} />
+        {agent && <Stat label="Unassigned" value={stats.unassigned} />}
+        <Stat label="High or urgent" value={stats.urgent} tone="danger" />
         <Stat label="Overdue" value={stats.overdue} tone="danger" />
-        <Stat label="High priority" value={stats.urgent} tone="danger" />
-        {data.view === "all" && <Stat label="Unassigned" value={stats.unassigned} />}
+        <Stat label="Closed" value={counts.closed} />
       </dl>
 
       <div role="group" aria-label="Ticket views" className="flex flex-wrap items-center gap-1">
-        {TABS.map((tab) => {
-          const current = data.view === tab.id;
+        {tabs.map((tab) => {
+          const current = active === tab.id;
+          const Icon = VIEW_ICON[tab.id];
           return (
             <Link
               key={tab.id}
               href={tab.id === "mine" ? "/modules/tickets" : `/modules/tickets?view=${tab.id}`}
               aria-current={current ? "page" : undefined}
+              title={tab.description}
               className={
                 current
                   ? "inline-flex items-center gap-1.5 border border-navy bg-navy px-3 py-1.5 text-[12px] font-medium text-white"
                   : "inline-flex items-center gap-1.5 border border-line bg-surface px-3 py-1.5 text-[12px] text-body transition-colors hover:border-navy/30 hover:text-navy"
               }
             >
-              {tab.id === "mine" ? (
-                <UserRound className="h-3.5 w-3.5" aria-hidden />
-              ) : (
-                <CircleDot className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {tab.label}
+              <Icon className="h-3.5 w-3.5" aria-hidden />
+              {tab.id === "mine" && !agent ? "My tickets" : tab.label}
+              <span
+                className={
+                  current
+                    ? "rounded bg-white/20 px-1.5 text-[10.5px] font-medium tabular-nums"
+                    : "rounded bg-[#eef2f8] px-1.5 text-[10.5px] font-medium tabular-nums text-muted"
+                }
+              >
+                {counts[tab.id]}
+              </span>
             </Link>
           );
         })}
-
-        <span className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] text-muted">
-          <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-          Read live from Redmine · refreshed {formatDate(data.loadedAt)}
-        </span>
       </div>
 
-      <DataTable
-        columns={COLUMNS}
-        rows={rows}
-        tableId={`tickets-${data.view}`}
-        exportName={`tasktornado-tickets-${data.view}`}
-        searchPlaceholder="Search issues, projects or trackers"
-        emptyState={
+      {rows.length === 0 ? (
+        active === "mine" ? (
+          agent ? (
+            <EmptyState
+              icon={Inbox}
+              title="Nothing assigned to you"
+              description="Pick a ticket from Unassigned, or raise one yourself. Tickets you own stay here until they are closed."
+              action={
+                <Link href="/modules/tickets?view=unassigned" className={buttonClass({ size: "sm" })}>
+                  See unassigned
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={Inbox}
+              title="You have not raised a ticket"
+              description="Tickets you raise land in a queue for the IT team. You can follow every reply here."
+              action={
+                <Link href="/modules/tickets/new" className={buttonClass({ size: "sm" })}>
+                  Raise a ticket
+                </Link>
+              }
+            />
+          )
+        ) : active === "unassigned" ? (
           <EmptyState
-            icon={Ticket}
-            title={data.view === "mine" ? "Nothing assigned to you" : "No open issues"}
-            description={
-              data.view === "mine"
-                ? "Issues assigned to your Redmine account will appear here. Switch to “All open” to see the rest of the queue."
-                : "Redmine reports no open issues for this account."
-            }
+            icon={Inbox}
+            title="Every ticket has an owner"
+            description="When a ticket is raised or handed back, it lands here until an agent takes it."
+          />
+        ) : active === "open" ? (
+          <EmptyState
+            icon={TicketIcon}
+            title="No open tickets"
+            description="Nothing is waiting. Raise a ticket and it appears here straight away."
             action={
               <Link href="/modules/tickets/new" className={buttonClass({ size: "sm" })}>
-                Raise a ticket
+                New ticket
               </Link>
             }
           />
-        }
-        footer={
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted">
-            <ExternalLink className="h-3 w-3" aria-hidden />
-            Subject opens the issue in Redmine · Edit updates it here
-          </span>
-        }
-      />
+        ) : (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Nothing closed yet"
+            description="Closed tickets stay here with their full history — reopen one and it returns to the open list."
+          />
+        )
+      ) : (
+        <DataTable
+          columns={COLUMNS}
+          rows={rows}
+          tableId="tickets"
+          exportName="tasktornado-tickets"
+          searchPlaceholder="Search tickets"
+          emptyState="No tickets match that search."
+        />
+      )}
     </div>
   );
 }

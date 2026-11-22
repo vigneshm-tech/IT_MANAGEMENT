@@ -5,7 +5,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { useActionState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
-import { updateTicketAction } from "@/app/(app)/modules/tickets/actions";
+import { updateRedmineTicketAction } from "@/app/(app)/modules/tickets/redmine/actions";
 import type {
   IssuePriorityOption,
   IssueStatusOption,
@@ -34,7 +34,7 @@ export function TicketUpdateForm({
   members: ProjectMember[];
   baseUrl: string;
 }) {
-  const [state, formAction, pending] = useActionState(updateTicketAction, {} as FormState);
+  const [state, formAction, pending] = useActionState(updateRedmineTicketAction, {} as FormState);
 
   return (
     <form action={formAction} className="border border-line bg-surface">

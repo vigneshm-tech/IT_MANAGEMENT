@@ -15,6 +15,22 @@ import type { SessionUser } from "../auth/token";
 import { listDirectory } from "../users/repository";
 import { readCache, writeCache } from "../cache/ttl";
 import type { RoleId } from "../roles";
+import {
+  TICKET_ARTICLE_KINDS,
+  articleIsInternal,
+  byRecentActivity,
+  closedAtFor,
+  dueAtFor,
+  isTicketChannel,
+  isTicketPriority,
+  isTicketState,
+  normaliseSubject,
+  normaliseTags,
+  type TicketArticleKind,
+  type TicketChannel,
+  type TicketPriority,
+  type TicketState,
+} from "../tickets/core";
 import { isPatchOutcome, pendingForApprover } from "../patching/plan";
 import type {
   PatchApprover,
@@ -137,6 +153,49 @@ export type ActivityTypeRecord = {
   createdAt: string;
 };
 
+export type TicketQueueRecord = {
+  id: string;
+  name: string;
+  description: string;
+  status: ActivityTypeStatus;
+  sortOrder: number;
+};
+
+export type TicketRecord = {
+  id: string;
+  subject: string;
+  state: TicketState;
+  priority: TicketPriority;
+  /** Null once a queue is deleted; `queueName` keeps the snapshot. */
+  queueId: string | null;
+  queueName: string;
+  ownerId: string | null;
+  ownerName: string;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  channel: TicketChannel;
+  tags: string[];
+  dueAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TicketArticleRecord = {
+  id: string;
+  ticketId: string;
+  kind: TicketArticleKind;
+  /** Internal notes and system rows never reach a non-agent. */
+  internal: boolean;
+  authorId: string | null;
+  authorName: string;
+  authorRole: string;
+  body: string;
+  timeMinutes: number;
+  createdAt: string;
+};
+
 export type RenewalRecord = {
   id: string;
   item: string;
@@ -167,6 +226,11 @@ type Store = {
   patchSchedules: PatchScheduleRecord[];
   approvals: ApprovalRecord[];
   renewals: RenewalRecord[];
+  ticketQueues: TicketQueueRecord[];
+  tickets: TicketRecord[];
+  ticketArticles: TicketArticleRecord[];
+  /** Last number handed out in demo mode (the live table uses a sequence). */
+  ticketSeq: number;
 };
 
 const globalForRecords = globalThis as unknown as { __taskTornadoRecords?: Store };
@@ -204,6 +268,199 @@ function seededRequestTypes(): RequestTypeRecord[] {
     status: "active" as ActivityTypeStatus,
     createdAt: iso(-200 + type.sortOrder),
   }));
+}
+
+function seededTicketQueues(): TicketQueueRecord[] {
+  return [
+    { id: "service-desk", name: "Service desk", description: "Everyday requests, access and how-to questions", status: "active", sortOrder: 10 },
+    { id: "infrastructure", name: "Infrastructure", description: "Servers, network, endpoints and patching", status: "active", sortOrder: 20 },
+    { id: "applications", name: "Applications", description: "Business applications and integrations", status: "active", sortOrder: 30 },
+    { id: "security", name: "Security", description: "Incidents, phishing reports and access reviews", status: "active", sortOrder: 40 },
+  ];
+}
+
+function ticketRecord(input: Partial<TicketRecord> & Pick<TicketRecord, "id" | "subject">): TicketRecord {
+  const createdAt = input.createdAt ?? iso(-1);
+  return {
+    state: "new",
+    priority: "normal",
+    queueId: "service-desk",
+    queueName: "Service desk",
+    ownerId: null,
+    ownerName: "",
+    requesterId: "u-dev-engineer",
+    requesterName: "Rahul Menon",
+    requesterEmail: "rahul.menon@infeara.example",
+    channel: "web",
+    tags: [],
+    dueAt: dueAtFor(createdAt, input.priority ?? "normal"),
+    closedAt: null,
+    updatedAt: createdAt,
+    createdAt,
+    ...input,
+  } as TicketRecord;
+}
+
+function seededTickets(): TicketRecord[] {
+  return [
+    ticketRecord({
+      id: "TT-1001",
+      subject: "VPN drops every few minutes on the Chennai office link",
+      state: "open",
+      priority: "high",
+      queueId: "infrastructure",
+      queueName: "Infrastructure",
+      ownerId: "u-it-engineer",
+      ownerName: "Arun Prakash",
+      tags: ["vpn", "network"],
+      createdAt: iso(-2, 9),
+      updatedAt: iso(-1, 15),
+    }),
+    ticketRecord({
+      id: "TT-1002",
+      subject: "New joiner needs a laptop and MFA before Monday",
+      priority: "normal",
+      queueId: "service-desk",
+      queueName: "Service desk",
+      requesterId: "u-impl-lead",
+      requesterName: "Priya Nair",
+      requesterEmail: "priya.nair@infeara.example",
+      channel: "email",
+      tags: ["onboarding"],
+      createdAt: iso(-1, 11),
+      updatedAt: iso(-1, 11),
+    }),
+    ticketRecord({
+      id: "TT-1003",
+      subject: "Finance reports time out after the 26.1 upgrade",
+      state: "pending",
+      priority: "high",
+      queueId: "applications",
+      queueName: "Applications",
+      ownerId: "u-it-manager",
+      ownerName: "Meera Raghavan",
+      requesterId: "u-dev-lead",
+      requesterName: "Sneha Pillai",
+      requesterEmail: "sneha.pillai@infeara.example",
+      tags: ["finance", "upgrade"],
+      createdAt: iso(-3, 10),
+      updatedAt: iso(-1, 17),
+    }),
+    ticketRecord({
+      id: "TT-1004",
+      subject: "Phishing email from accounts@infeara-billing asking for bank details",
+      priority: "urgent",
+      queueId: "security",
+      queueName: "Security",
+      requesterId: "u-super-admin",
+      requesterName: "Vignesh",
+      requesterEmail: "super.admin@tasktornado.dev",
+      channel: "phone",
+      tags: ["phishing"],
+      createdAt: iso(0, 8),
+      updatedAt: iso(0, 8),
+    }),
+    ticketRecord({
+      id: "TT-1005",
+      subject: "Printer on the 3rd floor jams on every duplex job",
+      state: "closed",
+      priority: "low",
+      queueId: "service-desk",
+      queueName: "Service desk",
+      ownerId: "u-it-engineer",
+      ownerName: "Arun Prakash",
+      tags: ["printer"],
+      createdAt: iso(-6, 12),
+      updatedAt: iso(-1, 9),
+      closedAt: iso(-1, 9),
+    }),
+  ];
+}
+
+function seededTicketArticles(): TicketArticleRecord[] {
+  const article = (
+    ticketId: string,
+    index: number,
+    input: Partial<TicketArticleRecord> & Pick<TicketArticleRecord, "body" | "createdAt">,
+  ): TicketArticleRecord => ({
+    id: `TA-${ticketId}-${index}`,
+    ticketId,
+    kind: "web",
+    internal: false,
+    authorId: "u-dev-engineer",
+    authorName: "Rahul Menon",
+    authorRole: "development_engineer",
+    timeMinutes: 0,
+    ...input,
+  });
+
+  return [
+    article("TT-1001", 1, {
+      body: "Since this morning the VPN client reconnects every few minutes. Others on the same floor see it too.",
+      createdAt: iso(-2, 9),
+    }),
+    article("TT-1001", 2, {
+      kind: "note",
+      internal: true,
+      authorId: "u-it-engineer",
+      authorName: "Arun Prakash",
+      authorRole: "it_engineer",
+      body: "ISP logged a fibre flap on the Chennai circuit at 09:20. Keeping the ticket open until the carrier confirms a fix.",
+      timeMinutes: 20,
+      createdAt: iso(-2, 11),
+    }),
+    article("TT-1001", 3, {
+      authorId: "u-it-engineer",
+      authorName: "Arun Prakash",
+      authorRole: "it_engineer",
+      body: "We have a carrier ticket open and will follow up once the line is stable. Please use the backup link if you need to stay online.",
+      timeMinutes: 10,
+      createdAt: iso(-1, 15),
+    }),
+    article("TT-1002", 1, {
+      authorId: "u-impl-lead",
+      authorName: "Priya Nair",
+      authorRole: "implementation_lead",
+      body: "Sandeep joins the implementation team on Monday. He needs a laptop with the standard image and MFA enrolled.",
+      createdAt: iso(-1, 11),
+    }),
+    article("TT-1003", 1, {
+      authorId: "u-dev-lead",
+      authorName: "Sneha Pillai",
+      authorRole: "development_lead",
+      body: "The month-end report now times out after 60 seconds. It worked before the 26.1 upgrade.",
+      createdAt: iso(-3, 10),
+    }),
+    article("TT-1003", 2, {
+      kind: "note",
+      internal: true,
+      authorId: "u-it-manager",
+      authorName: "Meera Raghavan",
+      authorRole: "it_manager",
+      body: "Asked the vendor for the 26.1 patch notes. Waiting on a reply before we change the query timeout.",
+      timeMinutes: 35,
+      createdAt: iso(-1, 17),
+    }),
+    article("TT-1004", 1, {
+      authorId: "u-super-admin",
+      authorName: "Vignesh",
+      authorRole: "super_admin",
+      body: "A user forwarded a message from accounts@infeara-billing asking for a bank change. Please confirm it is a phishing attempt.",
+      createdAt: iso(0, 8),
+    }),
+    article("TT-1005", 1, {
+      body: "Every duplex job jams and needs the tray pulled out.",
+      createdAt: iso(-6, 12),
+    }),
+    article("TT-1005", 2, {
+      authorId: "u-it-engineer",
+      authorName: "Arun Prakash",
+      authorRole: "it_engineer",
+      body: "Replaced the duplex roller and ran 50 test pages. Closing — raise it again if it recurs.",
+      timeMinutes: 45,
+      createdAt: iso(-1, 9),
+    }),
+  ];
 }
 
 function demoStore(): Store {
@@ -482,6 +739,10 @@ function demoStore(): Store {
           createdAt: iso(-400),
         },
       ],
+      ticketQueues: seededTicketQueues(),
+      tickets: seededTickets(),
+      ticketArticles: seededTicketArticles(),
+      ticketSeq: 1005,
     };
   }
 
@@ -493,6 +754,10 @@ function demoStore(): Store {
   if (!Array.isArray(store.customFields)) store.customFields = [];
   if (!store.customValues || typeof store.customValues !== "object") store.customValues = {};
   if (!Array.isArray(store.patchSchedules)) store.patchSchedules = [];
+  if (!Array.isArray(store.ticketQueues)) store.ticketQueues = seededTicketQueues();
+  if (!Array.isArray(store.tickets)) store.tickets = seededTickets();
+  if (!Array.isArray(store.ticketArticles)) store.ticketArticles = seededTicketArticles();
+  if (typeof store.ticketSeq !== "number") store.ticketSeq = 1005;
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
     if (!type.module) type.module = TASK_ACTIVITY_MODULE;
@@ -964,6 +1229,364 @@ export async function deleteRequestType(id: string): Promise<boolean> {
   const { data, error } = await supabase.from("request_types").delete().eq("id", id).select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Tickets (native, phase 1 of the Zammad-parity plan)                       */
+/* -------------------------------------------------------------------------- */
+
+function mapTicketQueue(row: Record<string, unknown>): TicketQueueRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    description: s(row.description),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+/** Active queues, in the order the picker should offer them. */
+export async function listTicketQueues(): Promise<TicketQueueRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().ticketQueues]
+      .filter((queue) => queue.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_queues")
+      .select("*")
+      .eq("status", "active")
+      .order("sort_order", { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketQueue(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] falling back to the demo queues", error);
+    return [...demoStore().ticketQueues].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+}
+
+function mapTicket(row: Record<string, unknown>): TicketRecord {
+  const kind = s(row.channel, "web");
+  return {
+    id: s(row.id),
+    subject: s(row.subject),
+    state: (isTicketState(s(row.state)) ? s(row.state) : "new") as TicketRecord["state"],
+    priority: (isTicketPriority(s(row.priority)) ? s(row.priority) : "normal") as TicketRecord["priority"],
+    queueId: s(row.queue_id) || null,
+    queueName: s(row.queue_name),
+    ownerId: s(row.owner_id) || null,
+    ownerName: s(row.owner_name),
+    requesterId: s(row.requester_id),
+    requesterName: s(row.requester_name),
+    requesterEmail: s(row.requester_email),
+    channel: (isTicketChannel(kind) ? kind : "web") as TicketRecord["channel"],
+    tags: Array.isArray(row.tags) ? (row.tags as unknown[]).filter((tag) => typeof tag === "string") : [],
+    dueAt: s(row.due_at) || null,
+    closedAt: s(row.closed_at) || null,
+    createdAt: s(row.created_at, new Date().toISOString()),
+    updatedAt: s(row.updated_at, new Date().toISOString()),
+  };
+}
+
+function mapTicketArticle(row: Record<string, unknown>): TicketArticleRecord {
+  const kind = s(row.kind, "web");
+  return {
+    id: s(row.id),
+    ticketId: s(row.ticket_id),
+    kind: (TICKET_ARTICLE_KINDS.includes(kind as TicketArticleRecord["kind"])
+      ? kind
+      : "web") as TicketArticleRecord["kind"],
+    internal: row.internal === true,
+    authorId: s(row.author_id) || null,
+    authorName: s(row.author_name),
+    authorRole: s(row.author_role),
+    body: s(row.body),
+    timeMinutes: n(row.time_minutes),
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** Newest activity first — the order every list view reads in. */
+export async function listTickets(): Promise<TicketRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().tickets].sort(byRecentActivity);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("tickets")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicket(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] falling back to the demo tickets", error);
+    return [...demoStore().tickets].sort(byRecentActivity);
+  }
+}
+
+export async function getTicket(id: string): Promise<TicketRecord | null> {
+  if (!isSupabaseConfigured) {
+    return demoStore().tickets.find((ticket) => ticket.id === id) ?? null;
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.from("tickets").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data ? mapTicket(data as Record<string, unknown>) : null;
+  } catch (error) {
+    console.error("[tickets] ticket read failed", error);
+    return demoStore().tickets.find((ticket) => ticket.id === id) ?? null;
+  }
+}
+
+/** The conversation, oldest first. */
+export async function listTicketArticles(ticketId: string): Promise<TicketArticleRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketArticles.filter((article) => article.ticketId === ticketId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_articles")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: true })
+      .limit(500);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketArticle(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] article read failed", error);
+    return [];
+  }
+}
+
+export type NewTicketInput = {
+  subject: string;
+  body: string;
+  priority: TicketPriority;
+  queueId: string;
+  tags: string[];
+  channel?: TicketChannel;
+};
+
+/** Raises a ticket and files its first public article in one go. */
+export async function createTicket(
+  user: SessionUser,
+  input: NewTicketInput,
+): Promise<TicketRecord> {
+  const now = new Date().toISOString();
+  const queue = (await listTicketQueues()).find((item) => item.id === input.queueId);
+  // The action normalises too; the store is the last line of defence because a
+  // ticket number and subject are permanent once written.
+  const created: Omit<TicketRecord, "id"> = {
+    subject: normaliseSubject(input.subject),
+    state: "new",
+    priority: input.priority,
+    queueId: queue?.id ?? null,
+    queueName: queue?.name ?? "",
+    ownerId: null,
+    ownerName: "",
+    requesterId: user.id,
+    requesterName: user.name,
+    requesterEmail: user.email,
+    channel: input.channel ?? "web",
+    tags: normaliseTags(input.tags),
+    dueAt: dueAtFor(now, input.priority),
+    closedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    store.ticketSeq += 1;
+    const record: TicketRecord = { id: `TT-${store.ticketSeq}`, ...created };
+    store.tickets.push(record);
+    store.ticketArticles.push({
+      id: `TA-${record.id}-1`,
+      ticketId: record.id,
+      kind: "web",
+      internal: false,
+      authorId: user.id,
+      authorName: user.name,
+      authorRole: user.role,
+      body: input.body,
+      timeMinutes: 0,
+      createdAt: now,
+    });
+    return record;
+  }
+
+  const ticket = await insertRow(
+    "tickets",
+    {
+      subject: created.subject,
+      state: created.state,
+      priority: created.priority,
+      queue_id: created.queueId,
+      queue_name: created.queueName,
+      owner_id: null,
+      owner_name: "",
+      requester_id: user.id,
+      requester_name: user.name,
+      requester_email: user.email,
+      channel: created.channel,
+      tags: created.tags,
+      due_at: created.dueAt,
+    },
+    mapTicket,
+  );
+
+  await insertRow(
+    "ticket_articles",
+    {
+      ticket_id: ticket.id,
+      kind: "web",
+      internal: false,
+      author_id: user.id,
+      author_name: user.name,
+      author_role: user.role,
+      body: input.body,
+      time_minutes: 0,
+    },
+    mapTicketArticle,
+  );
+
+  return ticket;
+}
+
+export type TicketPatch = {
+  state?: TicketState;
+  priority?: TicketPriority;
+  queueId?: string | null;
+  queueName?: string;
+  ownerId?: string | null;
+  ownerName?: string;
+  subject?: string;
+  tags?: string[];
+};
+
+/** Applies a patch and bumps `updated_at` so the ticket jumps the queue. */
+export async function updateTicket(id: string, patch: TicketPatch): Promise<boolean> {
+  const now = new Date().toISOString();
+  const values: Record<string, unknown> = { updated_at: now };
+
+  if (patch.state) {
+    values.state = patch.state;
+    values.closed_at = closedAtFor(patch.state);
+  }
+  if (patch.priority) {
+    values.priority = patch.priority;
+    const existing = await getTicket(id);
+    if (existing) values.due_at = dueAtFor(existing.createdAt, patch.priority);
+  }
+  if (patch.queueId !== undefined) {
+    values.queue_id = patch.queueId;
+    values.queue_name = patch.queueName ?? "";
+  }
+  if (patch.ownerId !== undefined) {
+    values.owner_id = patch.ownerId;
+    values.owner_name = patch.ownerName ?? "";
+  }
+  if (patch.subject) values.subject = patch.subject;
+  if (patch.tags) values.tags = patch.tags;
+
+  if (!isSupabaseConfigured) {
+    const record = demoStore().tickets.find((ticket) => ticket.id === id);
+    if (!record) return false;
+    if (patch.state) {
+      record.state = patch.state;
+      record.closedAt = (values.closed_at as string | null) ?? null;
+    }
+    if (patch.priority) record.priority = patch.priority;
+    if (typeof values.due_at === "string") record.dueAt = values.due_at;
+    if (patch.queueId !== undefined) {
+      record.queueId = patch.queueId;
+      record.queueName = patch.queueName ?? "";
+    }
+    if (patch.ownerId !== undefined) {
+      record.ownerId = patch.ownerId;
+      record.ownerName = patch.ownerName ?? "";
+    }
+    if (patch.subject) record.subject = patch.subject;
+    if (patch.tags) record.tags = patch.tags;
+    record.updatedAt = now;
+    return true;
+  }
+
+  const saved = await patchRow("tickets", id, values);
+  return saved;
+}
+
+export type NewTicketArticleInput = {
+  ticketId: string;
+  body: string;
+  kind: Extract<TicketArticleKind, "web" | "note" | "system" | "email" | "phone">;
+  timeMinutes?: number;
+};
+
+/** Appends a message. Internal notes are already flagged by `kind`. */
+export async function addTicketArticle(
+  user: Pick<SessionUser, "id" | "name" | "role">,
+  input: NewTicketArticleInput,
+): Promise<TicketArticleRecord> {
+  const now = new Date().toISOString();
+  const internal = articleIsInternal(input.kind);
+  const timeMinutes = Math.max(0, Math.min(1440, Math.round(input.timeMinutes ?? 0)));
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const ticket = store.tickets.find((item) => item.id === input.ticketId);
+    if (!ticket) throw new Error("Ticket not found");
+    const record: TicketArticleRecord = {
+      id: `TA-${input.ticketId}-${store.ticketArticles.length + 1}`,
+      ticketId: input.ticketId,
+      kind: input.kind,
+      internal,
+      authorId: user.id,
+      authorName: user.name,
+      authorRole: user.role,
+      body: input.body,
+      timeMinutes,
+      createdAt: now,
+    };
+    store.ticketArticles.push(record);
+    ticket.updatedAt = now;
+    return record;
+  }
+
+  const article = await insertRow(
+    "ticket_articles",
+    {
+      ticket_id: input.ticketId,
+      kind: input.kind,
+      internal,
+      author_id: user.id,
+      author_name: user.name,
+      author_role: user.role,
+      body: input.body,
+      time_minutes: timeMinutes,
+    },
+    mapTicketArticle,
+  );
+
+  // The article insert does not touch its ticket, so nudge it forward by hand.
+  await patchRow("tickets", input.ticketId, { updated_at: now });
+  return article;
 }
 
 /* -------------------------------------------------------------------------- */

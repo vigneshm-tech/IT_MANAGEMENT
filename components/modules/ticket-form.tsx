@@ -5,11 +5,11 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { useActionState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
-import { createTicketAction } from "@/app/(app)/modules/tickets/actions";
+import { createRedmineTicketAction } from "@/app/(app)/modules/tickets/redmine/actions";
 
 /** Inline create form — posts straight to Redmine, no popup. */
 export function TicketForm({ projects }: { projects: { id: number; name: string }[] }) {
-  const [state, formAction, pending] = useActionState(createTicketAction, {} as FormState);
+  const [state, formAction, pending] = useActionState(createRedmineTicketAction, {} as FormState);
 
   return (
     <form action={formAction} className="border border-line bg-surface">

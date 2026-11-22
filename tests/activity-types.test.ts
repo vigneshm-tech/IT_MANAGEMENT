@@ -49,7 +49,7 @@ test("names only have to be unique inside their module", () => {
   );
   assert.match(
     String(activityTypeNameError("Service request", EXISTING, { module: "tickets" })),
-    /already exists for Ticket Portal/,
+    /already exists for Tickets/,
   );
   assert.equal(activityTypeNameError("Service request", EXISTING, { module: "servers" }), null);
 });

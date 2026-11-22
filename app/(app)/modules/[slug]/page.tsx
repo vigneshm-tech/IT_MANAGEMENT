@@ -10,7 +10,7 @@ import { isServersFilter, ServersView } from "@/components/modules/servers-view"
 import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
-import { canAccessModule } from "@/lib/access";
+import { can, canAccessModule } from "@/lib/access";
 import { approvalView } from "@/lib/approvals/views";
 import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
@@ -28,9 +28,9 @@ import {
   listPatchSchedules,
   listRenewals,
   listRequestTypes,
+  listTickets,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
-import { isTicketView, loadTickets } from "@/lib/tickets/portal";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -66,11 +66,14 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "tickets": {
-      const [{ view, created }] = await Promise.all([searchParams]);
+      const [{ view, created }, tickets] = await Promise.all([searchParams, listTickets()]);
       return (
         <TicketsView
-          data={await loadTickets(user.id, isTicketView(view) ? view : "mine")}
-          createdId={created}
+          user={user}
+          tickets={tickets}
+          view={view}
+          created={created}
+          agent={can(user.role, "tickets", "edit")}
         />
       );
     }

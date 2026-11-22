@@ -53,6 +53,20 @@ const QA_L = "testing_lead" as RoleId;
 export const MGMT = "management" as RoleId;
 
 /** Managers, leads and management — the leadership tier. */
+/**
+ * The people who work a ticket queue: IT, the L2 support desk and management.
+ * Everyone else raises tickets and reads their own.
+ */
+export const SERVICE_DESK: RoleId[] = [
+  SUPER,
+  IT,
+  IT_ENG,
+  L2_M,
+  L2_L,
+  "l2_support_engineer" as RoleId,
+  MGMT,
+];
+
 export const LEADERSHIP: RoleId[] = [
   IT,
   L2_M,
@@ -87,12 +101,17 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     id: "tickets",
-    title: "Ticket Portal",
+    title: "Tickets",
     href: "/modules/tickets",
-    summary: "Your assigned Redmine issues",
+    summary: "Raise, triage and resolve support tickets",
     icon: "Ticket",
     navGroup: "service",
-    access: { view: "all", create: "all", edit: "all" },
+    access: {
+      view: "all",
+      create: "all",
+      edit: SERVICE_DESK,
+      admin: [SUPER, IT],
+    },
   },
   {
     id: "servers",

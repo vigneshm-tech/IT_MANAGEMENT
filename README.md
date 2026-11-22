@@ -120,7 +120,7 @@ re-reads `profiles.status` and sends a non-active account through `/logout`.
 | --- | --- | --- | --- | --- | --- |
 | Dashboards | Everyone | — | — | — | IT Manager, Management |
 | Task Management | Everyone | Everyone* | Leadership | — | — |
-| Ticket Portal | Everyone | Everyone | Everyone | — | — |
+| Tickets | Everyone | Everyone | IT + L2 support + Management | — | IT Manager |
 | Servers | IT + managers + leads + management | — | IT | — | IT Manager |
 | Clients Master | Everyone | Leadership | IT + leadership | — | — |
 | Patching Plans | IT + managers + leads + management | IT | IT | Leadership | — |
@@ -436,9 +436,31 @@ super-admin account live in `0004_super_admin_role.sql` and
 `0005_super_admin_account.sql`; user administration lives in
 `0007_user_administration.sql`.
 
-## 4a. Ticket Portal (Redmine REST API)
+## 4a. Tickets (native)
 
-The portal reads live from Redmine using the per-user key saved in Settings. It
+Tickets live in TaskTornado's own tables: `tickets` and `ticket_articles`
+(migration `0024_tickets.sql`). A ticket has a queue (`ticket_queues`), a state
+(new → open → pending → closed), a priority with a resolve target, an owner, a
+requester, tags and a thread of articles. Closing stamps `closed_at`; reopening
+clears it. Every state/priority/queue/owner/tag change appends a `system`
+article, so the thread is the audit trail.
+
+- List: `/modules/tickets` with four views — Assigned to me, Unassigned, All
+  open, Closed. Requesters see only the tickets they raised or own.
+- Detail: `/modules/tickets/<id>` — the thread, reply and internal-note boxes,
+  time booked per message, and a sidebar for state, priority, queue, owner and
+  tags (agents only).
+- Raise: `/modules/tickets/new` — queue, priority, tags, channel and the first
+  message.
+- Internal notes and system entries never reach a non-agent — the query filters
+  them in the page and RLS limits the rows to their own tickets.
+- The full module map and the remaining phases are in
+  [`docs/ticketing-plan.md`](docs/ticketing-plan.md).
+
+## 4b. Redmine portal (kept from the first build)
+
+The old portal still reads live from Redmine using the per-user key saved in
+Settings, at `/modules/tickets/redmine`. It
 implements the documented API
 ([redmine.org/projects/redmine/wiki/rest_api](https://www.redmine.org/projects/redmine/wiki/rest_api)):
 
@@ -464,10 +486,10 @@ Notes taken from the reference:
 - Requests time out after 12 s, so a wrong URL cannot hang the page.
 
 Client: `lib/integrations/redmine.ts` (network calls plus pure mapping helpers),
-portal loader: `lib/tickets/portal.ts`, UI: `components/modules/tickets-view.tsx`
-with the create form at `/modules/tickets/new` (inline, no popup).
+portal loader: `lib/tickets/portal.ts`, UI: `components/modules/tickets-portal-view.tsx`
+with the create form at `/modules/tickets/redmine/new` (inline, no popup).
 
-Each portal row has an **Edit** action that opens `/modules/tickets/<id>` — a
+Each portal row has an **Edit** action that opens `/modules/tickets/redmine/<id>` — a
 full page showing the issue, its journal and an inline edit form (subject,
 description, status, priority, assignee and an optional comment merged into the
 same `PUT`). Saving redirects back to the issue with an “updated” banner; a

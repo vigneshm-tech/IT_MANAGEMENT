@@ -1,27 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CloudOff, ExternalLink, KeyRound } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Lock, Send, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
-import { StatusPill, humanise } from "@/components/ui/status-pill";
+import { StatusPill } from "@/components/ui/status-pill";
 import { AccessDenied } from "@/components/modules/access-denied";
-import { TicketUpdateForm } from "@/components/modules/ticket-update-form";
+import { TicketControls } from "@/components/modules/ticket-controls";
+import { TicketReplyForm } from "@/components/modules/ticket-reply-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { loadTicketEditor } from "@/lib/tickets/portal";
 import { formatDateTime } from "@/lib/format";
+import { ROLE_BY_ID } from "@/lib/roles";
+import {
+  getTicket,
+  listAssignableUsers,
+  listTicketArticles,
+  listTicketQueues,
+} from "@/lib/records/repository";
+import {
+  channelLabel,
+  formatMinutes,
+  isOverdue,
+  priorityMeta,
+  stateMeta,
+  threadSummary,
+} from "@/lib/tickets/core";
+import { ticketRowActionAction } from "@/app/(app)/modules/tickets/actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string }>;
+  searchParams: Promise<{ created?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Ticket #${id}` };
+  return { title: `Ticket ${id}` };
 }
 
-function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">{label}</dt>
@@ -30,34 +46,55 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
   );
 }
 
+function ActionButton({
+  ticketId,
+  action,
+  label,
+  tone = "secondary",
+}: {
+  ticketId: string;
+  action: string;
+  label: string;
+  tone?: "primary" | "secondary";
+}) {
+  return (
+    <form action={ticketRowActionAction}>
+      <input type="hidden" name="ticketId" value={ticketId} />
+      <input type="hidden" name="action" value={action} />
+      <button type="submit" className={buttonClass({ variant: tone, size: "sm" })}>
+        {label}
+      </button>
+    </form>
+  );
+}
+
 export default async function TicketPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { created } = await searchParams;
   const user = await requireUser();
 
   if (!canAccessModule(user.role, "tickets")) {
-    return <AccessDenied moduleTitle="Ticket Portal" />;
+    return <AccessDenied moduleTitle="Tickets" />;
   }
 
-  const data = await loadTicketEditor(user.id, id);
-  const { updated } = await searchParams;
-  const canEdit = can(user.role, "tickets", "edit");
+  const ticket = await getTicket(id);
 
-  if (data.state === "disconnected") {
+  if (!ticket) {
     return (
       <div className="space-y-4">
         <PageHeader title="Ticket" />
         <div className="flex items-start gap-3 border border-line bg-surface px-4 py-4">
-          <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
+          <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
           <div>
-            <p className="text-[13px] font-medium text-navy">Redmine is not connected</p>
+            <p className="text-[13px] font-medium text-navy">That ticket is not here</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Save your instance URL and API key to open tickets here.
+              It may have been deleted, or it belongs to someone else.
             </p>
             <Link
-              href="/modules/settings"
-              className={buttonClass({ variant: "primary", size: "sm", className: "mt-3" })}
+              href="/modules/tickets"
+              className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}
             >
-              Open Settings
+              Back to tickets
             </Link>
           </div>
         </div>
@@ -65,134 +102,184 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
     );
   }
 
-  if (data.state === "error") {
-    return (
-      <div className="space-y-4">
-        <PageHeader title={`Ticket #${id}`} />
-        <div className="flex items-start gap-3 border border-[#eccfcd] bg-danger-soft px-4 py-3">
-          <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-danger" aria-hidden />
-          <p className="text-[12.5px] leading-relaxed text-danger">
-            <span className="font-medium">That ticket could not be read.</span> {data.error}
-          </p>
-        </div>
-        <Link href="/modules/tickets" className={buttonClass({ variant: "secondary", size: "sm" })}>
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          Back to the portal
-        </Link>
-      </div>
-    );
+  const isAgent = can(user.role, "tickets", "edit");
+  const isRequester = ticket.requesterId === user.id;
+
+  // The database already limits a non-agent to their own tickets; this is the
+  // second half of the rule — internal notes and system rows never reach them.
+  if (!isAgent && !isRequester) {
+    return <AccessDenied moduleTitle="Tickets" />;
   }
 
-  const { issue, statuses, priorities, members, baseUrl } = data;
+  const [allArticles, queues, people] = await Promise.all([
+    listTicketArticles(id),
+    listTicketQueues(),
+    isAgent ? listAssignableUsers() : Promise.resolve([]),
+  ]);
+  const articles = isAgent ? allArticles : allArticles.filter((article) => !article.internal);
+  const summary = threadSummary(allArticles);
+  const state = stateMeta(ticket.state);
+  const priority = priorityMeta(ticket.priority);
+  const overdue = isOverdue(ticket);
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title={issue.subject}
+        title={ticket.subject}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/modules/tickets"
               className={buttonClass({ variant: "secondary", size: "sm" })}
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              Portal
+              Tickets
             </Link>
-            <a
-              href={issue.url}
-              target="_blank"
-              rel="noreferrer"
-              className={buttonClass({ variant: "primary", size: "sm" })}
-            >
-              Open in Redmine
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-            </a>
+            {isAgent && ticket.state !== "closed" && !ticket.ownerId && (
+              <ActionButton ticketId={ticket.id} action="take" label="Take ticket" tone="primary" />
+            )}
+            {isAgent && ticket.state !== "closed" && ticket.state !== "pending" && (
+              <ActionButton ticketId={ticket.id} action="pending" label="Waiting on requester" />
+            )}
+            {isAgent && ticket.state !== "closed" && (
+              <ActionButton ticketId={ticket.id} action="close" label="Close" />
+            )}
+            {isAgent && ticket.state === "closed" && (
+              <ActionButton ticketId={ticket.id} action="reopen" label="Reopen" tone="primary" />
+            )}
           </div>
         }
       >
-        <p className="text-[12px] text-muted">
-          #{issue.id} · {issue.project.name} · {issue.tracker.name}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
+          <span className="font-mono text-[11.5px]">{ticket.id}</span>
+          <span aria-hidden>·</span>
+          <span>{ticket.queueName || "No queue"}</span>
+          <span aria-hidden>·</span>
+          <StatusPill status={ticket.state} label={state.label} />
+          <span aria-hidden>·</span>
+          <span className={overdue ? "text-danger" : undefined}>
+            {priority.label} priority
+            {overdue && " · overdue"}
+          </span>
+          <span aria-hidden>·</span>
+          <span>opened {formatDateTime(ticket.createdAt)}</span>
         </p>
       </PageHeader>
 
-      {updated && (
-        <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
-          Ticket #{issue.id} was updated in Redmine.
-        </p>
+      {created && (
+        <div className="flex items-center gap-2 border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
+          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+          Ticket {ticket.id} was raised. Agents in {ticket.queueName || "the queue"} see it in their
+          list.
+        </div>
       )}
 
-      <section className="border border-line bg-surface">
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-line px-4 py-4 sm:grid-cols-3 sm:px-5">
-          <Detail label="Status">
-            <StatusPill status={issue.status.name} label={humanise(issue.status.name)} />
-          </Detail>
-          <Detail label="Priority">{issue.priority.name}</Detail>
-          <Detail label="Assignee">{issue.assignee?.name ?? "Unassigned"}</Detail>
-          <Detail label="Author">{issue.author.name || "—"}</Detail>
-          <Detail label="Due date">{issue.dueDate ?? "—"}</Detail>
-          <Detail label="Updated">{issue.updatedOn ? formatDateTime(issue.updatedOn) : "—"}</Detail>
-        </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-4">
+          <ol className="space-y-3">
+            {articles.map((article) => {
+              const role = ROLE_BY_ID[article.authorRole as keyof typeof ROLE_BY_ID];
+              if (article.kind === "system") {
+                return (
+                  <li
+                    key={article.id}
+                    className="flex flex-wrap items-baseline gap-x-2 border-l-2 border-line pl-3 text-[11.5px] text-muted"
+                  >
+                    <Clock className="h-3 w-3" aria-hidden />
+                    <span className="text-body">{article.body}</span>
+                    <span>· {formatDateTime(article.createdAt)}</span>
+                  </li>
+                );
+              }
 
-        <div className="px-4 py-4 sm:px-5">
-          <h2 className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-            Description
-          </h2>
-          <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-body">
-            {issue.description || "No description was added."}
-          </p>
-        </div>
-      </section>
-
-      <section className="border border-line bg-surface">
-        <div className="border-b border-line px-4 py-3 sm:px-5">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-navy">
-            Activity
-          </h2>
-          <p className="mt-1 text-[11.5px] text-muted">
-            Journal entries as Redmine stores them, newest at the bottom.
-          </p>
-        </div>
-
-        <div className="px-4 py-4 sm:px-5">
-          {issue.journals.length === 0 ? (
-            <p className="text-[12.5px] text-muted">No comments yet.</p>
-          ) : (
-            <ul className="space-y-4">
-              {issue.journals.map((journal) => (
-                <li key={journal.id} className="border-l-2 border-line pl-3">
-                  <p className="text-[11px] text-muted">
-                    {journal.user.name || "Someone"} · {formatDateTime(journal.createdOn)}
-                  </p>
-                  <p className="mt-1 whitespace-pre-line text-[12.5px] leading-relaxed text-body">
-                    {journal.notes}
+              const note = article.internal;
+              return (
+                <li
+                  key={article.id}
+                  className={
+                    note
+                      ? "border border-[#e4d6ae] bg-warning-soft px-4 py-3"
+                      : "border border-line bg-surface px-4 py-3"
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-[12.5px] font-medium text-navy">
+                      {article.authorName || "System"}
+                    </span>
+                    <span className="text-[11.5px] text-muted">
+                      {role?.label ?? article.authorRole.replace(/_/g, " ")}
+                    </span>
+                    {note && (
+                      <span className="inline-flex items-center gap-1 bg-[#f6edd6] px-1.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.06em] text-warning">
+                        <Lock className="h-2.5 w-2.5" aria-hidden />
+                        Internal note
+                      </span>
+                    )}
+                    <span className="ml-auto text-[11px] text-muted">
+                      {formatDateTime(article.createdAt)}
+                    </span>
+                    {article.timeMinutes > 0 && (
+                      <span className="text-[11px] text-muted">
+                        · {formatMinutes(article.timeMinutes)} booked
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 whitespace-pre-line text-[12.5px] leading-relaxed text-body">
+                    {article.body}
                   </p>
                 </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+              );
+            })}
+          </ol>
 
-      {canEdit ? (
-        <TicketUpdateForm
-          issue={{
-            id: issue.id,
-            subject: issue.subject,
-            description: issue.description,
-            statusId: issue.statusId,
-            priorityId: issue.priorityId,
-            assigneeId: issue.assigneeId,
-          }}
-          statuses={statuses}
-          priorities={priorities}
-          members={members}
-          baseUrl={baseUrl}
-        />
-      ) : (
-        <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read tickets but not change them.
-        </p>
-      )}
+          <TicketReplyForm ticketId={ticket.id} canNote={isAgent} />
+        </div>
+
+        <aside className="space-y-4">
+          <dl className="space-y-3 border border-line bg-surface px-4 py-4">
+            <Meta label="Requester">
+              {ticket.requesterName}
+              {ticket.requesterEmail && (
+                <span className="block text-[11.5px] text-muted">{ticket.requesterEmail}</span>
+              )}
+            </Meta>
+            <Meta label="Owner">{ticket.ownerName || "Unassigned"}</Meta>
+            <Meta label="Channel">{channelLabel(ticket.channel)}</Meta>
+            <Meta label="Due">{ticket.dueAt ? formatDateTime(ticket.dueAt) : "—"}</Meta>
+            {ticket.closedAt && <Meta label="Closed">{formatDateTime(ticket.closedAt)}</Meta>}
+            <Meta label="Thread">
+              {summary.replies} {summary.replies === 1 ? "reply" : "replies"} · {summary.notes}{" "}
+              {summary.notes === 1 ? "note" : "notes"}
+              {summary.minutes > 0 && ` · ${formatMinutes(summary.minutes)} booked`}
+            </Meta>
+            <Meta label="Tags">
+              {ticket.tags.length === 0 ? (
+                <span className="text-muted">—</span>
+              ) : (
+                <span className="flex flex-wrap gap-1">
+                  {ticket.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="bg-[#eef2f8] px-1.5 py-0.5 text-[11px] text-body"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </Meta>
+          </dl>
+
+          {isAgent ? (
+            <TicketControls ticket={ticket} queues={queues} people={people} />
+          ) : (
+            <div className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[12px] text-muted">
+              <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              You raised this ticket. Replies you add go straight to the agent handling it.
+            </div>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

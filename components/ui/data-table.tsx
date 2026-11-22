@@ -49,8 +49,10 @@ export type Column = {
 export type TableRowData = {
   id: string;
   cells: Record<string, string | number | null>;
-  /** When set, the first cell becomes a link (opens in a new tab). */
+  /** When set, the first cell becomes a link. Opens in a new tab by default. */
   href?: string;
+  /** `_self` keeps the reader in the module — used where the row is the page. */
+  hrefTarget?: "_blank" | "_self";
   /** Overrides the table-level actions for this row. */
   actions?: RowAction[];
 };
@@ -537,7 +539,7 @@ export function DataTable({
                     ) : isFirst && row.href ? (
                       <a
                         href={row.href}
-                        target="_blank"
+                        target={row.hrefTarget ?? "_blank"}
                         rel="noreferrer"
                         className="font-medium text-navy underline-offset-2 transition-colors hover:text-gold hover:underline"
                       >
