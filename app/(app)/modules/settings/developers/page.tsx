@@ -15,6 +15,7 @@ import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { API_SCOPES, grantableScopes } from "@/lib/api/scopes";
 import { MCP_PROTOCOL_VERSION, MCP_TOOLS } from "@/lib/mcp/server";
 import { listConnectedApps } from "@/lib/mcp/oauth";
+import { recentMcpRequests } from "@/lib/mcp/log";
 import { formatDateTime } from "@/lib/format";
 import { createApiKeyAction, revokeApiKeyAction, revokeConnectedAppAction } from "./actions";
 
@@ -43,9 +44,10 @@ export default async function DevelopersSettingsPage({
   }
 
   const { revoke } = await searchParams;
-  const [keys, apps, headerList] = await Promise.all([
+  const [keys, apps, requests, headerList] = await Promise.all([
     listApiKeys(user.id),
     listConnectedApps(user.id),
+    recentMcpRequests(8),
     headers(),
   ]);
   const host = headerList.get("host") ?? "localhost:3000";
@@ -181,6 +183,70 @@ export default async function DevelopersSettingsPage({
         )}
 
         <ApiKeyForm action={createApiKeyAction} scopes={available} />
+      </section>
+
+      <section aria-labelledby="log-heading" className="space-y-3">
+        <div>
+          <h2 id="log-heading" className="text-[13px] font-semibold text-navy">
+            Recent MCP requests
+          </h2>
+          <p className="mt-0.5 text-[11.5px] text-muted">
+            The last eight attempts to reach <code className="font-mono text-navy">{origin}/api/mcp</code>{" "}
+            — verb, JSON-RPC method, status and one line of detail. A connector that says &quot;no tools
+            loaded&quot; is one of these rows; the detail says which.
+          </p>
+        </div>
+
+        {requests.length === 0 ? (
+          <p className="border-y border-line bg-surface px-4 py-5 text-[12.5px] text-muted">
+            Nothing has reached the endpoint yet. If you have just added the connector, its attempt will
+            appear here within a second — an empty table means the request never arrived (wrong URL, or
+            blocked before it reached the app).
+          </p>
+        ) : (
+          <div className="overflow-x-auto border-y border-line">
+            <table className="w-full min-w-[760px] text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-line bg-[#f7f9fc] text-[10.5px] uppercase tracking-[0.07em] text-muted">
+                  <th className="px-3 py-2 font-medium">When</th>
+                  <th className="px-3 py-2 font-medium">Verb</th>
+                  <th className="px-3 py-2 font-medium">Method</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Credential</th>
+                  <th className="px-3 py-2 font-medium">Detail</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line bg-surface">
+                {requests.map((entry, index) => (
+                  <tr key={`${entry.at}-${index}`} className="align-top">
+                    <td className="whitespace-nowrap px-3 py-2 text-muted">
+                      {formatDateTime(new Date(entry.at))}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-navy">{entry.verb}</td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-body">
+                      {entry.rpcMethod ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={
+                          entry.status < 300
+                            ? "text-success"
+                            : entry.status < 500
+                              ? "text-warning"
+                              : "text-danger"
+                        }
+                      >
+                        {entry.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-muted">{entry.credential ?? "none"}</td>
+                    <td className="px-3 py-2 text-muted">{entry.detail ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="apps-heading" className="space-y-3">

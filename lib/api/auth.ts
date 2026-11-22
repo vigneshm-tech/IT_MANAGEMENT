@@ -32,13 +32,39 @@ export type ApiAuthResult =
   | { ok: true; caller: ApiCaller; remaining: number }
   | { ok: false; response: NextResponse };
 
-function bearer(request: Request): string | null {
-  const header = request.headers.get("authorization") ?? "";
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  if (match) return match[1].trim();
-  // MCP clients that cannot set Authorization still usually can set a bare header.
-  const apiKey = request.headers.get("x-api-key");
-  return apiKey ? apiKey.trim() : null;
+/**
+ * The credential a request presents, however the client chose to write it.
+ *
+ * The spec says `Authorization: Bearer tt_…`. Real clients and real people send
+ * `tt_…`, `bearer tt_…`, `Bearer  Bearer tt_…` and `"tt_…"` — and a connector
+ * screen hides the field behind a single "Headers" row, so a pasted prefix is
+ * the easiest mistake to make. All of those mean the same thing; refusing them
+ * costs a person an afternoon and protects nothing.
+ */
+export function credentialFrom(request: Request): string | null {
+  const looksLikeCredential = (value: string) => /^tt[a-z]?_[A-Za-z0-9_-]{8,}$/.test(value);
+
+  const clean = (raw: string | null): string | null => {
+    if (!raw) return null;
+    let value = raw.trim();
+    // Peel repeated schemes, then any wrapping quotes.
+    for (let index = 0; index < 3; index += 1) {
+      const stripped = value.replace(/^bearer[\s:]+/i, "").trim();
+      if (stripped === value) break;
+      value = stripped;
+    }
+    value = value.replace(/^["']+/, "").replace(/["']+$/, "").trim();
+    return value.length > 0 ? value : null;
+  };
+
+  for (const header of ["authorization", "x-api-key", "x-auth-token", "api-key"]) {
+    const value = clean(request.headers.get(header));
+    if (!value) continue;
+    if (looksLikeCredential(value)) return value;
+    // A Basic/Other scheme on Authorization is not our credential; keep looking.
+  }
+
+  return null;
 }
 
 type ProfileRow = {
@@ -115,7 +141,7 @@ function unauthorized(request: Request, code: string, message: string): NextResp
  * role the person holds right now.
  */
 export async function authenticateRequest(request: Request): Promise<ApiAuthResult> {
-  const secret = bearer(request);
+  const secret = credentialFrom(request);
   if (!secret) {
     return {
       ok: false,

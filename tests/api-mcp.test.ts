@@ -10,7 +10,13 @@ import {
   looksLikeApiKey,
   revokeApiKey,
 } from "../lib/api/keys";
-import { authenticateRequest, callerScopes, requireScope, type ApiCaller } from "../lib/api/auth";
+import {
+  authenticateRequest,
+  callerScopes,
+  credentialFrom,
+  requireScope,
+  type ApiCaller,
+} from "../lib/api/auth";
 import {
   API_SCOPES,
   apiKeyNameError,
@@ -186,6 +192,29 @@ test("a request without a key is refused before any work happens", async () => {
     assert.equal(result.response.status, 401);
     const body = (await result.response.json()) as { error: { code: string } };
     assert.equal(body.error.code, "missing_key");
+  }
+});
+
+test("the credential is read however the client wrote the header", () => {
+  const key = "tt_ABCDEFGH1234567890abcdefghijklmn";
+
+  const cases: [Record<string, string>, string | null][] = [
+    [{ authorization: `Bearer ${key}` }, key],
+    [{ authorization: key }, key],
+    [{ authorization: `bearer ${key}` }, key],
+    [{ authorization: `Bearer  ${key}` }, key],
+    [{ authorization: `Bearer Bearer ${key}` }, key],
+    [{ authorization: `"${key}"` }, key],
+    [{ "x-api-key": key }, key],
+    [{ "x-auth-token": key }, key],
+    [{ authorization: "Basic dXNlcjpwYXNz" }, null],
+    [{ authorization: "Bearer not-a-tasktornado-key" }, null],
+    [{}, null],
+  ];
+
+  for (const [headers, expected] of cases) {
+    const request = new Request("https://tasktornado.test/api/mcp", { headers });
+    assert.equal(credentialFrom(request), expected, `${JSON.stringify(headers)}`);
   }
 });
 

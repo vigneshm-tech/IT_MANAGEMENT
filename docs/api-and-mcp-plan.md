@@ -125,6 +125,21 @@ asked, so no server-initiated stream is needed, and saying so is better than a s
 **Two ways in, one identity.** Either a personal key (`Authorization: Bearer tt_…`) or an OAuth
 access token (`ttm_…`). Both resolve to the same `ApiCaller`; neither can exceed the person's role.
 
+**The header is read generously.** `Bearer tt_…`, `tt_…`, `bearer tt_…`, `Bearer Bearer tt_…`,
+`"tt_…"` and `X-Api-Key` all mean the same credential. A connector screen hides the value behind one
+"Headers" row, so a pasted or doubled prefix is the easiest mistake a person can make — and a 401
+for it teaches nobody anything.
+
+**`GET /api/mcp` is a probe, not a stream.** A client asking for `text/event-stream` gets the spec's
+`405` and falls back to POSTing. Anything else — a browser, `curl`, a person wondering whether their
+connector is configured — gets JSON: server info, protocol version, the caller, and the tools this
+credential can call.
+
+**Every attempt is recorded** in `mcp_requests` (verb, JSON-RPC method, status, protocol version,
+climate headers, credential *kind*, one line of detail — never a secret) and shown under
+Settings → Developers. "No tools loaded" is the client's summary of one of those rows; the row says
+which.
+
 Tools, one per REST capability:
 
 | Tool | Scope | Calls |
@@ -273,6 +288,7 @@ components/modules/settings-tabs.tsx    the strip
 components/modules/api-key-form.tsx     issue a key, reveal the secret once
 tests/api-mcp.test.ts                   scopes, keys, auth, MCP dispatch
 tests/mcp-oauth.test.ts                 registration, PKCE, codes, tokens, revocation
+lib/mcp/log.ts                          per-request log behind Settings → Developers
 ```
 
 ---
