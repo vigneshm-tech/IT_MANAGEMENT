@@ -1,55 +1,57 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Zap } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
-import { buttonClass } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/status-pill";
+import { Zap } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { TicketMacroForm } from "@/components/modules/ticket-macro-admin-form";
-import { can, canAccessModule } from "@/lib/access";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusPill } from "@/components/ui/status-pill";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listTicketMacros, listTicketQueues } from "@/lib/records/repository";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
 import { macroSummary } from "@/lib/tickets/core";
-import { addTicketMacroAction, ticketMacroRowAction } from "./actions";
+import { saveTicketMacroAction, ticketMacroRowAction } from "./actions";
 
-export const metadata: Metadata = { title: "Ticket macros" };
+export const metadata: Metadata = { title: "Macros" };
 
 export default async function TicketMacrosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ delete?: string }>;
+  searchParams: Promise<{ edit?: string; delete?: string }>;
 }) {
   const user = await requireUser();
-
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Macros" />;
   }
 
-  const { delete: deleteId } = await searchParams;
+  const { edit, delete: deleteId } = await searchParams;
   const [macros, queues] = await Promise.all([listTicketMacros(true), listTicketQueues()]);
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
+  const editing = edit ? macros.find((macro) => macro.id === edit) : undefined;
   const active = macros.filter((macro) => macro.status === "active").length;
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Ticket macros"
-        actions={
-          <Link href="/modules/masters" className={buttonClass({ variant: "secondary", size: "sm" })}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Masters
-          </Link>
-        }
-      >
-        <p className="text-[12.5px] text-muted">
-          {active} active {active === 1 ? "macro" : "macros"} of {macros.length}. An agent picks one
-          on a ticket and the whole bundle — state, priority, queue, tag — is applied with a line in
-          the thread.
-        </p>
+    <div className="space-y-5">
+      <PageHeader title="Macros">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <TicketAdminTabs active="macros" />
+          <p className="text-[12px] text-muted">
+            {active} active of {macros.length} · an agent picks one and the whole bundle is applied
+          </p>
+        </div>
       </PageHeader>
 
       {canEdit ? (
-        <TicketMacroForm action={addTicketMacroAction} queues={queues} />
+        <TicketMacroForm
+          key={editing?.id ?? "new"}
+          action={saveTicketMacroAction}
+          queues={queues}
+          macro={editing}
+        />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
           Your role can read macros but not change them.
@@ -69,7 +71,12 @@ export default async function TicketMacrosPage({
       ) : (
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {macros.map((macro) => (
-            <li key={macro.id} className="px-4 py-3 sm:px-5">
+            <li
+              key={macro.id}
+              className={
+                editing?.id === macro.id ? "border-l-2 border-navy px-4 py-3 sm:px-5" : "px-4 py-3 sm:px-5"
+              }
+            >
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-[13px] font-medium text-navy">{macro.name}</span>
                 <StatusPill
@@ -90,6 +97,12 @@ export default async function TicketMacrosPage({
 
               {canEdit && (
                 <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`/modules/tickets/masters/macros?edit=${macro.id}`}
+                    className="text-[11.5px] text-body underline-offset-2 hover:text-navy hover:underline"
+                  >
+                    Edit
+                  </Link>
                   <form action={ticketMacroRowAction}>
                     <input type="hidden" name="id" value={macro.id} />
                     <input type="hidden" name="value" value="toggle" />
@@ -112,7 +125,7 @@ export default async function TicketMacrosPage({
                         Yes, delete
                       </button>
                       <Link
-                        href="/modules/masters/ticket-macros"
+                        href="/modules/tickets/masters/macros"
                         className="text-[11.5px] text-muted hover:text-navy"
                       >
                         Cancel
@@ -120,7 +133,7 @@ export default async function TicketMacrosPage({
                     </form>
                   ) : (
                     <Link
-                      href={`/modules/masters/ticket-macros?delete=${macro.id}`}
+                      href={`/modules/tickets/masters/macros?delete=${macro.id}`}
                       className="text-[11.5px] text-muted underline-offset-2 hover:text-danger hover:underline"
                     >
                       Delete

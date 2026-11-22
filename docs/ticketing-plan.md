@@ -30,14 +30,14 @@ Every module in the Zammad admin docs, and where it lands here.
 | **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Four tabs + filter bar (queue/state/priority/tag/owner) + per-person saved overviews | **2 — shipped** |
 | **Checklist** | Sub-items inside one ticket | `ticket_tasks` + sidebar panel + `2/3` in the list | **2 — shipped** |
 | **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state, merge action | **2 — shipped** |
-| **Macros** | One-click bundle of changes | `ticket_macros`, Masters page, apply action | **2 — shipped** |
-| **Text Modules** | Snippets inserted into replies | Masters → Text modules + picker in the reply box | **2 — shipped** |
+| **Macros** | One-click bundle of changes | `ticket_macros`, Tickets → Masters → Macros, apply action | **2 — shipped** |
+| **Text Modules** | Snippets inserted into replies | Tickets → Masters → Text modules + picker in the reply box | **2 — shipped** |
 | **Triggers** | If-this-then-that on ticket events | `ticket_triggers` evaluated on create and reply | **3 — shipped** |
 | **SLAs** | First-response / solution targets per queue+priority | `ticket_slas` + `due_at`/`first_response_at` | **3 — shipped** |
 | **Calendars** | Business hours used by SLA maths | `ticket_calendars` (Mon–Fri 09:00–18:00 IST default) | **3 — shipped** |
 | **Scheduler** | Time-based jobs (auto-close, reminders) | `/api/tickets/sweep` + `vercel.json` cron | **3 — shipped** |
 | **Report Profiles / Reporting** | Counts by queue, agent, state over time | `/modules/tickets/reports` + CSV | **3 — shipped** |
-| **Knowledge Base** | Public + internal articles | `/modules/tickets/kb` | 4 |
+| **Knowledge Base** | Public + internal articles | `/modules/kb` (agent), `/support/kb` (public) | 4 |
 | **Channels: Web** | Agent-created ticket (already) | Phase 1 | **1 — shipped** |
 | **Channels: Form** | Public web form → ticket | `/support/new` (no sign-in, rate limited) | 4 |
 | **Channels: Email** | IMAP/Graph inbox → ticket | Integration + inbound route | 4 |
@@ -105,11 +105,11 @@ Shipped in migration `0025_ticket_tools.sql`:
 - **Checklists** — `ticket_tasks` per ticket, ticked off in the sidebar; each
   tick writes a `system` line and the list shows `2/3` in its own column.
 - **Macros** — `ticket_macros`, four seeded (escalate, waiting on requester,
-  close as duplicate, resolved), maintained in **Masters → Ticket macros** and
+  close as duplicate, resolved), maintained in **Tickets → Masters → Macros** and
   applied from a picker on the ticket. A macro applies state, priority, queue
   and a tag in one go and leaves one `system` line saying what changed.
-- **Text modules** — `ticket_text_modules`, maintained in **Masters → Text
-  modules** (add, edit, deactivate, delete) and inserted into the reply box from
+- **Text modules** — `ticket_text_modules`, maintained in **Tickets → Masters →
+  Text modules** (add, edit, deactivate, delete) and inserted into the reply box from
   a picker; the snippet is appended to whatever has been typed.
 - **Links and merges** — `ticket_links` (related / parent / child / duplicate)
   shown both ways on both tickets; **Merge** moves the source to the `merged`
@@ -134,7 +134,7 @@ Shipped in migration `0027_ticket_sla.sql`.
   and a fixed UTC offset (330 for IST; India has no daylight saving, so an
   offset is exact and needs no timezone database). Seeded with **India business
   hours** (Mon–Fri 09:00–18:00) and **India extended hours** (Mon–Sat
-  08:00–20:00). Masters → Service targets.
+  08:00–20:00). Tickets → Masters → Targets & shifts.
 - **SLAs** — `ticket_slas`: first-response and resolution targets in business
   minutes, scoped to a queue, a priority, both, or neither. The most specific
   rule wins, then sort order. Seeded urgent 30/240, security 60/480,
@@ -182,7 +182,8 @@ Shipped in migration `0028_ticket_channels.sql` and the build that follows it.
   `lib/tickets/public-form.ts`; the visitor sees a ticket number immediately.
 - **Knowledge base**: `kb_categories` and `kb_articles` with `public` and
   `internal` visibility, search across `/support/kb` (no account) and
-  `/modules/kb` (agents), categories in Masters, and a "suggest an article"
+  `/modules/kb` (agents), categories in Tickets → Masters → KB categories, and a
+  "suggest an article"
   panel inside the reply box driven by `suggestKbArticles` — public articles
   only, because the requester will read whatever is inserted.
 - **Email channel**: `ticket_email_settings` records the address, the way the
@@ -201,6 +202,31 @@ Known constraint, documented rather than worked around: Vercel rejects
 fourth-level subdomains, so a per-tenant host such as `tenant.tasktornado.app`
 is not possible — a per-organization public desk has to be a path
 (`tasktornado.app/<org>`) or a custom domain per tenant.
+
+## 5a. Configuration lives inside Tickets — **complete**
+
+Everything above that used to be maintained under `/modules/masters` has moved,
+because a service manager configuring the desk should not have to leave it:
+
+- **Tickets → Masters** (`/modules/tickets/masters`) — six registers with counts
+  and a tab strip: queues, targets & shifts, triggers, macros, text modules and
+  KB categories. Every register adds *and* edits: an edit reuses the same form
+  with the row in it (`?edit=<id>`, or `/<id>` for a snippet), writes through
+  `updateTicketSla` / `updateTicketCalendar` / `updateTicketTrigger` /
+  `updateTicketMacro` / `updateTicketQueue` / `updateKbCategory`, and keeps the
+  id so tickets that already point at the row keep their history.
+- **Tickets → Settings** (`/modules/tickets/settings`) — the channels: the public
+  form and the queues it offers, the knowledge base's public/internal split, the
+  email channel's state and address, the recent outbox, and the email form at
+  `/modules/tickets/settings/email`. Which queues are offered publicly is the
+  `is_public` switch on the queue register, so that decision has exactly one
+  home.
+- **Deletes that would strand records are refused.** A queue with tickets and a
+  shelf with articles answer `{ ok: false, reason }` and the screen says so;
+  deactivating is the documented alternative.
+- **Guards** — reading needs `tickets:view` plus `canReadTicketAdmin`; writing
+  needs `canConfigureTickets` (`masters:edit` or `tickets:admin`), both in
+  `lib/tickets/admin.ts`. The old routes are redirects.
 
 ## 6. Phase 5 — AI (optional)
 

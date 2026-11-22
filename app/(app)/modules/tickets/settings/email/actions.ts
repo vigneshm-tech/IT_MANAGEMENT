@@ -5,6 +5,7 @@ import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import type { FormState } from "@/lib/forms";
 import { listTicketQueues, saveTicketEmailSettings } from "@/lib/records/repository";
+import { canConfigureTickets } from "@/lib/tickets/admin";
 import { emailSettingsError, isEmailProvider } from "@/lib/tickets/email";
 
 /**
@@ -17,7 +18,8 @@ export async function saveTicketEmailSettingsAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) {
+  if (!can(user.role, "tickets", "view")) return { error: "You cannot read tickets." };
+  if (!canConfigureTickets(user.role)) {
     return { error: "Your role cannot change the email channel." };
   }
 
@@ -53,7 +55,9 @@ export async function saveTicketEmailSettingsAction(
     return { error: "The email channel could not be saved. Please try again." };
   }
 
-  revalidatePath("/modules/masters/ticket-email");
+  revalidatePath("/modules/tickets");
+  revalidatePath("/modules/tickets/settings");
+  revalidatePath("/modules/tickets/settings/email");
   return {
     ok: true,
     message: input.enabled

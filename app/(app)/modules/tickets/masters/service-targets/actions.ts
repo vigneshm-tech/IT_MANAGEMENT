@@ -13,18 +13,17 @@ import {
   listTicketSlas,
   setTicketCalendarStatus,
   setTicketSlaStatus,
+  updateTicketCalendar,
+  updateTicketSla,
 } from "@/lib/records/repository";
-import {
-  calendarError,
-  slaError,
-  timeToMinutes,
-} from "@/lib/tickets/sla";
+import { canConfigureTickets } from "@/lib/tickets/admin";
 import { isTicketPriority, type TicketPriority } from "@/lib/tickets/core";
+import { calendarError, slaError, timeToMinutes } from "@/lib/tickets/sla";
 
 function revalidate() {
-  revalidatePath("/modules/masters");
-  revalidatePath("/modules/masters/slas");
   revalidatePath("/modules/tickets");
+  revalidatePath("/modules/tickets/masters");
+  revalidatePath("/modules/tickets/masters/service-targets");
 }
 
 function minutesField(formData: FormData, name: string): number {
@@ -32,46 +31,53 @@ function minutesField(formData: FormData, name: string): number {
   return Number.isFinite(parsed) ? Math.round(parsed) : 0;
 }
 
-export async function addTicketSlaAction(
+export async function saveTicketSlaAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) {
-    return { error: "Your role cannot change master data." };
-  }
+  if (!can(user.role, "tickets", "view")) return { error: "You cannot read tickets." };
+  if (!canConfigureTickets(user.role)) return { error: "Your role cannot change the targets." };
 
+  const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").replace(/\s+/g, " ").trim();
   const queueId = String(formData.get("queueId") ?? "").trim() || null;
   const rawPriority = String(formData.get("priority") ?? "").trim();
-  const calendarId = String(formData.get("calendarId") ?? "").trim();
   const firstResponseMinutes = minutesField(formData, "firstResponseMinutes");
   const resolveMinutes = minutesField(formData, "resolveMinutes");
 
   const calendars = await listTicketCalendars(true);
-  const calendar = calendars.find((item) => item.id === calendarId) ?? calendars[0];
+  const calendarId = String(formData.get("calendarId") ?? "").trim() || calendars[0]?.id || "";
+  const calendar = calendars.find((item) => item.id === calendarId);
+  if (!calendar) return { error: "Add a business shift first — a target needs a clock to run on." };
 
+  const clash = (await listTicketSlas(true)).some(
+    (rule) => rule.id !== id && rule.name.trim().toLowerCase() === name.toLowerCase(),
+  );
   const error =
     slaError({ name, firstResponseMinutes, resolveMinutes }) ??
-    (calendar ? null : "Add a business shift first — a target needs a clock to run on.") ??
-    (name && (await listTicketSlas(true)).some(
-      (rule) => rule.name.trim().toLowerCase() === name.toLowerCase(),
-    )
-      ? `"${name}" is already a service target.`
-      : null);
+    (clash ? `"${name}" is already a service target.` : null);
   if (error) return { error };
 
+  const input = {
+    name,
+    queueId,
+    priority: isTicketPriority(rawPriority) ? (rawPriority as TicketPriority) : null,
+    firstResponseMinutes,
+    resolveMinutes,
+    calendarId: calendar.id,
+  };
+
   try {
-    await createTicketSla({
-      name,
-      queueId,
-      priority: isTicketPriority(rawPriority) ? (rawPriority as TicketPriority) : null,
-      firstResponseMinutes,
-      resolveMinutes,
-      calendarId: calendar!.id,
-    });
+    if (id) {
+      const saved = await updateTicketSla(id, input);
+      if (!saved) return { error: "That target no longer exists." };
+      revalidate();
+      return { ok: true, message: `"${name}" was updated.` };
+    }
+    await createTicketSla(input);
   } catch (cause) {
-    console.error("[ticket-slas] create failed", cause);
+    console.error("[ticket-slas] save failed", cause);
     return { error: "The service target could not be saved. Please try again." };
   }
 
@@ -79,15 +85,15 @@ export async function addTicketSlaAction(
   return { ok: true, message: `"${name}" is now a service target.` };
 }
 
-export async function addTicketCalendarAction(
+export async function saveTicketCalendarAction(
   _previous: FormState,
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) {
-    return { error: "Your role cannot change master data." };
-  }
+  if (!can(user.role, "tickets", "view")) return { error: "You cannot read tickets." };
+  if (!canConfigureTickets(user.role)) return { error: "Your role cannot change the shifts." };
 
+  const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").replace(/\s+/g, " ").trim();
   const days = formData
     .getAll("days")
@@ -98,28 +104,35 @@ export async function addTicketCalendarAction(
   const offsetRaw = String(formData.get("offset") ?? "").trim();
   const utcOffsetMinutes = offsetRaw ? Number(offsetRaw) : 330;
 
+  const clash = (await listTicketCalendars(true)).some(
+    (calendar) => calendar.id !== id && calendar.name.trim().toLowerCase() === name.toLowerCase(),
+  );
   const error =
     calendarError({ name, days, startMinute, endMinute }) ??
     (Number.isFinite(utcOffsetMinutes) && utcOffsetMinutes >= -720 && utcOffsetMinutes <= 840
       ? null
       : "The UTC offset has to be between -720 and 840 minutes.") ??
-    ((await listTicketCalendars(true)).some(
-      (calendar) => calendar.name.trim().toLowerCase() === name.toLowerCase(),
-    )
-      ? `"${name}" is already a shift.`
-      : null);
+    (clash ? `"${name}" is already a shift.` : null);
   if (error) return { error };
 
+  const input = {
+    name,
+    utcOffsetMinutes,
+    days: [...new Set(days)].sort((a, b) => a - b),
+    startMinute: startMinute!,
+    endMinute: endMinute!,
+  };
+
   try {
-    await createTicketCalendar({
-      name,
-      utcOffsetMinutes,
-      days: [...new Set(days)].sort((a, b) => a - b),
-      startMinute: startMinute!,
-      endMinute: endMinute!,
-    });
+    if (id) {
+      const saved = await updateTicketCalendar(id, input);
+      if (!saved) return { error: "That shift no longer exists." };
+      revalidate();
+      return { ok: true, message: `"${name}" was updated.` };
+    }
+    await createTicketCalendar(input);
   } catch (cause) {
-    console.error("[ticket-calendars] create failed", cause);
+    console.error("[ticket-calendars] save failed", cause);
     return { error: "The shift could not be saved. Please try again." };
   }
 
@@ -127,9 +140,9 @@ export async function addTicketCalendarAction(
   return { ok: true, message: `"${name}" is now a shift.` };
 }
 
-export async function slaRowAction(formData: FormData): Promise<void> {
+export async function serviceTargetRowAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) return;
+  if (!canConfigureTickets(user.role)) return;
 
   const id = String(formData.get("id") ?? "").trim();
   const value = String(formData.get("value") ?? "");
@@ -154,7 +167,7 @@ export async function slaRowAction(formData: FormData): Promise<void> {
       return;
     }
   } catch (cause) {
-    console.error("[ticket-slas] row action failed", cause);
+    console.error("[service-targets] row action failed", cause);
     return;
   }
 

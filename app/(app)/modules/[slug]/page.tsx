@@ -19,7 +19,6 @@ import { canManageAction1 } from "@/lib/integrations/access";
 import { loadServersInventory } from "@/lib/servers/inventory";
 import { getModule } from "@/lib/modules";
 import {
-  getTicketEmailSettings,
   listActivityTypes,
   listApprovals,
   listClients,
@@ -30,14 +29,9 @@ import {
   listPatchSchedules,
   listRenewals,
   listRequestTypes,
-  listTicketMacros,
   listTicketOverviews,
-  listKbCategories,
-  listTicketSlas,
-  listTicketTriggers,
   listTicketQueues,
   listTicketTaskCounts,
-  listTicketTextModules,
   listTickets,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
@@ -180,27 +174,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
     case "masters": {
-      const [
-        activityTypes,
-        industries,
-        requestTypes,
-        textModules,
-        ticketMacros,
-        serviceTargets,
-        ticketTriggers,
-        kbCategories,
-        ticketEmail,
-        customFields,
-      ] = await Promise.all([
+      const [activityTypes, industries, requestTypes, customFields] = await Promise.all([
         listActivityTypes(),
         listIndustries(),
         listRequestTypes(),
-        listTicketTextModules(true),
-        listTicketMacros(true),
-        listTicketSlas(true),
-        listTicketTriggers(true),
-        listKbCategories(true),
-        getTicketEmailSettings(),
         listCustomFields(),
       ]);
       return (
@@ -210,14 +187,6 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             activityTypes: activityTypes.length,
             industries: industries.length,
             requestTypes: requestTypes.length,
-            textModules: textModules.length,
-            ticketMacros: ticketMacros.length,
-            serviceTargets: serviceTargets.length,
-            ticketTriggers: ticketTriggers.length,
-            kbCategories: kbCategories.length,
-            // One row exists whether or not it is configured, so the hub counts
-            // the addresses that are actually usable.
-            ticketEmail: ticketEmail.address ? 1 : 0,
             customFields: customFields.length,
           }}
         />

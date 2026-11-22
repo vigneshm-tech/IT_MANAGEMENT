@@ -5,21 +5,14 @@ import { canAccessModule } from "@/lib/access";
 import type { ModuleId } from "@/lib/modules";
 import type { SessionUser } from "@/lib/auth/token";
 
-type CountKey =
-  | "activityTypes"
-  | "industries"
-  | "requestTypes"
-  | "textModules"
-  | "ticketMacros"
-  | "serviceTargets"
-  | "ticketTriggers"
-  | "kbCategories"
-  | "ticketEmail"
-  | "customFields";
+type CountKey = "activityTypes" | "industries" | "requestTypes" | "customFields";
 
 /**
- * Master registers owned by this hub. Clients, renewals and patching plans are
- * modules of their own and are not duplicated here.
+ * Master registers owned by this hub.
+ *
+ * Everything that configures ticketing — queues, targets and shifts, triggers,
+ * macros, text modules, KB categories and the email channel — now lives inside
+ * the Tickets module instead, so it is not listed here at all.
  */
 const REGISTERS: {
   key: CountKey;
@@ -52,54 +45,6 @@ const REGISTERS: {
     summary: "The Request type list the approval form offers",
     href: "/modules/masters/request-types",
     noun: "types",
-    guard: "masters",
-  },
-  {
-    key: "textModules",
-    title: "Text modules",
-    summary: "Reply snippets agents insert into a ticket",
-    href: "/modules/masters/text-modules",
-    noun: "snippets",
-    guard: "masters",
-  },
-  {
-    key: "ticketMacros",
-    title: "Ticket macros",
-    summary: "One-click bundles of ticket changes",
-    href: "/modules/masters/ticket-macros",
-    noun: "macros",
-    guard: "masters",
-  },
-  {
-    key: "serviceTargets",
-    title: "Service targets",
-    summary: "Promises per queue and priority, measured on the office clock",
-    href: "/modules/masters/slas",
-    noun: "targets",
-    guard: "masters",
-  },
-  {
-    key: "ticketTriggers",
-    title: "Ticket triggers",
-    summary: "If this, then that — automatic changes on new tickets and messages",
-    href: "/modules/masters/ticket-triggers",
-    noun: "triggers",
-    guard: "masters",
-  },
-  {
-    key: "kbCategories",
-    title: "KB categories",
-    summary: "The shelves behind the knowledge base",
-    href: "/modules/masters/kb",
-    noun: "categories",
-    guard: "masters",
-  },
-  {
-    key: "ticketEmail",
-    title: "Email channel",
-    summary: "The support address, its queue and the outbound relay",
-    href: "/modules/masters/ticket-email",
-    noun: "addresses",
     guard: "masters",
   },
   {

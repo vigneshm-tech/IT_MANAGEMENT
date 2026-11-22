@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Inbox, Mail, Send } from "lucide-react";
+import { Inbox, Mail, Send } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { TicketEmailForm } from "@/components/modules/ticket-email-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { buttonClass } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
-import { can, canAccessModule } from "@/lib/access";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -14,6 +14,7 @@ import {
   listTicketOutbox,
   listTicketQueues,
 } from "@/lib/records/repository";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
 import { maskAddress, outboxStatusLabel } from "@/lib/tickets/email";
 import { saveTicketEmailSettingsAction } from "./actions";
 
@@ -21,8 +22,11 @@ export const metadata: Metadata = { title: "Email channel" };
 
 export default async function TicketEmailPage() {
   const user = await requireUser();
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Email channel" />;
   }
 
   const [settings, queues, outbox] = await Promise.all([
@@ -30,21 +34,14 @@ export default async function TicketEmailPage() {
     listTicketQueues(),
     listTicketOutbox(undefined, 10),
   ]);
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
   const queueName = queues.find((queue) => queue.id === settings.defaultQueueId)?.name ?? "—";
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Email channel"
-        actions={
-          <Link href="/modules/masters" className={buttonClass({ variant: "secondary", size: "sm" })}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Masters
-          </Link>
-        }
-      >
+      <PageHeader title="Email channel">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-4 text-[12px] text-muted">
+          <TicketAdminTabs active="settings" />
           <StatusPill
             status={settings.enabled ? "active" : "inactive"}
             label={settings.enabled ? "On" : "Off"}

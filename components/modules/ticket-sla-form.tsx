@@ -1,12 +1,19 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Clock, Loader2, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Loader2, Plus, Save, X } from "lucide-react";
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { TICKET_PRIORITIES } from "@/lib/tickets/core";
-import { WEEKDAY_LABELS, WEEKDAY_ORDER, minutesToTime } from "@/lib/tickets/sla";
-import type { BusinessCalendar, TicketQueueRecord } from "@/lib/records/repository";
+import {
+  WEEKDAY_LABELS,
+  WEEKDAY_ORDER,
+  minutesToTime,
+  type BusinessCalendar,
+  type SlaRule,
+} from "@/lib/tickets/sla";
+import type { TicketQueueRecord } from "@/lib/records/repository";
 
 function Notice({ state }: { state: FormState }) {
   if (state.error) {
@@ -39,15 +46,35 @@ export function TicketSlaForm({
   action,
   queues,
   calendars,
+  rule,
+  cancelHref = "/modules/tickets/masters/service-targets",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   queues: TicketQueueRecord[];
   calendars: BusinessCalendar[];
+  /** Present when editing an existing promise rather than adding one. */
+  rule?: SlaRule;
+  cancelHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
 
   return (
     <form action={formAction} className="border border-line bg-surface">
+      {rule && <input type="hidden" name="id" value={rule.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {rule ? `Editing "${rule.name}"` : "New service target"}
+        </p>
+        {rule && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
         <div>
           <label htmlFor="sla-name" className="field-label">
@@ -59,6 +86,7 @@ export function TicketSlaForm({
             required
             minLength={3}
             maxLength={60}
+            defaultValue={rule?.name ?? ""}
             placeholder="e.g. VIP customers"
             className="field"
           />
@@ -67,7 +95,12 @@ export function TicketSlaForm({
           <label htmlFor="sla-calendar" className="field-label">
             Measured on
           </label>
-          <select id="sla-calendar" name="calendarId" className="field" defaultValue={calendars[0]?.id ?? ""}>
+          <select
+            id="sla-calendar"
+            name="calendarId"
+            className="field"
+            defaultValue={rule?.calendarId ?? calendars[0]?.id ?? ""}
+          >
             {calendars.map((calendar) => (
               <option key={calendar.id} value={calendar.id}>
                 {calendar.name}
@@ -79,7 +112,7 @@ export function TicketSlaForm({
           <label htmlFor="sla-queue" className="field-label">
             Queue
           </label>
-          <select id="sla-queue" name="queueId" className="field" defaultValue="">
+          <select id="sla-queue" name="queueId" className="field" defaultValue={rule?.queueId ?? ""}>
             <option value="">Any queue</option>
             {queues.map((queue) => (
               <option key={queue.id} value={queue.id}>
@@ -92,7 +125,7 @@ export function TicketSlaForm({
           <label htmlFor="sla-priority" className="field-label">
             Priority
           </label>
-          <select id="sla-priority" name="priority" className="field" defaultValue="">
+          <select id="sla-priority" name="priority" className="field" defaultValue={rule?.priority ?? ""}>
             <option value="">Any priority</option>
             {TICKET_PRIORITIES.map((priority) => (
               <option key={priority.id} value={priority.id}>
@@ -111,7 +144,7 @@ export function TicketSlaForm({
             type="number"
             min={1}
             max={43200}
-            defaultValue={480}
+            defaultValue={rule?.firstResponseMinutes ?? 480}
             className="field"
           />
         </div>
@@ -125,7 +158,7 @@ export function TicketSlaForm({
             type="number"
             min={1}
             max={43200}
-            defaultValue={2880}
+            defaultValue={rule?.resolveMinutes ?? 2880}
             className="field"
           />
         </div>
@@ -141,10 +174,12 @@ export function TicketSlaForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : rule ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
           ) : (
             <Plus className="h-3.5 w-3.5" aria-hidden />
           )}
-          Add target
+          {rule ? "Save target" : "Add target"}
         </Button>
       </div>
     </form>
@@ -155,15 +190,36 @@ export function TicketSlaForm({
 export function TicketCalendarForm({
   action,
   calendars,
+  calendar,
+  cancelHref = "/modules/tickets/masters/service-targets",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   calendars: BusinessCalendar[];
+  /** Present when editing an existing shift rather than adding one. */
+  calendar?: BusinessCalendar;
+  cancelHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
-  const offset = calendars[0]?.utcOffsetMinutes ?? 330;
+  const offset = calendar?.utcOffsetMinutes ?? calendars[0]?.utcOffsetMinutes ?? 330;
+  const workingDays = calendar?.days ?? [1, 2, 3, 4, 5];
 
   return (
     <form action={formAction} className="border border-line bg-surface">
+      {calendar && <input type="hidden" name="id" value={calendar.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {calendar ? `Editing "${calendar.name}"` : "New shift"}
+        </p>
+        {calendar && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
         <div className="sm:col-span-2">
           <label htmlFor="cal-name" className="field-label">
@@ -175,6 +231,7 @@ export function TicketCalendarForm({
             required
             minLength={3}
             maxLength={60}
+            defaultValue={calendar?.name ?? ""}
             placeholder="e.g. Weekend cover"
             className="field"
           />
@@ -189,7 +246,7 @@ export function TicketCalendarForm({
                   type="checkbox"
                   name="days"
                   value={day}
-                  defaultChecked={day >= 1 && day <= 5}
+                  defaultChecked={workingDays.includes(day)}
                   className="h-3.5 w-3.5 accent-[#1d3a5f]"
                 />
                 {WEEKDAY_LABELS[day]}
@@ -207,7 +264,7 @@ export function TicketCalendarForm({
               id="cal-start"
               name="start"
               type="time"
-              defaultValue={minutesToTime(calendars[0]?.startMinute ?? 540)}
+              defaultValue={minutesToTime(calendar?.startMinute ?? calendars[0]?.startMinute ?? 540)}
               className="field"
             />
           </div>
@@ -219,7 +276,7 @@ export function TicketCalendarForm({
               id="cal-end"
               name="end"
               type="time"
-              defaultValue={minutesToTime(calendars[0]?.endMinute ?? 1080)}
+              defaultValue={minutesToTime(calendar?.endMinute ?? calendars[0]?.endMinute ?? 1080)}
               className="field"
             />
           </div>
@@ -252,10 +309,12 @@ export function TicketCalendarForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : calendar ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
           ) : (
             <Plus className="h-3.5 w-3.5" aria-hidden />
           )}
-          Add shift
+          {calendar ? "Save shift" : "Add shift"}
         </Button>
       </div>
     </form>

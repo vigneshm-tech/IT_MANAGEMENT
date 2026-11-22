@@ -1,29 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock, Timer } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
-import { buttonClass } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/status-pill";
+import { CalendarClock, Timer } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { TicketCalendarForm, TicketSlaForm } from "@/components/modules/ticket-sla-form";
-import { can, canAccessModule } from "@/lib/access";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusPill } from "@/components/ui/status-pill";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import {
-  listTicketCalendars,
-  listTicketQueues,
-  listTicketSlas,
-} from "@/lib/records/repository";
-import { WEEKDAY_LABELS, minutesToTime, slaSummary } from "@/lib/tickets/sla";
+import { listTicketCalendars, listTicketQueues, listTicketSlas } from "@/lib/records/repository";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
 import { formatMinutes } from "@/lib/tickets/core";
-import { addTicketCalendarAction, addTicketSlaAction, slaRowAction } from "./actions";
+import { WEEKDAY_LABELS, minutesToTime, slaSummary } from "@/lib/tickets/sla";
+import { saveTicketCalendarAction, saveTicketSlaAction, serviceTargetRowAction } from "./actions";
 
-export const metadata: Metadata = { title: "Service targets" };
+export const metadata: Metadata = { title: "Targets & shifts" };
+
+const BASE = "/modules/tickets/masters/service-targets";
 
 function RowActions({
   id,
   kind,
   status,
   label,
+  editHref,
   deleteHref,
   confirming,
 }: {
@@ -31,12 +31,19 @@ function RowActions({
   kind: "sla" | "calendar";
   status: string;
   label: string;
+  editHref: string;
   deleteHref: string;
   confirming: boolean;
 }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-3">
-      <form action={slaRowAction}>
+      <Link
+        href={editHref}
+        className="text-[11.5px] text-body underline-offset-2 hover:text-navy hover:underline"
+      >
+        Edit
+      </Link>
+      <form action={serviceTargetRowAction}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="value" value="toggle" />
@@ -48,7 +55,7 @@ function RowActions({
         </button>
       </form>
       {confirming ? (
-        <form action={slaRowAction} className="flex items-center gap-2">
+        <form action={serviceTargetRowAction} className="flex items-center gap-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="value" value="delete" />
@@ -59,7 +66,7 @@ function RowActions({
           >
             Yes, delete
           </button>
-          <Link href="/modules/masters/slas" className="text-[11.5px] text-muted hover:text-navy">
+          <Link href={BASE} className="text-[11.5px] text-muted hover:text-navy">
             Cancel
           </Link>
         </form>
@@ -78,50 +85,59 @@ function RowActions({
 export default async function ServiceTargetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sla?: string; shift?: string }>;
+  searchParams: Promise<{
+    editSla?: string;
+    editShift?: string;
+    delSla?: string;
+    delShift?: string;
+  }>;
 }) {
   const user = await requireUser();
-
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Targets & shifts" />;
   }
 
-  const { sla: deleteSla, shift: deleteShift } = await searchParams;
+  const { editSla, editShift, delSla, delShift } = await searchParams;
   const [slas, calendars, queues] = await Promise.all([
     listTicketSlas(true),
     listTicketCalendars(true),
     listTicketQueues(),
   ]);
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
   const activeSlas = slas.filter((rule) => rule.status === "active").length;
+  const editingSla = editSla ? slas.find((rule) => rule.id === editSla) : undefined;
+  const editingShift = editShift ? calendars.find((item) => item.id === editShift) : undefined;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Service targets"
-        actions={
-          <Link href="/modules/masters" className={buttonClass({ variant: "secondary", size: "sm" })}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Masters
-          </Link>
-        }
-      >
-        <p className="text-[12.5px] text-muted">
-          {activeSlas} active {activeSlas === 1 ? "target" : "targets"} of {slas.length}, measured on{" "}
-          {calendars.filter((calendar) => calendar.status === "active").length} active{" "}
-          {calendars.length === 1 ? "shift" : "shifts"}. A target is the promise; a shift is the clock the
-          promise runs on.
-        </p>
+      <PageHeader title="Targets & shifts">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <TicketAdminTabs active="targets" />
+          <p className="text-[12px] text-muted">
+            {activeSlas} active of {slas.length} · measured on{" "}
+            {calendars.filter((calendar) => calendar.status === "active").length} active of{" "}
+            {calendars.length} shifts
+          </p>
+        </div>
       </PageHeader>
 
       <div className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[12px] text-muted">
         <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Promises are cut when a ticket is raised and stored on it. Changing a target only affects tickets
-        raised after the change — a promise already made is not rewritten.
+        Promises are cut when a ticket is raised and stored on it. Changing a target only affects
+        tickets raised after the change — a promise already made is not rewritten.
       </div>
 
       {canEdit ? (
-        <TicketSlaForm action={addTicketSlaAction} queues={queues} calendars={calendars} />
+        <TicketSlaForm
+          key={editingSla?.id ?? "new-sla"}
+          action={saveTicketSlaAction}
+          queues={queues}
+          calendars={calendars}
+          rule={editingSla}
+        />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
           Your role can read the targets but not change them.
@@ -135,7 +151,14 @@ export default async function ServiceTargetsPage({
       ) : (
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {slas.map((rule) => (
-            <li key={rule.id} className="px-4 py-3 sm:px-5">
+            <li
+              key={rule.id}
+              className={
+                editingSla?.id === rule.id
+                  ? "border-l-2 border-navy px-4 py-3 sm:px-5"
+                  : "px-4 py-3 sm:px-5"
+              }
+            >
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-[13px] font-medium text-navy">{rule.name}</span>
                 <StatusPill
@@ -155,8 +178,9 @@ export default async function ServiceTargetsPage({
                   kind="sla"
                   status={rule.status}
                   label="this target"
-                  deleteHref={`/modules/masters/slas?sla=${rule.id}`}
-                  confirming={deleteSla === rule.id}
+                  editHref={`${BASE}?editSla=${rule.id}`}
+                  deleteHref={`${BASE}?delSla=${rule.id}`}
+                  confirming={delSla === rule.id}
                 />
               )}
             </li>
@@ -170,16 +194,30 @@ export default async function ServiceTargetsPage({
           Business shifts
         </h2>
         <p className="mt-1 text-[12px] text-muted">
-          The office clock. Weekends and evenings are closed time, so a four-hour promise made at 17:00 on
-          Friday is not late on Saturday.
+          The office clock. Weekends and evenings are closed time, so a four-hour promise made at
+          17:00 on Friday is not late on Saturday.
         </p>
       </div>
 
-      {canEdit && <TicketCalendarForm action={addTicketCalendarAction} calendars={calendars} />}
+      {canEdit && (
+        <TicketCalendarForm
+          key={editingShift?.id ?? "new-shift"}
+          action={saveTicketCalendarAction}
+          calendars={calendars}
+          calendar={editingShift}
+        />
+      )}
 
       <ul className="divide-y divide-line border-y border-line bg-surface">
         {calendars.map((calendar) => (
-          <li key={calendar.id} className="px-4 py-3 sm:px-5">
+          <li
+            key={calendar.id}
+            className={
+              editingShift?.id === calendar.id
+                ? "border-l-2 border-navy px-4 py-3 sm:px-5"
+                : "px-4 py-3 sm:px-5"
+            }
+          >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-[13px] font-medium text-navy">{calendar.name}</span>
               <StatusPill
@@ -200,8 +238,9 @@ export default async function ServiceTargetsPage({
                 kind="calendar"
                 status={calendar.status}
                 label="this shift"
-                deleteHref={`/modules/masters/slas?shift=${calendar.id}`}
-                confirming={deleteShift === calendar.id}
+                editHref={`${BASE}?editShift=${calendar.id}`}
+                deleteHref={`${BASE}?delShift=${calendar.id}`}
+                confirming={delShift === calendar.id}
               />
             )}
           </li>

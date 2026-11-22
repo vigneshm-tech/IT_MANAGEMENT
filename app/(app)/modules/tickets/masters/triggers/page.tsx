@@ -1,55 +1,62 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Workflow } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
-import { buttonClass } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/status-pill";
+import { Workflow } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { TicketTriggerForm } from "@/components/modules/ticket-trigger-form";
-import { can, canAccessModule } from "@/lib/access";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusPill } from "@/components/ui/status-pill";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listTicketQueues, listTicketTriggers } from "@/lib/records/repository";
-import { triggerSummary, TRIGGER_EVENTS, TRIGGER_FIELDS, TRIGGER_OPERATORS } from "@/lib/tickets/triggers";
-import { addTicketTriggerAction, triggerRowAction } from "./actions";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
+import {
+  triggerSummary,
+  TRIGGER_EVENTS,
+  TRIGGER_FIELDS,
+  TRIGGER_OPERATORS,
+} from "@/lib/tickets/triggers";
+import { saveTicketTriggerAction, ticketTriggerRowAction } from "./actions";
 
-export const metadata: Metadata = { title: "Ticket triggers" };
+export const metadata: Metadata = { title: "Triggers" };
 
 export default async function TicketTriggersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ delete?: string }>;
+  searchParams: Promise<{ edit?: string; delete?: string }>;
 }) {
   const user = await requireUser();
-
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Triggers" />;
   }
 
-  const { delete: deleteId } = await searchParams;
+  const { edit, delete: deleteId } = await searchParams;
   const [triggers, queues] = await Promise.all([listTicketTriggers(true), listTicketQueues()]);
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
+  const editing = edit ? triggers.find((trigger) => trigger.id === edit) : undefined;
   const active = triggers.filter((trigger) => trigger.status === "active").length;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Ticket triggers"
-        actions={
-          <Link href="/modules/masters" className={buttonClass({ variant: "secondary", size: "sm" })}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Masters
-          </Link>
-        }
-      >
-        <p className="text-[12.5px] text-muted">
-          {active} active {active === 1 ? "trigger" : "triggers"} of {triggers.length}. Each one is a
-          condition and the changes it makes: evaluated when a ticket or a message is created, and written
-          into the thread as an automatic change.
-        </p>
+      <PageHeader title="Triggers">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <TicketAdminTabs active="triggers" />
+          <p className="text-[12px] text-muted">
+            {active} active of {triggers.length} · evaluated when a ticket or an article is created
+          </p>
+        </div>
       </PageHeader>
 
       {canEdit ? (
-        <TicketTriggerForm action={addTicketTriggerAction} queues={queues} />
+        <TicketTriggerForm
+          key={editing?.id ?? "new"}
+          action={saveTicketTriggerAction}
+          queues={queues}
+          trigger={editing}
+        />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
           Your role can read the triggers but not change them.
@@ -62,15 +69,21 @@ export default async function TicketTriggersPage({
           <div>
             <p className="text-[13px] font-medium text-navy">No triggers yet</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Start with the two that save the most typing: anything with &quot;outage&quot; in the subject
-              goes to Infrastructure at urgent, and anything with &quot;phish&quot; goes to Security.
+              Start with the two that save the most typing: anything with &quot;outage&quot; in the
+              subject goes to Infrastructure at urgent, and anything with &quot;phish&quot; goes to
+              Security.
             </p>
           </div>
         </div>
       ) : (
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {triggers.map((trigger) => (
-            <li key={trigger.id} className="px-4 py-3 sm:px-5">
+            <li
+              key={trigger.id}
+              className={
+                editing?.id === trigger.id ? "border-l-2 border-navy px-4 py-3 sm:px-5" : "px-4 py-3 sm:px-5"
+              }
+            >
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-[13px] font-medium text-navy">{trigger.name}</span>
                 <StatusPill
@@ -91,7 +104,13 @@ export default async function TicketTriggersPage({
 
               {canEdit && (
                 <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <form action={triggerRowAction}>
+                  <Link
+                    href={`/modules/tickets/masters/triggers?edit=${trigger.id}`}
+                    className="text-[11.5px] text-body underline-offset-2 hover:text-navy hover:underline"
+                  >
+                    Edit
+                  </Link>
+                  <form action={ticketTriggerRowAction}>
                     <input type="hidden" name="id" value={trigger.id} />
                     <input type="hidden" name="value" value="toggle" />
                     <button
@@ -102,7 +121,7 @@ export default async function TicketTriggersPage({
                     </button>
                   </form>
                   {deleteId === trigger.id ? (
-                    <form action={triggerRowAction} className="flex items-center gap-2">
+                    <form action={ticketTriggerRowAction} className="flex items-center gap-2">
                       <input type="hidden" name="id" value={trigger.id} />
                       <input type="hidden" name="value" value="delete" />
                       <span className="text-[11.5px] text-danger">Delete this trigger?</span>
@@ -113,7 +132,7 @@ export default async function TicketTriggersPage({
                         Yes, delete
                       </button>
                       <Link
-                        href="/modules/masters/ticket-triggers"
+                        href="/modules/tickets/masters/triggers"
                         className="text-[11.5px] text-muted hover:text-navy"
                       >
                         Cancel
@@ -121,7 +140,7 @@ export default async function TicketTriggersPage({
                     </form>
                   ) : (
                     <Link
-                      href={`/modules/masters/ticket-triggers?delete=${trigger.id}`}
+                      href={`/modules/tickets/masters/triggers?delete=${trigger.id}`}
                       className="text-[11.5px] text-muted underline-offset-2 hover:text-danger hover:underline"
                     >
                       Delete

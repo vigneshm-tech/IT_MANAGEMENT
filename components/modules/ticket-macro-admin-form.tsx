@@ -1,24 +1,45 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Plus, Save, X } from "lucide-react";
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { TICKET_PRIORITIES, TICKET_STATES } from "@/lib/tickets/core";
-import type { TicketQueueRecord } from "@/lib/records/repository";
+import type { TicketMacroRecord, TicketQueueRecord } from "@/lib/records/repository";
 
 /** A macro is a name plus the handful of changes it applies. */
 export function TicketMacroForm({
   action,
   queues,
+  macro,
+  cancelHref = "/modules/tickets/masters/macros",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   queues: TicketQueueRecord[];
+  /** Present when the form is editing an existing macro rather than adding one. */
+  macro?: TicketMacroRecord;
+  cancelHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
 
   return (
     <form action={formAction} className="border border-line bg-surface">
+      {macro && <input type="hidden" name="id" value={macro.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {macro ? `Editing "${macro.name}"` : "New macro"}
+        </p>
+        {macro && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
         <div>
           <label htmlFor="name" className="field-label">
@@ -30,6 +51,7 @@ export function TicketMacroForm({
             required
             minLength={3}
             maxLength={60}
+            defaultValue={macro?.name ?? ""}
             placeholder="e.g. Escalate to security"
             className="field"
           />
@@ -38,13 +60,20 @@ export function TicketMacroForm({
           <label htmlFor="addTag" className="field-label">
             Add tag
           </label>
-          <input id="addTag" name="addTag" maxLength={24} placeholder="escalation" className="field" />
+          <input
+            id="addTag"
+            name="addTag"
+            maxLength={24}
+            defaultValue={macro?.addTag ?? ""}
+            placeholder="escalation"
+            className="field"
+          />
         </div>
         <div>
           <label htmlFor="setState" className="field-label">
             Set state
           </label>
-          <select id="setState" name="setState" defaultValue="" className="field">
+          <select id="setState" name="setState" defaultValue={macro?.setState ?? ""} className="field">
             <option value="">Leave unchanged</option>
             {TICKET_STATES.filter((state) => state.id !== "merged").map((state) => (
               <option key={state.id} value={state.id}>
@@ -57,7 +86,12 @@ export function TicketMacroForm({
           <label htmlFor="setPriority" className="field-label">
             Set priority
           </label>
-          <select id="setPriority" name="setPriority" defaultValue="" className="field">
+          <select
+            id="setPriority"
+            name="setPriority"
+            defaultValue={macro?.setPriority ?? ""}
+            className="field"
+          >
             <option value="">Leave unchanged</option>
             {TICKET_PRIORITIES.map((priority) => (
               <option key={priority.id} value={priority.id}>
@@ -70,7 +104,7 @@ export function TicketMacroForm({
           <label htmlFor="setQueue" className="field-label">
             Move to queue
           </label>
-          <select id="setQueue" name="setQueue" defaultValue="" className="field">
+          <select id="setQueue" name="setQueue" defaultValue={macro?.setQueue ?? ""} className="field">
             <option value="">Leave unchanged</option>
             {queues.map((queue) => (
               <option key={queue.id} value={queue.id}>
@@ -87,6 +121,7 @@ export function TicketMacroForm({
             id="description"
             name="description"
             maxLength={200}
+            defaultValue={macro?.description ?? ""}
             placeholder="Shown in the macro picker"
             className="field"
           />
@@ -99,6 +134,7 @@ export function TicketMacroForm({
             id="note"
             name="note"
             maxLength={400}
+            defaultValue={macro?.note ?? ""}
             placeholder="Escalated to Security at urgent priority."
             className="field"
           />
@@ -129,10 +165,12 @@ export function TicketMacroForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : macro ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
           ) : (
             <Plus className="h-3.5 w-3.5" aria-hidden />
           )}
-          Add macro
+          {macro ? "Save macro" : "Add macro"}
         </Button>
       </div>
     </form>

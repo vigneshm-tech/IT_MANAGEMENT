@@ -21,6 +21,7 @@ import {
   type TicketView,
 } from "@/lib/tickets/core";
 import { isSlaOverdue, slaState } from "@/lib/tickets/sla";
+import { canReadTicketAdmin } from "@/lib/tickets/admin";
 import { formatDayMonth } from "@/lib/format";
 
 const VIEW_ICON: Record<TicketView, typeof Inbox> = {
@@ -196,6 +197,22 @@ export function TicketsView({
               >
                 Reports
               </Link>
+            )}
+            {canReadTicketAdmin(user.role) && (
+              <>
+                <Link
+                  href="/modules/tickets/masters"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
+                >
+                  Masters
+                </Link>
+                <Link
+                  href="/modules/tickets/settings"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
+                >
+                  Settings
+                </Link>
+              </>
             )}
             <Link
               href="/modules/tickets/redmine"

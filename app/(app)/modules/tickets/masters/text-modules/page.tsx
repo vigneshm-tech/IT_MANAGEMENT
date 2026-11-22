@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { buttonClass } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { TextModuleForm } from "@/components/modules/text-module-form";
-import { can, canAccessModule } from "@/lib/access";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listTicketTextModules } from "@/lib/records/repository";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
 import { addTextModuleAction, textModuleRowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Text modules" };
@@ -20,35 +21,28 @@ export default async function TextModulesPage({
 }) {
   const user = await requireUser();
 
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Text modules" />;
   }
 
   const { updated, delete: deleteId } = await searchParams;
   const modules = await listTicketTextModules(true);
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
   const active = modules.filter((module) => module.status === "active").length;
   const updatedModule = updated ? modules.find((module) => module.id === updated) : undefined;
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Text modules"
-        actions={
-          <Link
-            href="/modules/masters"
-            className={buttonClass({ variant: "secondary", size: "sm" })}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-            Masters
-          </Link>
-        }
-      >
-        <p className="text-[12.5px] text-muted">
-          {active} active {active === 1 ? "snippet" : "snippets"} of {modules.length}. Agents insert
-          these into a ticket reply with one click; deactivate one to retire it without losing the
-          wording.
-        </p>
+    <div className="space-y-5">
+      <PageHeader title="Text modules">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <TicketAdminTabs active="text-modules" />
+          <p className="text-[12px] text-muted">
+            {active} active of {modules.length} · agents insert these into a reply with one click
+          </p>
+        </div>
       </PageHeader>
 
       {updatedModule && (
@@ -61,7 +55,7 @@ export default async function TextModulesPage({
         <TextModuleForm
           action={addTextModuleAction}
           submitLabel="Add snippet"
-          basePath="/modules/masters/text-modules"
+          basePath="/modules/tickets/masters/text-modules"
         />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
@@ -88,7 +82,7 @@ export default async function TextModulesPage({
               <li key={module.id} className="px-4 py-3 sm:px-5">
                 <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                   <Link
-                    href={`/modules/masters/text-modules/${module.id}`}
+                    href={`/modules/tickets/masters/text-modules/${module.id}`}
                     className="text-[13px] font-medium text-navy underline-offset-2 hover:underline"
                   >
                     {module.name}
@@ -109,7 +103,7 @@ export default async function TextModulesPage({
                 {canEdit && (
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <Link
-                      href={`/modules/masters/text-modules/${module.id}`}
+                      href={`/modules/tickets/masters/text-modules/${module.id}`}
                       className="text-[11.5px] font-medium text-navy underline-offset-2 hover:underline"
                     >
                       Edit
@@ -138,7 +132,7 @@ export default async function TextModulesPage({
                           Yes, delete
                         </button>
                         <Link
-                          href="/modules/masters/text-modules"
+                          href="/modules/tickets/masters/text-modules"
                           className="text-[11.5px] text-muted hover:text-navy"
                         >
                           Cancel
@@ -146,7 +140,7 @@ export default async function TextModulesPage({
                       </form>
                     ) : (
                       <Link
-                        href={`/modules/masters/text-modules?delete=${module.id}`}
+                        href={`/modules/tickets/masters/text-modules?delete=${module.id}`}
                         className="text-[11.5px] text-muted underline-offset-2 hover:text-danger hover:underline"
                       >
                         Delete

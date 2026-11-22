@@ -6,9 +6,10 @@ import { buttonClass } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { TextModuleForm } from "@/components/modules/text-module-form";
-import { can, canAccessModule } from "@/lib/access";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listTicketTextModules } from "@/lib/records/repository";
+import { canConfigureTickets, canReadTicketAdmin } from "@/lib/tickets/admin";
 import { updateTextModuleAction } from "../actions";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -22,8 +23,11 @@ export default async function EditTextModulePage({ params }: PageProps) {
   const { id } = await params;
   const user = await requireUser();
 
-  if (!canAccessModule(user.role, "masters")) {
-    return <AccessDenied moduleTitle="Masters" />;
+  if (!canAccessModule(user.role, "tickets")) {
+    return <AccessDenied moduleTitle="Tickets" />;
+  }
+  if (!canReadTicketAdmin(user.role)) {
+    return <AccessDenied moduleTitle="Text modules" />;
   }
 
   const module = (await listTicketTextModules(true)).find((item) => item.id === id);
@@ -40,7 +44,7 @@ export default async function EditTextModulePage({ params }: PageProps) {
               It may have been deleted while this page was open.
             </p>
             <Link
-              href="/modules/masters/text-modules"
+              href="/modules/tickets/masters/text-modules"
               className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}
             >
               Back to text modules
@@ -51,7 +55,7 @@ export default async function EditTextModulePage({ params }: PageProps) {
     );
   }
 
-  const canEdit = can(user.role, "masters", "edit");
+  const canEdit = canConfigureTickets(user.role);
 
   return (
     <div className="space-y-4">
@@ -59,7 +63,7 @@ export default async function EditTextModulePage({ params }: PageProps) {
         title={module.name}
         actions={
           <Link
-            href="/modules/masters/text-modules"
+            href="/modules/tickets/masters/text-modules"
             className={buttonClass({ variant: "secondary", size: "sm" })}
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
@@ -91,7 +95,7 @@ export default async function EditTextModulePage({ params }: PageProps) {
           keywords={module.keywords}
           body={module.body}
           submitLabel="Save changes"
-          basePath="/modules/masters/text-modules"
+          basePath="/modules/tickets/masters/text-modules"
         />
       ) : (
         <pre className="whitespace-pre-wrap border border-line bg-surface px-4 py-3 text-[12.5px] leading-relaxed text-body">

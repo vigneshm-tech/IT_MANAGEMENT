@@ -1636,22 +1636,23 @@ function mapTicketQueue(row: Record<string, unknown>): TicketQueueRecord {
   };
 }
 
-/** Active queues, in the order the picker should offer them. */
-export async function listTicketQueues(): Promise<TicketQueueRecord[]> {
+/**
+ * Queues, in the order the picker should offer them. The register in
+ * Tickets → Masters reads the inactive ones too, because a retired queue still
+ * owns its old tickets.
+ */
+export async function listTicketQueues(includeInactive = false): Promise<TicketQueueRecord[]> {
   if (!isSupabaseConfigured) {
     return [...demoStore().ticketQueues]
-      .filter((queue) => queue.status === "active")
+      .filter((queue) => includeInactive || queue.status === "active")
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from("ticket_queues")
-      .select("*")
-      .eq("status", "active")
-      .order("sort_order", { ascending: true })
-      .limit(50);
+    let query = supabase.from("ticket_queues").select("*");
+    if (!includeInactive) query = query.eq("status", "active");
+    const { data, error } = await query.order("sort_order", { ascending: true }).limit(100);
 
     if (error) throw error;
     return (data ?? []).map((row) => mapTicketQueue(row as Record<string, unknown>));
@@ -1659,6 +1660,101 @@ export async function listTicketQueues(): Promise<TicketQueueRecord[]> {
     console.error("[tickets] falling back to the demo queues", error);
     return [...demoStore().ticketQueues].sort((a, b) => a.sortOrder - b.sortOrder);
   }
+}
+
+export type TicketQueueInput = {
+  name: string;
+  description: string;
+  isPublic: boolean;
+  status?: ActivityTypeStatus;
+};
+
+/** A new queue. The id is derived from the name and never changes afterwards. */
+export async function createTicketQueue(input: TicketQueueInput): Promise<TicketQueueRecord> {
+  const existing = await listTicketQueues(true);
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const record: TicketQueueRecord = {
+    id: freeTicketSlugId(name, existing),
+    name,
+    description: input.description.trim(),
+    status: input.status ?? "active",
+    sortOrder: (existing.at(-1)?.sortOrder ?? 0) + 10,
+    isPublic: input.isPublic,
+  };
+
+  if (!isSupabaseConfigured) {
+    demoStore().ticketQueues.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_queues",
+    {
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      sort_order: record.sortOrder,
+      status: record.status,
+      is_public: record.isPublic,
+    },
+    mapTicketQueue,
+  );
+}
+
+export async function updateTicketQueue(
+  id: string,
+  patch: Partial<TicketQueueInput>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.description !== undefined) values.description = patch.description.trim();
+  if (patch.isPublic !== undefined) values.is_public = patch.isPublic;
+  if (patch.status !== undefined) values.status = patch.status;
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const queue = demoStore().ticketQueues.find((item) => item.id === id);
+    if (!queue) return false;
+    if (typeof values.name === "string") queue.name = values.name;
+    if (typeof values.description === "string") queue.description = values.description;
+    if (typeof values.is_public === "boolean") queue.isPublic = values.is_public;
+    if (values.status === "active" || values.status === "inactive") queue.status = values.status;
+    return true;
+  }
+
+  return patchRow("ticket_queues", id, values);
+}
+
+/**
+ * Removes a queue. A queue that still has tickets is refused rather than
+ * cascading: the tickets keep their `queue_name` snapshot either way, but the
+ * board would lose its column. Deactivate instead.
+ */
+export async function deleteTicketQueue(id: string): Promise<{ ok: boolean; reason?: string }> {
+  const tickets = await listTickets();
+  const inUse = tickets.filter((ticket) => ticket.queueId === id).length;
+  if (inUse > 0) {
+    return {
+      ok: false,
+      reason: `${inUse} ${inUse === 1 ? "ticket is" : "tickets are"} still filed in this queue. Deactivate it instead.`,
+    };
+  }
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketQueues.findIndex((queue) => queue.id === id);
+    if (index < 0) return { ok: false, reason: "That queue no longer exists." };
+    store.ticketQueues.splice(index, 1);
+    return { ok: true };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_queues").delete().eq("id", id).select("id");
+  if (error) {
+    console.error("[tickets] queue delete failed", error);
+    return { ok: false, reason: "The queue could not be deleted." };
+  }
+  return { ok: (data?.length ?? 0) > 0 };
 }
 
 function mapTicket(row: Record<string, unknown>): TicketRecord {
@@ -4841,4 +4937,185 @@ export async function markTicketOutboxFailed(input: {
     .select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Editing the ticket registers                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Edits on the registers that used to be write-once.
+ *
+ * Everything a service manager tunes — a promise's minutes, a shift's hours, a
+ * trigger's condition — can be changed here rather than deleted and re-created,
+ * because deleting a target and adding it back would give it a new id, and any
+ * ticket that pointed at the old one would lose its history.
+ */
+
+export async function updateTicketSla(
+  id: string,
+  patch: Partial<NewTicketSlaInput>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.queueId !== undefined) values.queue_id = patch.queueId;
+  if (patch.priority !== undefined) values.priority = patch.priority;
+  if (patch.firstResponseMinutes !== undefined) {
+    values.first_response_minutes = patch.firstResponseMinutes;
+  }
+  if (patch.resolveMinutes !== undefined) values.resolve_minutes = patch.resolveMinutes;
+  if (patch.calendarId !== undefined) values.calendar_id = patch.calendarId;
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const rule = demoStore().ticketSlas.find((item) => item.id === id);
+    if (!rule) return false;
+    if (typeof values.name === "string") rule.name = values.name;
+    if (patch.queueId !== undefined) rule.queueId = patch.queueId;
+    if (patch.priority !== undefined) rule.priority = patch.priority;
+    if (patch.firstResponseMinutes !== undefined) {
+      rule.firstResponseMinutes = patch.firstResponseMinutes;
+    }
+    if (patch.resolveMinutes !== undefined) rule.resolveMinutes = patch.resolveMinutes;
+    if (patch.calendarId !== undefined) rule.calendarId = patch.calendarId;
+    return true;
+  }
+
+  return patchRow("ticket_slas", id, values);
+}
+
+export async function updateTicketCalendar(
+  id: string,
+  patch: Partial<{
+    name: string;
+    utcOffsetMinutes: number;
+    days: number[];
+    startMinute: number;
+    endMinute: number;
+  }>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.utcOffsetMinutes !== undefined) values.utc_offset_minutes = patch.utcOffsetMinutes;
+  if (patch.days !== undefined) values.days = patch.days;
+  if (patch.startMinute !== undefined) values.start_minute = patch.startMinute;
+  if (patch.endMinute !== undefined) values.end_minute = patch.endMinute;
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const calendar = demoStore().ticketCalendars.find((item) => item.id === id);
+    if (!calendar) return false;
+    if (typeof values.name === "string") calendar.name = values.name;
+    if (patch.utcOffsetMinutes !== undefined) calendar.utcOffsetMinutes = patch.utcOffsetMinutes;
+    if (patch.days !== undefined) calendar.days = patch.days;
+    if (patch.startMinute !== undefined) calendar.startMinute = patch.startMinute;
+    if (patch.endMinute !== undefined) calendar.endMinute = patch.endMinute;
+    return true;
+  }
+
+  return patchRow("ticket_calendars", id, values);
+}
+
+export async function updateTicketTrigger(
+  id: string,
+  patch: Partial<{
+    name: string;
+    description: string;
+    note: string;
+    event: TicketTriggerRecord["event"];
+    field: TicketTriggerRecord["field"];
+    operator: TicketTriggerRecord["operator"];
+    value: string;
+    setState: TicketTriggerRecord["setState"];
+    setPriority: TicketTriggerRecord["setPriority"];
+    setQueue: string | null;
+    addTag: string;
+  }>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.description !== undefined) values.description = patch.description.trim();
+  if (patch.note !== undefined) values.note = patch.note.trim();
+  if (patch.event !== undefined) values.event = patch.event;
+  if (patch.field !== undefined) values.field = patch.field;
+  if (patch.operator !== undefined) values.operator = patch.operator;
+  if (patch.value !== undefined) values.value = patch.value.trim();
+  if (patch.setState !== undefined) values.set_state = patch.setState;
+  if (patch.setPriority !== undefined) values.set_priority = patch.setPriority;
+  if (patch.setQueue !== undefined) values.set_queue = patch.setQueue;
+  if (patch.addTag !== undefined) values.add_tag = patch.addTag.trim();
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const trigger = demoStore().ticketTriggers.find((item) => item.id === id);
+    if (!trigger) return false;
+    Object.assign(trigger, patch, {
+      ...(patch.name !== undefined ? { name: values.name } : {}),
+      ...(patch.description !== undefined ? { description: values.description } : {}),
+      ...(patch.note !== undefined ? { note: values.note } : {}),
+      ...(patch.value !== undefined ? { value: values.value } : {}),
+      ...(patch.addTag !== undefined ? { addTag: values.add_tag } : {}),
+    });
+    return true;
+  }
+
+  return patchRow("ticket_triggers", id, values);
+}
+
+export async function updateTicketMacro(
+  id: string,
+  patch: Partial<NewTicketMacroInput>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.description !== undefined) values.description = patch.description.trim();
+  if (patch.note !== undefined) values.note = patch.note.trim();
+  if (patch.setState !== undefined) values.set_state = patch.setState;
+  if (patch.setPriority !== undefined) values.set_priority = patch.setPriority;
+  if (patch.setQueue !== undefined) values.set_queue = patch.setQueue;
+  if (patch.addTag !== undefined) values.add_tag = patch.addTag.trim();
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const macro = demoStore().ticketMacros.find((item) => item.id === id);
+    if (!macro) return false;
+    if (typeof values.name === "string") macro.name = values.name;
+    if (patch.description !== undefined) macro.description = patch.description;
+    if (patch.note !== undefined) macro.note = patch.note;
+    if (patch.setState !== undefined) macro.setState = patch.setState;
+    if (patch.setPriority !== undefined) macro.setPriority = patch.setPriority;
+    if (patch.setQueue !== undefined) macro.setQueue = patch.setQueue;
+    if (patch.addTag !== undefined) macro.addTag = patch.addTag;
+    return true;
+  }
+
+  return patchRow("ticket_macros", id, values);
+}
+
+/** A category with articles in it is refused: deactivate it or move them first. */
+export async function deleteKbCategory(id: string): Promise<{ ok: boolean; reason?: string }> {
+  const articles = await listKbArticles({ includeInactive: true });
+  const used = articles.filter((article) => article.categoryId === id).length;
+  if (used > 0) {
+    return {
+      ok: false,
+      reason: `${used} ${used === 1 ? "article is" : "articles are"} filed here. Move them, or deactivate the category.`,
+    };
+  }
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.kbCategories.findIndex((category) => category.id === id);
+    if (index < 0) return { ok: false, reason: "That category no longer exists." };
+    store.kbCategories.splice(index, 1);
+    return { ok: true };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("kb_categories").delete().eq("id", id).select("id");
+  if (error) {
+    console.error("[kb] category delete failed", error);
+    return { ok: false, reason: "The category could not be deleted." };
+  }
+  return { ok: (data?.length ?? 0) > 0 };
 }

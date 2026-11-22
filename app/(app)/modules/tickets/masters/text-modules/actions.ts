@@ -12,6 +12,7 @@ import {
   setTicketTextModuleStatus,
   updateTicketTextModule,
 } from "@/lib/records/repository";
+import { canConfigureTickets } from "@/lib/tickets/admin";
 import {
   moduleNameError,
   normaliseModuleName,
@@ -19,11 +20,11 @@ import {
 } from "@/lib/tickets/core";
 
 function revalidate(id?: string) {
-  revalidatePath("/modules/masters");
-  revalidatePath("/modules/masters/text-modules");
-  revalidatePath("/modules/approvals");
   revalidatePath("/modules/tickets");
-  if (id) revalidatePath(`/modules/masters/text-modules/${id}`);
+  revalidatePath("/modules/tickets/masters");
+  revalidatePath("/modules/tickets/masters/text-modules");
+  revalidatePath("/modules/approvals");
+  if (id) revalidatePath(`/modules/tickets/masters/text-modules/${id}`);
 }
 
 export async function addTextModuleAction(
@@ -31,8 +32,9 @@ export async function addTextModuleAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) {
-    return { error: "Your role cannot change master data." };
+  if (!can(user.role, "tickets", "view")) return { error: "You cannot read tickets." };
+  if (!canConfigureTickets(user.role)) {
+    return { error: "Your role cannot change the text modules." };
   }
 
   const name = normaliseModuleName(String(formData.get("name") ?? ""));
@@ -59,8 +61,9 @@ export async function updateTextModuleAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) {
-    return { error: "Your role cannot change master data." };
+  if (!can(user.role, "tickets", "view")) return { error: "You cannot read tickets." };
+  if (!canConfigureTickets(user.role)) {
+    return { error: "Your role cannot change the text modules." };
   }
 
   const id = String(formData.get("id") ?? "").trim();
@@ -86,12 +89,12 @@ export async function updateTextModuleAction(
   }
 
   revalidate(id);
-  redirect(`/modules/masters/text-modules?updated=${encodeURIComponent(id)}`);
+  redirect(`/modules/tickets/masters/text-modules?updated=${encodeURIComponent(id)}`);
 }
 
 export async function textModuleRowAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (!can(user.role, "masters", "edit")) return;
+  if (!canConfigureTickets(user.role)) return;
 
   const id = String(formData.get("id") ?? "");
   const value = String(formData.get("value") ?? "");

@@ -214,9 +214,11 @@ Task Management additionally carries the request-detail columns (client,
 activity, planned/unplanned, reference ticket); activity and ticket start
 hidden so the board stays readable.
 
-**Masters** holds master data, not links to other modules. Its only register is
-**Activity types** (the vocabulary behind the task form); Clients, Renewals and
-Patching Plans stay in their own modules and are not repeated here.
+**Masters** holds master data, not links to other modules: **Activity types**
+(the vocabulary behind the task form), **Industries**, **Request types** and
+**Custom fields**. Clients, Renewals and Patching Plans stay in their own modules
+and are not repeated here, and everything that configures ticketing now lives
+inside **Tickets** — see *Settings and Masters inside Tickets* below.
 
 ### Activity types (master data)
 
@@ -456,14 +458,14 @@ article, so the thread is the audit trail.
   filtered view can be saved as a personal overview (`ticket_overviews`) and
   pinned as a chip. Overviews refine the current tab, they never replace it.
 - Phase 2 adds the agent tools: a checklist per ticket (`ticket_tasks`, shown
-  as `2/3` in the list), macros (`ticket_macros`, Masters → Ticket macros),
-  reply snippets (Masters → Text modules) and related/parent/child/duplicate
+  as `2/3` in the list), macros (`ticket_macros`, Tickets → Masters → Macros),
+  reply snippets (Tickets → Masters → Text modules) and related/parent/child/duplicate
   links with a merge that parks the source in the `merged` state. A ticket can
   also be filed against an organization (`client_id`).
 - Phase 3 adds the promises and the record: business shifts
   (`ticket_calendars`), first-response and resolution targets per queue and
-  priority (`ticket_slas`, Masters → Service targets) measured in office
-  minutes, triggers (`ticket_triggers`, Masters → Ticket triggers) that change a
+  priority (`ticket_slas`, Tickets → Masters → Targets & shifts) measured in
+  office minutes, triggers (`ticket_triggers`, Tickets → Masters → Triggers) that change a
   ticket as it is raised or replied to, a nightly sweep at
   `/api/tickets/sweep` (cron in `vercel.json`) that closes quiet pending
   tickets, reminds once and logs SLA breaches, and a report page at
@@ -498,8 +500,8 @@ Four surfaces that bring work in from outside the workspace. Migration
 - **Knowledge base** — `kb_categories` and `kb_articles`, seeded with five
   categories and seven articles (five public, two internal). Public articles are
   readable without an account at `/support/kb` (search, category filter), the
-  whole shelf is at `/modules/kb`, and categories are maintained in Masters →
-  KB categories. Search and ranking live in `lib/tickets/kb.ts`: a scored match
+  whole shelf is at `/modules/kb`, and categories are maintained in Tickets →
+  Masters → KB categories. Search and ranking live in `lib/tickets/kb.ts`: a scored match
   over title, tags, summary and body — not a database full-text index, because a
   service desk has hundreds of articles and a score we control is a score we can
   test. While an agent types a public reply, up to three public articles are
@@ -508,8 +510,8 @@ Four surfaces that bring work in from outside the workspace. Migration
 - **Email channel** — one settings row (`ticket_email_settings`) records the
   support address, how the mailbox is read (IMAP poller, Microsoft&nbsp;365
   Graph, or a generic relay), the folder, the queue new mail lands in, and the
-  outbound relay URL. Masters → Email channel edits it and shows the last ten
-  outbox rows.
+  outbound relay URL. Tickets → Settings → Email channel edits it and shows the
+  last ten outbox rows.
   - Inbound: `POST /api/tickets/inbound` with
     `Authorization: Bearer $TICKET_INBOUND_SECRET`. A `[TT-1001]` in the subject
     **from the address on that ticket** appends to the thread (and reopens a
@@ -532,6 +534,57 @@ Four surfaces that bring work in from outside the workspace. Migration
 Tests: `tests/ticket-kb.test.ts`, `tests/ticket-public-form.test.ts`,
 `tests/ticket-email.test.ts` and `tests/ticket-channels.test.ts` (the demo-store
 integration pass over the public form, inbound replies, the outbox and KB CRUD).
+
+### 4a-ii. Settings and Masters inside Tickets (phase 5)
+
+Every switch that configures the desk now sits inside the Tickets module, in two
+sections that are separate on purpose: **Masters** is the registers (data), and
+**Settings** is the channels (how work arrives and leaves). Nothing ticketing
+remains under `/modules/masters`.
+
+Masters, at `/modules/tickets/masters`, lists six registers with counts; a strip
+across the top of every one of them (`components/modules/ticket-admin-tabs.tsx`)
+moves between Overview, Queues, Targets & shifts, Triggers, Macros, Text
+modules, KB categories and Settings.
+
+| Register | Route | Add | Edit | Retire |
+| --- | --- | --- | --- | --- |
+| Queues | `/modules/tickets/masters/queues` | form | `?edit=<id>` | toggle, public on/off, delete |
+| Targets & shifts | `/modules/tickets/masters/service-targets` | two forms | `?editSla=` / `?editShift=` | toggle, delete |
+| Triggers | `/modules/tickets/masters/triggers` | form | `?edit=<id>` | toggle, delete |
+| Macros | `/modules/tickets/masters/macros` | form | `?edit=<id>` | toggle, delete |
+| Text modules | `/modules/tickets/masters/text-modules` | form | `/<id>` editor | toggle, delete |
+| KB categories | `/modules/tickets/masters/kb-categories` | form | `?edit=<id>` | toggle, delete |
+
+The same form adds and edits: on an edit the row's id rides in a hidden field and
+the button reads *Save* instead of *Add*. Editing rather than delete-and-recreate
+matters — a target or a queue has an id that tickets already point at, so
+re-creating it would strand their history.
+
+Two deletes are refused rather than cascaded, in the repository (`deleteTicketQueue`,
+`deleteKbCategory`): a queue holding tickets and a shelf holding articles answer
+`{ ok: false, reason }` and the screen says so, because deactivating keeps both
+the records and the links.
+
+Settings, at `/modules/tickets/settings`, answers "is the channel on and where
+does it point?" — the public form with the queues it offers (and a link to
+`/support/new`), the email channel's state, address and inbound queue, the
+knowledge base's public/internal split, the last five outbox rows, and a list of
+the registers each channel reads from. The email form itself is at
+`/modules/tickets/settings/email`: the supported address, provider (IMAP, Graph
+or relay), mailbox, relay URL, default queue and the on/off switch. Choosing the
+queues offered publicly is *not* here — that is the `is_public` switch on the
+queue register, so one screen owns it.
+
+Access: the registers open with `tickets:view` plus `canReadTicketAdmin` —
+`masters:edit` or `tickets:admin` or `tickets:edit` — and writes need
+`canConfigureTickets` (`masters:edit` or `tickets:admin`). Both live in
+`lib/tickets/admin.ts`; `lib/records/repository.ts` holds the new write calls
+(`createTicketQueue`, `updateTicketQueue`, `deleteTicketQueue`, `updateTicketSla`,
+`updateTicketCalendar`, `updateTicketTrigger`, `updateTicketMacro`,
+`deleteKbCategory`). The old routes under `/modules/masters/{slas,
+ticket-triggers, ticket-macros, text-modules, kb, ticket-email}` are now one-line
+redirects, so a saved bookmark still lands on the register.
 
 ## 4b. Redmine portal (kept from the first build)
 
