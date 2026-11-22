@@ -413,7 +413,7 @@ export function TopNav({
                     </div>
                     <div className="py-1">
                       <Link
-                        href="/modules/settings"
+                        href="/modules/settings/profile"
                         className="flex items-center gap-2.5 px-4 py-2 text-[12.5px] text-body transition hover:bg-[#f5f7fb] hover:text-navy"
                       >
                         <UserRound className="h-3.5 w-3.5" aria-hidden />

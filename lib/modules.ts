@@ -195,7 +195,7 @@ export const MODULES: ModuleDefinition[] = [
     id: "settings",
     title: "Settings",
     href: "/modules/settings",
-    summary: "Profile, keys and session",
+    summary: "Profile, security, integrations and API keys",
     icon: "Settings",
     navGroup: "governance",
     access: { view: "all", edit: "all", admin: [IT, MGMT] },

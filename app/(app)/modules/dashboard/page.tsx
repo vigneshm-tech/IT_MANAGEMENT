@@ -416,7 +416,7 @@ export default async function OverviewPage() {
                     <p className="mt-0.5 text-[11.5px] text-muted">No API key yet</p>
                   </div>
                   <Link
-                    href="/modules/settings"
+                    href="/modules/settings/integrations"
                     className="text-[11.5px] font-medium text-navy hover:text-gold"
                   >
                     Connect
@@ -438,7 +438,7 @@ export default async function OverviewPage() {
                   </div>
                   {(user.role === "it_manager" || user.role === "it_engineer") && (
                     <Link
-                      href="/modules/settings"
+                      href="/modules/settings/integrations"
                       className="text-[11.5px] font-medium text-navy hover:text-gold"
                     >
                       Configure

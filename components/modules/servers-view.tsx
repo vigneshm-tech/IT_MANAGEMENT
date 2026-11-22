@@ -66,7 +66,7 @@ export function ServersView({
   page?: number;
 }) {
   const canConfigure = can(user.role, "servers", "edit");
-  const settingsHref = "/modules/settings";
+  const settingsHref = "/modules/settings/integrations";
 
   const refresh = (
     <form action={refreshServersAction}>

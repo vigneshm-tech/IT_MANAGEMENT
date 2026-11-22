@@ -66,7 +66,7 @@ export function TicketsPortalView({
         <PageHeader
           title="Redmine portal"
           actions={
-            <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>
+            <Link href="/modules/settings/integrations" className={buttonClass({ variant: "secondary" })}>
               Add API key
             </Link>
           }
@@ -74,9 +74,9 @@ export function TicketsPortalView({
         <EmptyState
           icon={KeyRound}
           title="Connect your Redmine account"
-          description="Save your Redmine instance URL and personal API key in Settings. The portal then lists your open issues and lets you raise new ones without leaving TaskTornado."
+          description="Save your Redmine instance URL and personal API key under Settings → Integrations. The portal then lists your open issues and lets you raise new ones without leaving TaskTornado."
           action={
-            <Link href="/modules/settings" className={buttonClass()}>
+            <Link href="/modules/settings/integrations" className={buttonClass()}>
               Open Settings
             </Link>
           }
@@ -91,7 +91,7 @@ export function TicketsPortalView({
         <PageHeader
           title="Redmine portal"
           actions={
-            <Link href="/modules/settings" className={buttonClass({ variant: "secondary" })}>
+            <Link href="/modules/settings/integrations" className={buttonClass({ variant: "secondary" })}>
               Manage key
             </Link>
           }
@@ -114,7 +114,7 @@ export function TicketsPortalView({
               <RefreshCw className="h-3.5 w-3.5" aria-hidden />
               Try again
             </Link>
-            <Link href="/modules/settings" className={buttonClass({ variant: "ghost", size: "sm" })}>
+            <Link href="/modules/settings/integrations" className={buttonClass({ variant: "ghost", size: "sm" })}>
               Update the key
             </Link>
           </div>
@@ -148,7 +148,7 @@ export function TicketsPortalView({
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href="/modules/settings"
+              href="/modules/settings/integrations"
               className={buttonClass({ variant: "secondary", size: "sm" })}
             >
               Manage key

@@ -50,7 +50,7 @@ export default async function NewTicketPage() {
               Save your instance URL and API key first.
             </p>
             <Link
-              href="/modules/settings"
+              href="/modules/settings/integrations"
               className={buttonClass({ variant: "primary", size: "sm", className: "mt-3" })}
             >
               Open Settings

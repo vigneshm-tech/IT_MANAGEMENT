@@ -61,7 +61,7 @@ export default async function EndpointPage({ params }: PageProps) {
           description="Open the Action1 connection in Settings and try again."
           compact
           action={
-            <Link href="/modules/settings" className={buttonClass()}>
+            <Link href="/modules/settings/integrations" className={buttonClass()}>
               Open settings
             </Link>
           }

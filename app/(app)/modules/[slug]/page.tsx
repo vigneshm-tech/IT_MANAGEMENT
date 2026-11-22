@@ -7,15 +7,12 @@ import { MastersView } from "@/components/modules/masters-view";
 import { PatchingView } from "@/components/modules/patching-view";
 import { RenewalsView } from "@/components/modules/renewals-view";
 import { isServersFilter, ServersView } from "@/components/modules/servers-view";
-import { SettingsView } from "@/components/modules/settings-view";
 import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { can, canAccessModule } from "@/lib/access";
 import { approvalView } from "@/lib/approvals/views";
 import { parseTicketFilters } from "@/lib/tickets/core";
 import { requireUser } from "@/lib/auth";
-import { integrationStatus } from "@/lib/integrations/store";
-import { canManageAction1 } from "@/lib/integrations/access";
 import { loadServersInventory } from "@/lib/servers/inventory";
 import { getModule } from "@/lib/modules";
 import {
@@ -189,21 +186,6 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             requestTypes: requestTypes.length,
             customFields: customFields.length,
           }}
-        />
-      );
-    }
-
-    case "settings": {
-      const [redmine, action1] = await Promise.all([
-        integrationStatus(user.id, "redmine"),
-        integrationStatus(user.id, "action1"),
-      ]);
-      return (
-        <SettingsView
-          user={user}
-          redmine={redmine}
-          action1={action1}
-          canManageAction1={canManageAction1(user.role)}
         />
       );
     }

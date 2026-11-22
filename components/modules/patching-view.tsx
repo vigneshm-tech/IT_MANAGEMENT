@@ -263,7 +263,7 @@ export function PatchingView({
                 : inventory.message}
           </p>
           <Link
-            href="/modules/settings"
+            href="/modules/settings/integrations"
             className={`${buttonClass({ variant: "secondary", size: "sm" })} mt-2.5`}
           >
             Open settings

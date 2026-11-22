@@ -1,0 +1,105 @@
+import type { Metadata } from "next";
+import { AccessDenied } from "@/components/modules/access-denied";
+import { IntegrationForm } from "@/components/modules/integration-form";
+import { SettingsTabs } from "@/components/modules/settings-tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import { canAccessModule } from "@/lib/access";
+import { requireUser } from "@/lib/auth";
+import { canManageAction1 } from "@/lib/integrations/access";
+import { integrationStatus } from "@/lib/integrations/store";
+
+export const metadata: Metadata = { title: "Integrations" };
+
+/** North America console; the field also accepts app.action1.com or .../api/3.0. */
+const DEFAULT_ACTION1_ADDRESS = "https://app.na-2.action1.com";
+
+/**
+ * Two connections, and they are different kinds of thing.
+ *
+ * Redmine is per person — the portal shows the issues *you* are assigned, so the
+ * key belongs to your profile. Action1 is per organisation: one credential, one
+ * inventory, shared by everyone the servers module is visible to.
+ */
+export default async function IntegrationsSettingsPage() {
+  const user = await requireUser();
+  if (!canAccessModule(user.role, "settings")) {
+    return <AccessDenied moduleTitle="Settings" />;
+  }
+
+  const [redmine, action1] = await Promise.all([
+    integrationStatus(user.id, "redmine"),
+    integrationStatus(user.id, "action1"),
+  ]);
+  const canManage = canManageAction1(user.role);
+
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Integrations">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <SettingsTabs active="integrations" />
+          <p className="text-[12px] text-muted">
+            {[redmine.connected, action1.connected].filter(Boolean).length} of 2 connected · keys are
+            encrypted before they are stored
+          </p>
+        </div>
+      </PageHeader>
+
+      <section className="divide-y divide-line border-y border-line">
+        <div className="grid gap-3 px-4 py-5 sm:px-5 lg:grid-cols-[240px_1fr]">
+          <div>
+            <p className="text-[13px] font-medium text-navy">Redmine</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">Assigned tickets in the portal</p>
+          </div>
+          <IntegrationForm
+            provider="redmine"
+            status={redmine}
+            canManage
+            needsUrl
+            secretPlaceholder="Paste your Redmine API key"
+            hint="Find the key under My account → API access in Redmine."
+          />
+        </div>
+
+        <div className="grid gap-3 px-4 py-5 sm:px-5 lg:grid-cols-[240px_1fr]">
+          <div>
+            <p className="text-[13px] font-medium text-navy">Action1</p>
+            <p className="mt-0.5 text-[11.5px] text-muted">Organisation server inventory</p>
+          </div>
+          <IntegrationForm
+            provider="action1"
+            status={action1}
+            canManage={canManage}
+            needsUrl
+            urlRequired={false}
+            urlLabel="API address"
+            urlPlaceholder={DEFAULT_ACTION1_ADDRESS}
+            secretLabel="Client secret"
+            secretPlaceholder="Paste the client secret"
+            extraFields={[
+              {
+                name: "clientId",
+                label: "Client ID",
+                placeholder: "Client ID from Action1",
+                required: true,
+              },
+              {
+                name: "orgId",
+                label: "Organization ID",
+                placeholder: "Optional — first organization",
+                hint: "Leave blank to use the first organization the credential can see.",
+              },
+            ]}
+            hint="Create an API key in the Action1 console under Settings → API keys."
+            managedBy="Super Admin, IT Manager or IT Engineer can connect Action1."
+          />
+        </div>
+      </section>
+
+      <p className="text-[11.5px] leading-relaxed text-muted">
+        A Redmine key is yours alone: the portal reads the issues assigned to the person who saved it.
+        Action1 is one credential for the whole workspace — whoever of IT saves it, everyone the
+        Servers module is visible to reads the same inventory.
+      </p>
+    </div>
+  );
+}

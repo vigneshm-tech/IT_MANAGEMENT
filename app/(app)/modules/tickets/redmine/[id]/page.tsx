@@ -54,7 +54,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
               Save your instance URL and API key to open tickets here.
             </p>
             <Link
-              href="/modules/settings"
+              href="/modules/settings/integrations"
               className={buttonClass({ variant: "primary", size: "sm", className: "mt-3" })}
             >
               Open Settings
