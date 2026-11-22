@@ -46,7 +46,9 @@ export default async function TicketSettingsPage() {
     await Promise.all([
       getTicketEmailSettings(),
       listTicketQueues(),
-      listTicketOutbox(undefined, 5),
+      // Enough to say something true about the queue of replies, few enough to
+      // stay a single page of rows.
+      listTicketOutbox(undefined, 100),
       listKbCategories(true),
       listKbArticles({ includeInternal: true, includeInactive: true }),
       listTicketSlas(true),
@@ -62,6 +64,7 @@ export default async function TicketSettingsPage() {
   );
   const queued = outbox.filter((item) => item.status === "queued").length;
   const failed = outbox.filter((item) => item.status === "failed").length;
+  const recentOutbox = outbox.slice(0, 5);
 
   const registers = [
     { href: "/modules/tickets/masters/queues", label: "Queues", count: queues.length, noun: "queues" },
@@ -160,7 +163,8 @@ export default async function TicketSettingsPage() {
               </span>
             </p>
             <p className="mt-1">
-              Outbox: {queued} queued, {failed} failed · updated {formatDateTime(mail.updatedAt)}
+              Outbox: {queued} queued, {failed} failed of the last {outbox.length} · updated{" "}
+              {formatDateTime(mail.updatedAt)}
             </p>
             <Link
               href="/modules/tickets/settings/email"
@@ -213,15 +217,15 @@ export default async function TicketSettingsPage() {
               <Send className="h-3.5 w-3.5" aria-hidden />
               Recent outbox
             </h2>
-            <span className="text-[11px] text-muted">{outbox.length} shown</span>
+            <span className="text-[11px] text-muted">last {recentOutbox.length}</span>
           </div>
-          {outbox.length === 0 ? (
+          {recentOutbox.length === 0 ? (
             <p className="px-4 py-3 text-[11.5px] text-muted">
               Nothing queued yet. An agent&apos;s public reply lands here once the channel is on.
             </p>
           ) : (
             <ul className="divide-y divide-line">
-              {outbox.map((item) => (
+              {recentOutbox.map((item) => (
                 <li key={item.id} className="px-4 py-2.5 text-[11.5px]">
                   <div className="flex items-center gap-2">
                     <Link
