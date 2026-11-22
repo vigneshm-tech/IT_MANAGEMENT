@@ -24,8 +24,11 @@ import {
   isTicketChannel,
   isTicketPriority,
   isTicketState,
+  freeTicketSlugId,
+  normaliseChecklistTitle,
   normaliseSubject,
   normaliseTags,
+  TICKET_LINK_KINDS,
   type TicketArticleKind,
   type TicketChannel,
   type TicketPriority,
@@ -161,6 +164,48 @@ export type TicketQueueRecord = {
   sortOrder: number;
 };
 
+export type TicketTaskRecord = {
+  id: string;
+  ticketId: string;
+  title: string;
+  done: boolean;
+  position: number;
+  createdAt: string;
+  doneAt: string | null;
+};
+
+export type TicketLinkRecord = {
+  id: string;
+  ticketId: string;
+  targetId: string;
+  kind: "related" | "parent" | "child" | "duplicate";
+  createdAt: string;
+};
+
+export type TicketMacroRecord = {
+  id: string;
+  name: string;
+  description: string;
+  setState: TicketState | null;
+  setPriority: TicketPriority | null;
+  setQueue: string | null;
+  /** Resolved for display; not stored on the row. */
+  setQueueName: string;
+  addTag: string;
+  note: string;
+  status: ActivityTypeStatus;
+  sortOrder: number;
+};
+
+export type TicketTextModuleRecord = {
+  id: string;
+  name: string;
+  body: string;
+  keywords: string;
+  status: ActivityTypeStatus;
+  sortOrder: number;
+};
+
 export type TicketRecord = {
   id: string;
   subject: string;
@@ -175,6 +220,9 @@ export type TicketRecord = {
   requesterName: string;
   requesterEmail: string;
   channel: TicketChannel;
+  /** Optional organization; `clientName` is the snapshot. */
+  clientId: string | null;
+  clientName: string;
   tags: string[];
   dueAt: string | null;
   closedAt: string | null;
@@ -229,6 +277,10 @@ type Store = {
   ticketQueues: TicketQueueRecord[];
   tickets: TicketRecord[];
   ticketArticles: TicketArticleRecord[];
+  ticketTasks: TicketTaskRecord[];
+  ticketLinks: TicketLinkRecord[];
+  ticketMacros: TicketMacroRecord[];
+  ticketTextModules: TicketTextModuleRecord[];
   /** Last number handed out in demo mode (the live table uses a sequence). */
   ticketSeq: number;
 };
@@ -461,6 +513,149 @@ function seededTicketArticles(): TicketArticleRecord[] {
       createdAt: iso(-1, 9),
     }),
   ];
+}
+
+function seededTicketTasks(): TicketTaskRecord[] {
+  const task = (
+    ticketId: string,
+    position: number,
+    title: string,
+    done: boolean,
+  ): TicketTaskRecord => ({
+    id: `TTASK-${ticketId}-${position}`,
+    ticketId,
+    title,
+    done,
+    position,
+    createdAt: iso(-1, 9),
+    doneAt: done ? iso(-1, 11) : null,
+  });
+
+  return [
+    task("TT-1001", 1, "Confirm the carrier ticket number with the ISP", true),
+    task("TT-1001", 2, "Test the backup link with two users on the third floor", true),
+    task("TT-1001", 3, "Close once the line holds for 24 hours", false),
+    task("TT-1003", 1, "Collect the 26.1 patch notes from the vendor", false),
+    task("TT-1003", 2, "Reproduce the timeout with the month-end report", false),
+  ];
+}
+
+function seededTicketLinks(): TicketLinkRecord[] {
+  return [
+    {
+      id: "TL-1001",
+      ticketId: "TT-1003",
+      targetId: "TT-1001",
+      kind: "related",
+      createdAt: iso(-2, 12),
+    },
+  ];
+}
+
+function seededTicketMacros(): TicketMacroRecord[] {
+  return [
+    {
+      id: "escalate",
+      name: "Escalate to infrastructure",
+      description: "Hand it to the infrastructure queue at high priority",
+      setState: "open",
+      setPriority: "high",
+      setQueue: "infrastructure",
+      setQueueName: "Infrastructure",
+      addTag: "escalation",
+      note: "Escalated to Infrastructure at high priority.",
+      status: "active",
+      sortOrder: 10,
+    },
+    {
+      id: "waiting-on-user",
+      name: "Waiting on the requester",
+      description: "Park it until the requester answers",
+      setState: "pending",
+      setPriority: null,
+      setQueue: null,
+      setQueueName: "",
+      addTag: "awaiting-requester",
+      note: "Waiting on the requester for more information.",
+      status: "active",
+      sortOrder: 20,
+    },
+    {
+      id: "close-duplicate",
+      name: "Close as duplicate",
+      description: "Close it and tag it as a duplicate",
+      setState: "closed",
+      setPriority: null,
+      setQueue: null,
+      setQueueName: "",
+      addTag: "duplicate",
+      note: "Closed as a duplicate of an existing ticket.",
+      status: "active",
+      sortOrder: 30,
+    },
+    {
+      id: "resolved",
+      name: "Mark resolved",
+      description: "Close it and tag it resolved",
+      setState: "closed",
+      setPriority: null,
+      setQueue: null,
+      setQueueName: "",
+      addTag: "resolved",
+      note: "Resolved and closed.",
+      status: "active",
+      sortOrder: 40,
+    },
+  ];
+}
+
+function seededTicketTextModules(): TicketTextModuleRecord[] {
+  return [
+    {
+      id: "acknowledge",
+      name: "Acknowledge and set expectations",
+      body:
+        "Thanks for raising this — we have it in the queue and an agent will pick it up today.\n\nWe will come back with the next step as soon as we have looked at it.",
+      keywords: "ack, received",
+      status: "active",
+      sortOrder: 10,
+    },
+    {
+      id: "need-screenshot",
+      name: "Ask for a screenshot",
+      body:
+        "Could you send a screenshot of the error, along with the time it happened?\n\nThat usually tells us whether it is the app or the connection.",
+      keywords: "screenshot, error",
+      status: "active",
+      sortOrder: 20,
+    },
+    {
+      id: "vpn-restart",
+      name: "VPN restart steps",
+      body:
+        "Please try the following before we dig deeper:\n\n1. Disconnect the VPN client completely.\n2. Restart the machine.\n3. Reconnect and note the time it drops again.\n\nIf it still drops, reply here with the time and we will raise it with the carrier.",
+      keywords: "vpn, reconnect",
+      status: "active",
+      sortOrder: 30,
+    },
+    {
+      id: "closing-note",
+      name: "Closing note",
+      body:
+        "This is resolved on our side and the ticket is being closed. If it comes back, reply here and it will reopen with the full history.",
+      keywords: "close, resolved",
+      status: "active",
+      sortOrder: 40,
+    },
+  ];
+}
+
+function freeTicketMacroId(name: string, existing: { id: string }[]): string {
+  return freeTicketSlugId(name, existing);
+}
+
+function freeTicketTextModuleId(name: string, existing: { id: string }[]): string {
+  return freeTicketSlugId(name, existing);
 }
 
 function demoStore(): Store {
@@ -742,6 +937,10 @@ function demoStore(): Store {
       ticketQueues: seededTicketQueues(),
       tickets: seededTickets(),
       ticketArticles: seededTicketArticles(),
+      ticketTasks: seededTicketTasks(),
+      ticketLinks: seededTicketLinks(),
+      ticketMacros: seededTicketMacros(),
+      ticketTextModules: seededTicketTextModules(),
       ticketSeq: 1005,
     };
   }
@@ -757,6 +956,10 @@ function demoStore(): Store {
   if (!Array.isArray(store.ticketQueues)) store.ticketQueues = seededTicketQueues();
   if (!Array.isArray(store.tickets)) store.tickets = seededTickets();
   if (!Array.isArray(store.ticketArticles)) store.ticketArticles = seededTicketArticles();
+  if (!Array.isArray(store.ticketTasks)) store.ticketTasks = seededTicketTasks();
+  if (!Array.isArray(store.ticketLinks)) store.ticketLinks = seededTicketLinks();
+  if (!Array.isArray(store.ticketMacros)) store.ticketMacros = seededTicketMacros();
+  if (!Array.isArray(store.ticketTextModules)) store.ticketTextModules = seededTicketTextModules();
   if (typeof store.ticketSeq !== "number") store.ticketSeq = 1005;
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
@@ -1285,6 +1488,8 @@ function mapTicket(row: Record<string, unknown>): TicketRecord {
     requesterName: s(row.requester_name),
     requesterEmail: s(row.requester_email),
     channel: (isTicketChannel(kind) ? kind : "web") as TicketRecord["channel"],
+    clientId: s(row.client_id) || null,
+    clientName: s(row.client_name),
     tags: Array.isArray(row.tags) ? (row.tags as unknown[]).filter((tag) => typeof tag === "string") : [],
     dueAt: s(row.due_at) || null,
     closedAt: s(row.closed_at) || null,
@@ -1381,6 +1586,9 @@ export type NewTicketInput = {
   queueId: string;
   tags: string[];
   channel?: TicketChannel;
+  /** Optional organization the ticket belongs to. */
+  clientId?: string;
+  clientName?: string;
 };
 
 /** Raises a ticket and files its first public article in one go. */
@@ -1404,6 +1612,8 @@ export async function createTicket(
     requesterName: user.name,
     requesterEmail: user.email,
     channel: input.channel ?? "web",
+    clientId: input.clientId || null,
+    clientName: input.clientName ?? "",
     tags: normaliseTags(input.tags),
     dueAt: dueAtFor(now, input.priority),
     closedAt: null,
@@ -1445,6 +1655,8 @@ export async function createTicket(
       requester_name: user.name,
       requester_email: user.email,
       channel: created.channel,
+      client_id: created.clientId,
+      client_name: created.clientName,
       tags: created.tags,
       due_at: created.dueAt,
     },
@@ -1471,6 +1683,8 @@ export async function createTicket(
 
 export type TicketPatch = {
   state?: TicketState;
+  clientId?: string | null;
+  clientName?: string;
   priority?: TicketPriority;
   queueId?: string | null;
   queueName?: string;
@@ -1502,6 +1716,10 @@ export async function updateTicket(id: string, patch: TicketPatch): Promise<bool
     values.owner_id = patch.ownerId;
     values.owner_name = patch.ownerName ?? "";
   }
+  if (patch.clientId !== undefined) {
+    values.client_id = patch.clientId;
+    values.client_name = patch.clientName ?? "";
+  }
   if (patch.subject) values.subject = patch.subject;
   if (patch.tags) values.tags = patch.tags;
 
@@ -1521,6 +1739,10 @@ export async function updateTicket(id: string, patch: TicketPatch): Promise<bool
     if (patch.ownerId !== undefined) {
       record.ownerId = patch.ownerId;
       record.ownerName = patch.ownerName ?? "";
+    }
+    if (patch.clientId !== undefined) {
+      record.clientId = patch.clientId;
+      record.clientName = patch.clientName ?? "";
     }
     if (patch.subject) record.subject = patch.subject;
     if (patch.tags) record.tags = patch.tags;
@@ -1587,6 +1809,495 @@ export async function addTicketArticle(
   // The article insert does not touch its ticket, so nudge it forward by hand.
   await patchRow("tickets", input.ticketId, { updated_at: now });
   return article;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Ticket tools: checklists, links, macros, text modules (phase 2)           */
+/* -------------------------------------------------------------------------- */
+
+function mapTicketTask(row: Record<string, unknown>): TicketTaskRecord {
+  return {
+    id: s(row.id),
+    ticketId: s(row.ticket_id),
+    title: s(row.title),
+    done: row.done === true,
+    position: n(row.position),
+    createdAt: s(row.created_at, new Date().toISOString()),
+    doneAt: s(row.done_at) || null,
+  };
+}
+
+/** Checklist items in the order they were added. */
+export async function listTicketTasks(ticketId: string): Promise<TicketTaskRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketTasks.filter((task) => task.ticketId === ticketId)
+      .sort((a, b) => a.position - b.position);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_tasks")
+      .select("*")
+      .eq("ticket_id", ticketId)
+      .order("position", { ascending: true })
+      .limit(200);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketTask(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] checklist read failed", error);
+    return [];
+  }
+}
+
+/** Checklist counts for the list column, keyed by ticket id. */
+export async function listTicketTaskCounts(): Promise<Record<string, { done: number; total: number }>> {
+  if (!isSupabaseConfigured) {
+    return demoStore().ticketTasks.reduce<Record<string, { done: number; total: number }>>(
+      (counts, task) => {
+        const current = counts[task.ticketId] ?? { done: 0, total: 0 };
+        current.total += 1;
+        if (task.done) current.done += 1;
+        counts[task.ticketId] = current;
+        return counts;
+      },
+      {},
+    );
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_tasks")
+      .select("ticket_id, done")
+      .limit(2000);
+    if (error) throw error;
+
+    return ((data ?? []) as { ticket_id: string; done: boolean }[]).reduce<
+      Record<string, { done: number; total: number }>
+    >((counts, row) => {
+      const current = counts[row.ticket_id] ?? { done: 0, total: 0 };
+      current.total += 1;
+      if (row.done) current.done += 1;
+      counts[row.ticket_id] = current;
+      return counts;
+    }, {});
+  } catch (error) {
+    console.error("[tickets] checklist counts failed", error);
+    return {};
+  }
+}
+
+export async function addTicketTask(
+  user: Pick<SessionUser, "id">,
+  ticketId: string,
+  rawTitle: string,
+): Promise<TicketTaskRecord> {
+  const title = normaliseChecklistTitle(rawTitle);
+  const existing = await listTicketTasks(ticketId);
+  const position = existing.length + 1;
+  const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    const record: TicketTaskRecord = {
+      id: `TTASK-${ticketId}-${position}-${Date.now()}`,
+      ticketId,
+      title,
+      done: false,
+      position,
+      createdAt: now,
+      doneAt: null,
+    };
+    demoStore().ticketTasks.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_tasks",
+    { ticket_id: ticketId, title, position, created_by: user.id },
+    mapTicketTask,
+  );
+}
+
+export async function setTicketTaskDone(id: string, done: boolean): Promise<boolean> {
+  const doneAt = done ? new Date().toISOString() : null;
+
+  if (!isSupabaseConfigured) {
+    const task = demoStore().ticketTasks.find((item) => item.id === id);
+    if (!task) return false;
+    task.done = done;
+    task.doneAt = doneAt;
+    return true;
+  }
+
+  return patchRow("ticket_tasks", id, { done, done_at: doneAt });
+}
+
+export async function deleteTicketTask(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketTasks.findIndex((task) => task.id === id);
+    if (index < 0) return false;
+    store.ticketTasks.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_tasks").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* Links -------------------------------------------------------------------- */
+
+function mapTicketLink(row: Record<string, unknown>): TicketLinkRecord {
+  const kind = s(row.kind, "related");
+  return {
+    id: s(row.id),
+    ticketId: s(row.ticket_id),
+    targetId: s(row.target_id),
+    kind: TICKET_LINK_KINDS.some((item) => item.id === kind)
+      ? (kind as TicketLinkRecord["kind"])
+      : "related",
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** Both directions: a link written on either ticket shows on both. */
+export async function listTicketLinks(ticketId: string): Promise<TicketLinkRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore().ticketLinks.filter(
+      (link) => link.ticketId === ticketId || link.targetId === ticketId,
+    );
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_links")
+      .select("*")
+      .or(`ticket_id.eq.${ticketId},target_id.eq.${ticketId}`)
+      .limit(100);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketLink(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] links read failed", error);
+    return [];
+  }
+}
+
+export async function addTicketLink(
+  user: Pick<SessionUser, "id">,
+  input: { ticketId: string; targetId: string; kind: TicketLinkRecord["kind"] },
+): Promise<TicketLinkRecord> {
+  if (!isSupabaseConfigured) {
+    const record: TicketLinkRecord = {
+      id: `TL-${input.ticketId}-${input.targetId}-${Date.now()}`,
+      ticketId: input.ticketId,
+      targetId: input.targetId,
+      kind: input.kind,
+      createdAt: new Date().toISOString(),
+    };
+    const store = demoStore();
+    if (
+      !store.ticketLinks.some(
+        (link) =>
+          link.ticketId === record.ticketId &&
+          link.targetId === record.targetId &&
+          link.kind === record.kind,
+      )
+    ) {
+      store.ticketLinks.push(record);
+    }
+    return record;
+  }
+
+  return insertRow(
+    "ticket_links",
+    {
+      ticket_id: input.ticketId,
+      target_id: input.targetId,
+      kind: input.kind,
+      created_by: user.id,
+    },
+    mapTicketLink,
+  );
+}
+
+export async function deleteTicketLink(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketLinks.findIndex((link) => link.id === id);
+    if (index < 0) return false;
+    store.ticketLinks.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_links").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* Macros ------------------------------------------------------------------- */
+
+function mapTicketMacro(row: Record<string, unknown>): TicketMacroRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    description: s(row.description),
+    setState: (isTicketState(s(row.set_state)) ? s(row.set_state) : null) as TicketMacroRecord["setState"],
+    setPriority: (isTicketPriority(s(row.set_priority))
+      ? s(row.set_priority)
+      : null) as TicketMacroRecord["setPriority"],
+    setQueue: s(row.set_queue) || null,
+    setQueueName: "",
+    addTag: s(row.add_tag),
+    note: s(row.note),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+/** Active macros in the order the picker offers them. */
+export async function listTicketMacros(includeInactive = false): Promise<TicketMacroRecord[]> {
+  if (!isSupabaseConfigured) {
+    const queues = demoStore().ticketQueues;
+    return demoStore()
+      .ticketMacros.filter((macro) => includeInactive || macro.status === "active")
+      .map((macro) => ({
+        ...macro,
+        setQueueName: queues.find((queue) => queue.id === macro.setQueue)?.name ?? "",
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("ticket_macros").select("*").order("sort_order", { ascending: true });
+    if (!includeInactive) query = query.eq("status", "active");
+    const [{ data, error }, queues] = await Promise.all([query.limit(100), listTicketQueues()]);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+      const macro = mapTicketMacro(row as Record<string, unknown>);
+      return {
+        ...macro,
+        setQueueName: queues.find((queue) => queue.id === macro.setQueue)?.name ?? "",
+      };
+    });
+  } catch (error) {
+    console.error("[tickets] macros read failed", error);
+    return [];
+  }
+}
+
+export type NewTicketMacroInput = {
+  name: string;
+  description: string;
+  setState: TicketState | null;
+  setPriority: TicketPriority | null;
+  setQueue: string | null;
+  addTag: string;
+  note: string;
+};
+
+export async function createTicketMacro(input: NewTicketMacroInput): Promise<TicketMacroRecord> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const id = freeTicketMacroId(name, await listTicketMacros(true));
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: TicketMacroRecord = {
+      id,
+      name,
+      description: input.description,
+      setState: input.setState,
+      setPriority: input.setPriority,
+      setQueue: input.setQueue,
+      setQueueName: "",
+      addTag: input.addTag,
+      note: input.note,
+      status: "active",
+      sortOrder: 100 + store.ticketMacros.length * 10,
+    };
+    store.ticketMacros.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_macros",
+    {
+      id,
+      name,
+      description: input.description,
+      set_state: input.setState,
+      set_priority: input.setPriority,
+      set_queue: input.setQueue,
+      add_tag: input.addTag,
+      note: input.note,
+      sort_order: 100 + (await listTicketMacros(true)).length * 10,
+    },
+    mapTicketMacro,
+  );
+}
+
+export async function setTicketMacroStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const macro = demoStore().ticketMacros.find((item) => item.id === id);
+    if (!macro) return false;
+    macro.status = status;
+    return true;
+  }
+  return patchRow("ticket_macros", id, { status });
+}
+
+export async function deleteTicketMacro(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketMacros.findIndex((macro) => macro.id === id);
+    if (index < 0) return false;
+    store.ticketMacros.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_macros").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* Text modules -------------------------------------------------------------- */
+
+function mapTextModule(row: Record<string, unknown>): TicketTextModuleRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    body: s(row.body),
+    keywords: s(row.keywords),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+export async function listTicketTextModules(
+  includeInactive = false,
+): Promise<TicketTextModuleRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketTextModules.filter((module) => includeInactive || module.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase
+      .from("ticket_text_modules")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (!includeInactive) query = query.eq("status", "active");
+
+    const { data, error } = await query.limit(200);
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTextModule(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] text modules read failed", error);
+    return [];
+  }
+}
+
+export async function createTicketTextModule(input: {
+  name: string;
+  body: string;
+  keywords: string;
+}): Promise<TicketTextModuleRecord> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const id = freeTicketTextModuleId(name, await listTicketTextModules(true));
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: TicketTextModuleRecord = {
+      id,
+      name,
+      body: input.body,
+      keywords: input.keywords,
+      status: "active",
+      sortOrder: 100 + store.ticketTextModules.length * 10,
+    };
+    store.ticketTextModules.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_text_modules",
+    {
+      id,
+      name,
+      body: input.body,
+      keywords: input.keywords,
+      sort_order: 100 + (await listTicketTextModules(true)).length * 10,
+    },
+    mapTextModule,
+  );
+}
+
+export async function updateTicketTextModule(
+  id: string,
+  input: { name: string; body: string; keywords: string },
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const module = demoStore().ticketTextModules.find((item) => item.id === id);
+    if (!module) return false;
+    module.name = input.name;
+    module.body = input.body;
+    module.keywords = input.keywords;
+    return true;
+  }
+
+  return patchRow("ticket_text_modules", id, {
+    name: input.name,
+    body: input.body,
+    keywords: input.keywords,
+  });
+}
+
+export async function setTicketTextModuleStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const module = demoStore().ticketTextModules.find((item) => item.id === id);
+    if (!module) return false;
+    module.status = status;
+    return true;
+  }
+  return patchRow("ticket_text_modules", id, { status });
+}
+
+export async function deleteTicketTextModule(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketTextModules.findIndex((module) => module.id === id);
+    if (index < 0) return false;
+    store.ticketTextModules.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("ticket_text_modules")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 /* -------------------------------------------------------------------------- */

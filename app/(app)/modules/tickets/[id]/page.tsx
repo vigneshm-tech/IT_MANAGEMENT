@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Clock, Lock, Send, UserRound } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, GitMerge, Lock, Send, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { TicketChecklist } from "@/components/modules/ticket-checklist";
 import { TicketControls } from "@/components/modules/ticket-controls";
+import { TicketLinks } from "@/components/modules/ticket-links";
+import { TicketMacroForm } from "@/components/modules/ticket-macro-form";
 import { TicketReplyForm } from "@/components/modules/ticket-reply-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
@@ -14,8 +17,14 @@ import { ROLE_BY_ID } from "@/lib/roles";
 import {
   getTicket,
   listAssignableUsers,
+  listClients,
   listTicketArticles,
+  listTicketLinks,
+  listTicketMacros,
   listTicketQueues,
+  listTicketTasks,
+  listTicketTextModules,
+  listTickets,
 } from "@/lib/records/repository";
 import {
   channelLabel,
@@ -29,7 +38,7 @@ import { ticketRowActionAction } from "@/app/(app)/modules/tickets/actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; merged?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -70,7 +79,7 @@ function ActionButton({
 
 export default async function TicketPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, merged } = await searchParams;
   const user = await requireUser();
 
   if (!canAccessModule(user.role, "tickets")) {
@@ -111,11 +120,18 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
     return <AccessDenied moduleTitle="Tickets" />;
   }
 
-  const [allArticles, queues, people] = await Promise.all([
+  const [allArticles, queues, people, tasks, links, tickets, clients] = await Promise.all([
     listTicketArticles(id),
     listTicketQueues(),
     isAgent ? listAssignableUsers() : Promise.resolve([]),
+    isAgent ? listTicketTasks(id) : Promise.resolve([]),
+    listTicketLinks(id),
+    isAgent ? listTickets() : Promise.resolve([]),
+    isAgent ? listClients() : Promise.resolve([]),
   ]);
+  const [macros, textModules] = isAgent
+    ? await Promise.all([listTicketMacros(), listTicketTextModules()])
+    : [[], []];
   const articles = isAgent ? allArticles : allArticles.filter((article) => !article.internal);
   const summary = threadSummary(allArticles);
   const state = stateMeta(ticket.state);
@@ -165,6 +181,13 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           <span>opened {formatDateTime(ticket.createdAt)}</span>
         </p>
       </PageHeader>
+
+      {merged && (
+        <div className="flex items-center gap-2 border border-line bg-[#f4f7fc] px-4 py-2.5 text-[12.5px] text-body">
+          <GitMerge className="h-3.5 w-3.5" aria-hidden />
+          {merged} was merged into this ticket. Its history is still on that ticket.
+        </div>
+      )}
 
       {created && (
         <div className="flex items-center gap-2 border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
@@ -232,7 +255,14 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
             })}
           </ol>
 
-          <TicketReplyForm ticketId={ticket.id} canNote={isAgent} />
+          {ticket.state === "merged" ? (
+            <p className="border border-line bg-[#f4f7fc] px-4 py-3 text-[12.5px] text-body">
+              This ticket is merged into another one — replies continue there. Nothing has been
+              deleted; the history above stays for reference.
+            </p>
+          ) : (
+            <TicketReplyForm ticketId={ticket.id} canNote={isAgent} textModules={textModules} />
+          )}
         </div>
 
         <aside className="space-y-4">
@@ -244,6 +274,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
               )}
             </Meta>
             <Meta label="Owner">{ticket.ownerName || "Unassigned"}</Meta>
+            <Meta label="Organization">{ticket.clientName || "—"}</Meta>
             <Meta label="Channel">{channelLabel(ticket.channel)}</Meta>
             <Meta label="Due">{ticket.dueAt ? formatDateTime(ticket.dueAt) : "—"}</Meta>
             {ticket.closedAt && <Meta label="Closed">{formatDateTime(ticket.closedAt)}</Meta>}
@@ -270,8 +301,16 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
             </Meta>
           </dl>
 
+          {isAgent && ticket.state !== "merged" && (
+            <TicketMacroForm ticketId={ticket.id} macros={macros} />
+          )}
+
+          {isAgent && (
+            <TicketChecklist ticketId={ticket.id} tasks={tasks} canEdit />
+          )}
+
           {isAgent ? (
-            <TicketControls ticket={ticket} queues={queues} people={people} />
+            <TicketControls ticket={ticket} queues={queues} people={people} clients={clients} />
           ) : (
             <div className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[12px] text-muted">
               <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -280,6 +319,8 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           )}
         </aside>
       </div>
+
+      <TicketLinks ticket={ticket} links={links} tickets={tickets} canEdit={isAgent} />
     </div>
   );
 }

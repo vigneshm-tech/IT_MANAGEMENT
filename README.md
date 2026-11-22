@@ -452,6 +452,11 @@ article, so the thread is the audit trail.
   tags (agents only).
 - Raise: `/modules/tickets/new` — queue, priority, tags, channel and the first
   message.
+- Phase 2 adds the agent tools: a checklist per ticket (`ticket_tasks`, shown
+  as `2/3` in the list), macros (`ticket_macros`, Masters → Ticket macros),
+  reply snippets (Masters → Text modules) and related/parent/child/duplicate
+  links with a merge that parks the source in the `merged` state. A ticket can
+  also be filed against an organization (`client_id`).
 - Internal notes and system entries never reach a non-agent — the query filters
   them in the page and RLS limits the rows to their own tickets.
 - The full module map and the remaining phases are in

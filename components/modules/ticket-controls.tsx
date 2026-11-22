@@ -6,17 +6,24 @@ import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { updateTicketAction } from "@/app/(app)/modules/tickets/actions";
 import { TICKET_PRIORITIES, TICKET_STATES } from "@/lib/tickets/core";
-import type { AssignableUser, TicketQueueRecord, TicketRecord } from "@/lib/records/repository";
+import type {
+  AssignableUser,
+  ClientRecord,
+  TicketQueueRecord,
+  TicketRecord,
+} from "@/lib/records/repository";
 
 /** State, priority, queue, owner and tags in one save. Every change is logged. */
 export function TicketControls({
   ticket,
   queues,
   people,
+  clients = [],
 }: {
   ticket: TicketRecord;
   queues: TicketQueueRecord[];
   people: AssignableUser[];
+  clients?: Pick<ClientRecord, "id" | "name">[];
 }) {
   const [state, formAction, pending] = useActionState(updateTicketAction, {} as FormState);
 
@@ -29,7 +36,8 @@ export function TicketControls({
           State
         </label>
         <select id="state" name="state" defaultValue={ticket.state} className="field">
-          {TICKET_STATES.map((item) => (
+          {/* Merged is set by the merge action, which also writes the link. */}
+          {TICKET_STATES.filter((item) => item.id !== "merged").map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>
@@ -77,6 +85,23 @@ export function TicketControls({
           ))}
           {ticket.ownerId && !people.some((person) => person.id === ticket.ownerId) && (
             <option value={ticket.ownerId}>{ticket.ownerName}</option>
+          )}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="clientId" className="field-label">
+          Organization
+        </label>
+        <select id="clientId" name="clientId" defaultValue={ticket.clientId ?? ""} className="field">
+          <option value="">No organization</option>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
+          {ticket.clientId && !clients.some((client) => client.id === ticket.clientId) && (
+            <option value={ticket.clientId}>{ticket.clientName}</option>
           )}
         </select>
       </div>

@@ -26,12 +26,12 @@ Every module in the Zammad admin docs, and where it lands here.
 | **Time Accounting** | Hours booked against a ticket | `ticket_articles.time_minutes` + per-ticket total | **1 — shipped** |
 | **Users** | Agents and customers | `profiles` directory (already exists) | **1 — shipped** |
 | **Roles / permissions** | Who may see and change what | `lib/access.ts` capability matrix on the `tickets` module | **1 — shipped** |
-| **Organizations** | Customer company records | `clients` + `client_contacts` (already exists) | 2 |
-| **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Tabs on the ticket list; custom overviews next | 2 |
-| **Checklist** | Sub-items inside one ticket | `ticket_tasks` | 2 |
-| **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state | 2 |
-| **Macros** | One-click bundle of changes | `ticket_macros` + apply action | 2 |
-| **Text Modules** | Snippets inserted into replies | Masters → Text modules | 2 |
+| **Organizations** | Customer company records | `tickets.client_id` → `clients`, picker on create and in the sidebar | **2 — shipped** |
+| **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Four fixed tabs shipped; user-saved views are the next slice | 2 (partial) |
+| **Checklist** | Sub-items inside one ticket | `ticket_tasks` + sidebar panel + `2/3` in the list | **2 — shipped** |
+| **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state, merge action | **2 — shipped** |
+| **Macros** | One-click bundle of changes | `ticket_macros`, Masters page, apply action | **2 — shipped** |
+| **Text Modules** | Snippets inserted into replies | Masters → Text modules + picker in the reply box | **2 — shipped** |
 | **Triggers** | If-this-then-that on ticket events | `ticket_triggers` evaluated in the write path | 3 |
 | **SLAs** | First-response / solution targets per queue+priority | `ticket_slas` + `due_at`/`first_response_at` | 3 |
 | **Calendars** | Business hours used by SLA maths | `ticket_calendars` (Mon–Fri 09:00–18:00 IST default) | 3 |
@@ -100,17 +100,28 @@ never internal notes.
 
 ## 3. Phase 2 — make it an agent tool
 
-- **Overviews**: saved filters (queue + state + owner + tag) stored per user,
-  pinned above the list.
-- **Macros**: named bundles of changes ("Close as duplicate", "Escalate to
-  high") applied with one click; recorded as a `system` article.
-- **Text modules**: reusable reply snippets seeded from Masters, inserted with
-  a keyboard shortcut.
-- **Checklists**: `ticket_tasks` per ticket, ticked off in the sidebar; progress
-  shown on the list as `3/5`.
-- **Links**: `ticket_links` (related / parent / child / duplicate) and a
-  `merged` state that points at the surviving ticket.
-- **Organizations**: attach a ticket to a `clients` row and its contact.
+Shipped in migration `0025_ticket_tools.sql`:
+
+- **Checklists** — `ticket_tasks` per ticket, ticked off in the sidebar; each
+  tick writes a `system` line and the list shows `2/3` in its own column.
+- **Macros** — `ticket_macros`, four seeded (escalate, waiting on requester,
+  close as duplicate, resolved), maintained in **Masters → Ticket macros** and
+  applied from a picker on the ticket. A macro applies state, priority, queue
+  and a tag in one go and leaves one `system` line saying what changed.
+- **Text modules** — `ticket_text_modules`, maintained in **Masters → Text
+  modules** (add, edit, deactivate, delete) and inserted into the reply box from
+  a picker; the snippet is appended to whatever has been typed.
+- **Links and merges** — `ticket_links` (related / parent / child / duplicate)
+  shown both ways on both tickets; **Merge** moves the source to the `merged`
+  state, writes the duplicate link and a `system` line on both threads. Nothing
+  is deleted, and merged tickets leave the open views but stay in Closed.
+- **Organizations** — `tickets.client_id` + `client_name` snapshot, chosen when
+  raising a ticket or in the sidebar, against the client register.
+
+Still open in this phase:
+
+- **Overviews** — user-saved filters (queue + state + owner + tag) pinned above
+  the list. The four fixed views are in place; the saved layer is the next slice.
 
 ## 4. Phase 3 — promises and reporting
 

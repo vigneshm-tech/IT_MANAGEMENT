@@ -28,6 +28,9 @@ import {
   listPatchSchedules,
   listRenewals,
   listRequestTypes,
+  listTicketMacros,
+  listTicketTaskCounts,
+  listTicketTextModules,
   listTickets,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
@@ -66,11 +69,16 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "tickets": {
-      const [{ view, created }, tickets] = await Promise.all([searchParams, listTickets()]);
+      const [{ view, created }, tickets, taskCounts] = await Promise.all([
+        searchParams,
+        listTickets(),
+        listTicketTaskCounts(),
+      ]);
       return (
         <TicketsView
           user={user}
           tickets={tickets}
+          taskCounts={taskCounts}
           view={view}
           created={created}
           agent={can(user.role, "tickets", "edit")}
@@ -146,11 +154,14 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
     case "masters": {
-      const [activityTypes, industries, requestTypes, customFields] = await Promise.all([
-        listActivityTypes(),
-        listIndustries(),
-        listRequestTypes(),
-        listCustomFields(),
+      const [activityTypes, industries, requestTypes, textModules, ticketMacros, customFields] =
+        await Promise.all([
+          listActivityTypes(),
+          listIndustries(),
+          listRequestTypes(),
+          listTicketTextModules(true),
+          listTicketMacros(true),
+          listCustomFields(),
       ]);
       return (
         <MastersView
@@ -159,6 +170,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             activityTypes: activityTypes.length,
             industries: industries.length,
             requestTypes: requestTypes.length,
+            textModules: textModules.length,
+            ticketMacros: ticketMacros.length,
             customFields: customFields.length,
           }}
         />

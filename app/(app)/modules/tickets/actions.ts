@@ -8,14 +8,26 @@ import { clearCache } from "@/lib/cache/ttl";
 import type { FormState } from "@/lib/forms";
 import {
   addTicketArticle,
+  addTicketLink,
+  addTicketTask,
   createTicket,
+  deleteTicketLink,
+  deleteTicketTask,
   getTicket,
   listAssignableUsers,
+  listClients,
+  listTicketMacros,
   listTicketQueues,
+  listTicketTasks,
+  setTicketTaskDone,
   updateTicket,
 } from "@/lib/records/repository";
 import {
+  TICKET_LINK_KINDS,
   bodyError,
+  checklistTitleError,
+  mergeError,
+  normaliseChecklistTitle,
   isTicketChannel,
   isTicketPriority,
   isTicketState,
@@ -25,6 +37,7 @@ import {
   priorityMeta,
   stateLabel,
   subjectError,
+  type TicketLinkKind,
   type TicketPriority,
 } from "@/lib/tickets/core";
 
@@ -57,6 +70,7 @@ export async function createTicketAction(
   const priority = String(formData.get("priority") ?? "normal");
   const channel = String(formData.get("channel") ?? "web");
   const tags = normaliseTags(String(formData.get("tags") ?? ""));
+  const clientId = String(formData.get("clientId") ?? "").trim();
 
   const error = subjectError(subject) ?? bodyError(body);
   if (error) return { error };
@@ -68,6 +82,8 @@ export async function createTicketAction(
     return { error: "Pick a queue for the ticket." };
   }
 
+  const client = clientId ? (await listClients()).find((item) => item.id === clientId) : undefined;
+
   try {
     const ticket = await createTicket(user, {
       subject,
@@ -76,6 +92,8 @@ export async function createTicketAction(
       queueId,
       tags,
       channel: isTicketChannel(channel) ? channel : "web",
+      clientId: client?.id,
+      clientName: client?.name,
     });
     refresh(ticket.id);
     redirect(`/modules/tickets/${ticket.id}?created=1`);
@@ -204,6 +222,22 @@ export async function updateTicketAction(
     }
   }
 
+  const clientId = posted(formData, "clientId");
+  if (clientId !== null && clientId !== (ticket.clientId ?? "")) {
+    if (!clientId) {
+      patch.clientId = null;
+      patch.clientName = "";
+      changes.push(`organization ${ticket.clientName || "none"} → none`);
+    } else {
+      const client = (await listClients()).find((item) => item.id === clientId);
+      if (client) {
+        patch.clientId = client.id;
+        patch.clientName = client.name;
+        changes.push(`organization ${ticket.clientName || "none"} → ${client.name}`);
+      }
+    }
+  }
+
   const tags = posted(formData, "tags");
   if (tags !== null) {
     const next = normaliseTags(tags);
@@ -286,4 +320,234 @@ export async function ticketRowActionAction(formData: FormData): Promise<void> {
   }
 
   refresh(ticketId);
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*  Phase 2: checklists, macros, links and merges                             */
+/* -------------------------------------------------------------------------- */
+
+function revalidateTicket(ticketId: string, alsoTarget?: string) {
+  revalidatePath("/modules/tickets");
+  revalidatePath(`/modules/tickets/${ticketId}`);
+  if (alsoTarget) revalidatePath(`/modules/tickets/${alsoTarget}`);
+}
+
+export async function addTicketTaskAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const title = normaliseChecklistTitle(String(formData.get("title") ?? ""));
+  if (!ticketId || checklistTitleError(title)) return;
+
+  const ticket = await getTicket(ticketId);
+  if (!ticket) return;
+
+  try {
+    await addTicketTask(user, ticketId, title);
+    await addTicketArticle(user, {
+      ticketId,
+      kind: "system",
+      body: `${user.name} added checklist item "${title}".`,
+      timeMinutes: 0,
+    });
+  } catch (cause) {
+    console.error("[tickets] checklist add failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId);
+}
+
+export async function toggleTicketTaskAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const taskId = String(formData.get("taskId") ?? "").trim();
+  const done = String(formData.get("done") ?? "") === "1";
+  if (!ticketId || !taskId) return;
+
+  try {
+    await setTicketTaskDone(taskId, done);
+    // A completed checklist is worth saying out loud; unticking is not.
+    if (done) {
+      const tasks = await listTicketTasks(ticketId);
+      await addTicketArticle(user, {
+        ticketId,
+        kind: "system",
+        body: `${user.name} ticked "${tasks.find((task) => task.id === taskId)?.title ?? "an item"}" (${tasks.filter((task) => task.done).length}/${tasks.length}).`,
+        timeMinutes: 0,
+      });
+    }
+  } catch (cause) {
+    console.error("[tickets] checklist toggle failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId);
+}
+
+export async function deleteTicketTaskAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const taskId = String(formData.get("taskId") ?? "").trim();
+  if (!ticketId || !taskId) return;
+
+  try {
+    await deleteTicketTask(taskId);
+  } catch (cause) {
+    console.error("[tickets] checklist delete failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId);
+}
+
+/** Applies a macro: a bundle of changes plus one line in the thread. */
+export async function applyTicketMacroAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const macroId = String(formData.get("macroId") ?? "").trim();
+  const ticket = await getTicket(ticketId);
+  if (!ticket || !macroId) return;
+
+  const macro = (await listTicketMacros()).find((item) => item.id === macroId);
+  if (!macro) return;
+
+  const patch: Parameters<typeof updateTicket>[1] = {};
+  const applied: string[] = [];
+
+  if (macro.setState && macro.setState !== ticket.state) {
+    patch.state = macro.setState;
+    applied.push(`state → ${stateLabel(macro.setState)}`);
+  }
+  if (macro.setPriority && macro.setPriority !== ticket.priority) {
+    patch.priority = macro.setPriority;
+    applied.push(`priority → ${priorityLabel(macro.setPriority)}`);
+  }
+  if (macro.setQueue && macro.setQueue !== ticket.queueId) {
+    const queue = (await listTicketQueues()).find((item) => item.id === macro.setQueue);
+    if (queue) {
+      patch.queueId = queue.id;
+      patch.queueName = queue.name;
+      applied.push(`queue → ${queue.name}`);
+    }
+  }
+  if (macro.addTag) {
+    const tags = normaliseTags([...ticket.tags, macro.addTag]);
+    if (tags.length !== ticket.tags.length) {
+      patch.tags = tags;
+      applied.push(`tag +${macro.addTag}`);
+    }
+  }
+
+  try {
+    if (Object.keys(patch).length > 0) await updateTicket(ticketId, patch);
+    await addTicketArticle(user, {
+      ticketId,
+      kind: "system",
+      body: `${user.name} applied "${macro.name}"${applied.length ? `: ${applied.join("; ")}` : ""}.${macro.note ? ` ${macro.note}` : ""}`,
+      timeMinutes: 0,
+    });
+  } catch (cause) {
+    console.error("[tickets] macro failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId);
+}
+
+export async function addTicketLinkAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const targetId = String(formData.get("targetId") ?? "").trim().toUpperCase();
+  const rawKind = String(formData.get("kind") ?? "related");
+  const kind = (TICKET_LINK_KINDS.some((item) => item.id === rawKind)
+    ? rawKind
+    : "related") as TicketLinkKind;
+
+  if (!ticketId || !targetId || targetId === ticketId) return;
+  const target = await getTicket(targetId);
+  if (!target) return;
+
+  try {
+    await addTicketLink(user, { ticketId, targetId, kind });
+    await addTicketArticle(user, {
+      ticketId,
+      kind: "system",
+      body: `${user.name} linked ${targetId} as ${kind}.`,
+      timeMinutes: 0,
+    });
+  } catch (cause) {
+    console.error("[tickets] link failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId, targetId);
+}
+
+export async function removeTicketLinkAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const linkId = String(formData.get("linkId") ?? "").trim();
+  if (!ticketId || !linkId) return;
+
+  try {
+    await deleteTicketLink(linkId);
+  } catch (cause) {
+    console.error("[tickets] unlink failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId);
+}
+
+/**
+ * Merge: the source becomes `merged`, a duplicate link points at the target and
+ * both threads say so. Nothing is deleted — the source keeps its history.
+ */
+export async function mergeTicketAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "edit")) return;
+
+  const ticketId = String(formData.get("ticketId") ?? "").trim();
+  const targetId = String(formData.get("targetId") ?? "").trim().toUpperCase();
+  const source = await getTicket(ticketId);
+  if (!source) return;
+
+  const target = targetId ? await getTicket(targetId) : null;
+  if (mergeError(source, target)) return;
+
+  try {
+    await updateTicket(ticketId, { state: "merged" });
+    await addTicketLink(user, { ticketId, targetId: target!.id, kind: "duplicate" });
+    await addTicketArticle(user, {
+      ticketId,
+      kind: "system",
+      body: `${user.name} merged this ticket into ${target!.id}. The work continues there.`,
+      timeMinutes: 0,
+    });
+    await addTicketArticle(user, {
+      ticketId: target!.id,
+      kind: "system",
+      body: `${user.name} merged ${ticketId} into this ticket.`,
+      timeMinutes: 0,
+    });
+  } catch (cause) {
+    console.error("[tickets] merge failed", cause);
+    return;
+  }
+
+  revalidateTicket(ticketId, target!.id);
+  redirect(`/modules/tickets/${target!.id}?merged=${ticketId}`);
 }

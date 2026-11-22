@@ -7,7 +7,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { TicketCreateForm } from "@/components/modules/ticket-create-form";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listTicketQueues } from "@/lib/records/repository";
+import { listClients, listTicketQueues } from "@/lib/records/repository";
 
 export const metadata: Metadata = { title: "New ticket" };
 
@@ -19,7 +19,7 @@ export default async function NewTicketPage() {
   }
 
   const canCreate = can(user.role, "tickets", "create");
-  const queues = await listTicketQueues();
+  const [queues, clients] = await Promise.all([listTicketQueues(), listClients()]);
 
   return (
     <div className="space-y-4">
@@ -46,7 +46,7 @@ export default async function NewTicketPage() {
           No ticket queue is active, so a ticket has nowhere to land.
         </p>
       ) : (
-        <TicketCreateForm queues={queues} />
+        <TicketCreateForm queues={queues} clients={clients} />
       )}
     </div>
   );

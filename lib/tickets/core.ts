@@ -8,7 +8,7 @@
  * and tags, which are genuinely workspace-specific, are data.
  */
 
-export type TicketState = "new" | "open" | "pending" | "closed";
+export type TicketState = "new" | "open" | "pending" | "closed" | "merged";
 export type TicketPriority = "low" | "normal" | "high" | "urgent";
 export type TicketChannel = "web" | "email" | "phone" | "chat";
 /** A message on a ticket. `system` rows are written by the app, never a person. */
@@ -62,6 +62,13 @@ export const TICKET_STATES: TicketStateMeta[] = [
     tone: "positive",
     countsAsOpen: false,
     hint: "Finished; reopening restores it to the open views.",
+  },
+  {
+    id: "merged",
+    label: "Merged",
+    tone: "neutral",
+    countsAsOpen: false,
+    hint: "Folded into another ticket; the work continues there.",
   },
 ];
 
@@ -137,9 +144,9 @@ export function channelLabel(channel: string): string {
   return TICKET_CHANNELS.find((item) => item.id === channel)?.label ?? "Web";
 }
 
-/** Closed work is out of every open view; `pending` still counts as open. */
+/** Closed and merged work is out of every open view; `pending` still counts. */
 export function isOpenTicket(ticket: { state: string }): boolean {
-  return ticket.state !== "closed";
+  return ticket.state !== "closed" && ticket.state !== "merged";
 }
 
 /** Trims and collapses whitespace in a subject. */
@@ -293,4 +300,150 @@ export function formatMinutes(minutes: number): string {
 /** Whether an agent may write internal notes (only agents ever can). */
 export function articleIsInternal(kind: TicketArticleKind): boolean {
   return kind === "note" || kind === "system";
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Phase 2: checklists, links, macros and text modules                       */
+/* -------------------------------------------------------------------------- */
+
+export type TicketLinkKind = "related" | "parent" | "child" | "duplicate";
+
+export const TICKET_LINK_KINDS: { id: TicketLinkKind; label: string; hint: string }[] = [
+  { id: "related", label: "Related", hint: "Two tickets about the same thing." },
+  { id: "parent", label: "Parent", hint: "This ticket is the umbrella for the other." },
+  { id: "child", label: "Child", hint: "The other ticket is the umbrella for this one." },
+  { id: "duplicate", label: "Duplicate", hint: "Same problem; merged into the other ticket." },
+];
+
+export function linkKindLabel(kind: string): string {
+  return TICKET_LINK_KINDS.find((item) => item.id === kind)?.label ?? "Related";
+}
+
+/** "3/5" plus the raw counts, for the sidebar and the list column. */
+export function checklistProgress(tasks: { done: boolean }[]): {
+  done: number;
+  total: number;
+  label: string;
+  percent: number;
+} {
+  const total = tasks.length;
+  const done = tasks.filter((task) => task.done).length;
+  return {
+    done,
+    total,
+    label: total === 0 ? "—" : `${done}/${total}`,
+    percent: total === 0 ? 0 : Math.round((done / total) * 100),
+  };
+}
+
+/** A checklist title is short and to the point. */
+export function checklistTitleError(raw: string): string | null {
+  const title = raw.replace(/\s+/g, " ").trim();
+  if (title.length < 2) return "Give the checklist item a title.";
+  if (title.length > 160) return "Keep the checklist item under 160 characters.";
+  return null;
+}
+
+export function normaliseChecklistTitle(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+/** Merging needs two different, live tickets. */
+export function mergeError(
+  source: { id: string; state: string },
+  target: { id: string; state: string } | null,
+): string | null {
+  if (!target) return "Pick the ticket to merge into.";
+  if (source.id === target.id) return "A ticket cannot be merged into itself.";
+  if (target.state === "merged") return "That ticket is already merged into another one.";
+  if (source.state === "merged") return "This ticket is already merged.";
+  return null;
+}
+
+/** What a macro would change, shown on the button's title text. */
+export function macroSummary(macro: {
+  setState?: string | null;
+  setPriority?: string | null;
+  setQueueName?: string | null;
+  addTag?: string | null;
+}): string {
+  const parts: string[] = [];
+  if (macro.setState) parts.push(`state → ${stateLabel(macro.setState)}`);
+  if (macro.setPriority) parts.push(`priority → ${priorityLabel(macro.setPriority)}`);
+  if (macro.setQueueName) parts.push(`queue → ${macro.setQueueName}`);
+  if (macro.addTag) parts.push(`tag +${macro.addTag}`);
+  return parts.length === 0 ? "Adds a note only" : parts.join(", ");
+}
+
+/** "Ask for a screenshot" → "ask-for-a-screenshot". */
+export function ticketSlug(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+/** The first free id: the bare slug, then `-2`, `-3`… */
+export function freeTicketSlugId(raw: string, taken: { id: string }[] = []): string {
+  const base = ticketSlug(raw) || "item";
+  const used = new Set(taken.map((item) => item.id.toLowerCase()));
+  if (!used.has(base)) return base;
+  for (let suffix = 2; suffix < 500; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+/* Admin lists (Masters) ---------------------------------------------------- */
+
+export const MODULE_NAME_MAX = 60;
+export const TEXT_MODULE_BODY_MAX = 4000;
+export const MACRO_NOTE_MAX = 400;
+
+export function normaliseModuleName(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+/** Shared by text modules and macros: a short, unique, human name. */
+export function moduleNameError(
+  raw: string,
+  existing: { id: string; name: string }[] = [],
+  options: { ignoreId?: string } = {},
+): string | null {
+  const name = normaliseModuleName(raw);
+  if (name.length < 3) return "Give it a name of at least 3 characters.";
+  if (name.length > MODULE_NAME_MAX) return `Keep the name under ${MODULE_NAME_MAX} characters.`;
+  const clash = existing.find(
+    (item) =>
+      item.id !== options.ignoreId && item.name.trim().toLowerCase() === name.toLowerCase(),
+  );
+  if (clash) return `"${clash.name}" already exists.`;
+  return null;
+}
+
+export function textModuleBodyError(raw: string): string | null {
+  const body = raw.trim();
+  if (body.length < 10) return "Write the snippet's text — at least 10 characters.";
+  if (body.length > TEXT_MODULE_BODY_MAX) return `Keep the snippet under ${TEXT_MODULE_BODY_MAX} characters.`;
+  return null;
+}
+
+/** A macro must actually do something. */
+export function macroActionError(input: {
+  setState?: string | null;
+  setPriority?: string | null;
+  setQueue?: string | null;
+  addTag?: string;
+}): string | null {
+  const changes = [input.setState, input.setPriority, input.setQueue, input.addTag].filter(
+    (value) => Boolean(value),
+  );
+  return changes.length === 0
+    ? "Pick at least one change — a state, a priority, a queue or a tag."
+    : null;
 }

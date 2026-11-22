@@ -5,7 +5,13 @@ import { canAccessModule } from "@/lib/access";
 import type { ModuleId } from "@/lib/modules";
 import type { SessionUser } from "@/lib/auth/token";
 
-type CountKey = "activityTypes" | "industries" | "requestTypes" | "customFields";
+type CountKey =
+  | "activityTypes"
+  | "industries"
+  | "requestTypes"
+  | "textModules"
+  | "ticketMacros"
+  | "customFields";
 
 /**
  * Master registers owned by this hub. Clients, renewals and patching plans are
@@ -42,6 +48,22 @@ const REGISTERS: {
     summary: "The Request type list the approval form offers",
     href: "/modules/masters/request-types",
     noun: "types",
+    guard: "masters",
+  },
+  {
+    key: "textModules",
+    title: "Text modules",
+    summary: "Reply snippets agents insert into a ticket",
+    href: "/modules/masters/text-modules",
+    noun: "snippets",
+    guard: "masters",
+  },
+  {
+    key: "ticketMacros",
+    title: "Ticket macros",
+    summary: "One-click bundles of ticket changes",
+    href: "/modules/masters/ticket-macros",
+    noun: "macros",
     guard: "masters",
   },
   {

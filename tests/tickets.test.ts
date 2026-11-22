@@ -17,6 +17,17 @@ import {
   normaliseTags,
   priorityMeta,
   reopenedState,
+  checklistProgress,
+  checklistTitleError,
+  linkKindLabel,
+  macroSummary,
+  macroActionError,
+  mergeError,
+  moduleNameError,
+  normaliseChecklistTitle,
+  ticketSlug,
+  freeTicketSlugId,
+  textModuleBodyError,
   stateMeta,
   subjectError,
   threadSummary,
@@ -62,10 +73,10 @@ test("an unknown view falls back to the first tab", () => {
 
 /* States and priorities ---------------------------------------------------- */
 
-test("the state ladder has one closed state and three open ones", () => {
+test("the state ladder has three open states and two that end the work", () => {
   assert.deepEqual(
     TICKET_STATES.map((state) => state.id),
-    ["new", "open", "pending", "closed"],
+    ["new", "open", "pending", "closed", "merged"],
   );
   assert.equal(stateMeta("closed").countsAsOpen, false);
   assert.equal(stateMeta("pending").countsAsOpen, false);
@@ -74,8 +85,8 @@ test("the state ladder has one closed state and three open ones", () => {
 });
 
 test("any state may follow another, but never itself", () => {
-  assert.deepEqual(nextStates("open"), ["new", "pending", "closed"]);
-  assert.deepEqual(nextStates("closed"), ["new", "open", "pending"]);
+  assert.deepEqual(nextStates("open"), ["new", "pending", "closed", "merged"]);
+  assert.deepEqual(nextStates("closed"), ["new", "open", "pending", "merged"]);
 });
 
 test("a closed ticket reopens as open, not as new", () => {
@@ -168,5 +179,108 @@ test("the four views are the Overviews module in embryo", () => {
   assert.deepEqual(
     TICKET_VIEWS.map((view) => view.id),
     ["mine", "unassigned", "open", "closed"],
+  );
+});
+
+/* Phase 2 — checklists, links, macros, text modules ------------------------- */
+
+test("a merged ticket leaves the open views but keeps its history", () => {
+  const rows = [
+    { state: "open", ownerId: "u-arun" },
+    { state: "merged", ownerId: "u-arun" },
+    { state: "closed", ownerId: "u-arun" },
+  ];
+  assert.equal(ticketsForView(rows, "open", "u-arun").length, 1);
+  assert.deepEqual(
+    ticketsForView(rows, "closed", "u-arun").map((row) => row.state),
+    ["merged", "closed"],
+    "merged work is no longer open, and still readable",
+  );
+  assert.equal(stateMeta("merged").countsAsOpen, false);
+});
+
+test("the checklist counts its ticks and reports a percentage", () => {
+  assert.deepEqual(checklistProgress([{ done: true }, { done: false }, { done: true }]), {
+    done: 2,
+    total: 3,
+    label: "2/3",
+    percent: 67,
+  });
+  assert.equal(checklistProgress([]).label, "—");
+  assert.equal(checklistProgress([{ done: true }]).percent, 100);
+});
+
+test("checklist titles are trimmed and kept short", () => {
+  assert.equal(normaliseChecklistTitle("  Call   the   ISP "), "Call the ISP");
+  assert.match(String(checklistTitleError("x")), /title/);
+  assert.match(String(checklistTitleError("x".repeat(161))), /under 160/);
+  assert.equal(checklistTitleError("Call the ISP"), null);
+});
+
+test("link kinds have labels, and an unknown kind reads as Related", () => {
+  assert.equal(linkKindLabel("duplicate"), "Duplicate");
+  assert.equal(linkKindLabel("parent"), "Parent");
+  assert.equal(linkKindLabel("nonsense"), "Related");
+});
+
+test("a merge needs a different, live target", () => {
+  assert.match(String(mergeError({ id: "TT-1", state: "open" }, null)), /Pick the ticket/);
+  assert.match(
+    String(mergeError({ id: "TT-1", state: "open" }, { id: "TT-1", state: "open" })),
+    /itself/,
+  );
+  assert.match(
+    String(mergeError({ id: "TT-1", state: "open" }, { id: "TT-2", state: "merged" })),
+    /already merged/,
+  );
+  assert.match(
+    String(mergeError({ id: "TT-1", state: "merged" }, { id: "TT-2", state: "open" })),
+    /already merged/,
+  );
+  assert.equal(mergeError({ id: "TT-1", state: "open" }, { id: "TT-2", state: "open" }), null);
+});
+
+test("a macro reads back the changes it applies", () => {
+  assert.equal(
+    macroSummary({
+      setState: "open",
+      setPriority: "high",
+      setQueueName: "Infrastructure",
+      addTag: "escalation",
+    }),
+    "state → Open, priority → High, queue → Infrastructure, tag +escalation",
+  );
+  assert.equal(macroSummary({}), "Adds a note only");
+});
+
+test("a macro must change at least one thing", () => {
+  assert.match(String(macroActionError({})), /at least one change/);
+  assert.equal(macroActionError({ addTag: "escalation" }), null);
+  assert.equal(macroActionError({ setState: "closed" }), null);
+});
+
+test("text module and macro names are unique and bounded", () => {
+  const existing = [{ id: "acknowledge", name: "Acknowledge and set expectations" }];
+  assert.match(String(moduleNameError(" ab ")), /at least 3/);
+  assert.match(
+    String(moduleNameError(" acknowledge and SET expectations ", existing)),
+    /already exists/,
+  );
+  assert.equal(moduleNameError("Acknowledge and set expectations", existing, {
+    ignoreId: "acknowledge",
+  }), null);
+});
+
+test("a snippet has to carry some text", () => {
+  assert.match(String(textModuleBodyError("  too short")), /at least 10/);
+  assert.equal(textModuleBodyError("Thanks for raising this — we are on it."), null);
+});
+
+test("text module and macro ids are slugs that never collide", () => {
+  assert.equal(ticketSlug("Ask for a screenshot"), "ask-for-a-screenshot");
+  assert.equal(freeTicketSlugId("Ask for a screenshot", []), "ask-for-a-screenshot");
+  assert.equal(
+    freeTicketSlugId("Acknowledge", [{ id: "acknowledge" }, { id: "acknowledge-2" }]),
+    "acknowledge-3",
   );
 });

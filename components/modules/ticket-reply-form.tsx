@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { replyTicketAction } from "@/app/(app)/modules/tickets/actions";
+import type { TicketTextModuleRecord } from "@/lib/records/repository";
 
 /**
  * Reply or note. The two share one box because agents flip between them
@@ -13,18 +14,33 @@ import { replyTicketAction } from "@/app/(app)/modules/tickets/actions";
 export function TicketReplyForm({
   ticketId,
   canNote,
+  textModules = [],
 }: {
   ticketId: string;
   /** Only agents may write internal notes or book time. */
   canNote: boolean;
+  /** Masters → Text modules: reuse a reply instead of retyping it. */
+  textModules?: TicketTextModuleRecord[];
 }) {
   const [state, formAction, pending] = useActionState(replyTicketAction, {} as FormState);
   const [kind, setKind] = useState<"web" | "note">("web");
+  const [body, setBody] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.ok) formRef.current?.reset();
+    if (state.ok) {
+      formRef.current?.reset();
+      setBody("");
+    }
   }, [state.ok, state.message]);
+
+  /** Inserts a snippet without throwing away what has been typed already. */
+  function insertModule(id: string) {
+    const module = textModules.find((item) => item.id === id);
+    if (!module) return;
+    setBody((current) => (current.trim() ? `${current.trim()}\n\n${module.body}` : module.body));
+    formRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+  }
 
   return (
     <form ref={formRef} action={formAction} className="border border-line bg-surface">
@@ -68,6 +84,28 @@ export function TicketReplyForm({
       )}
 
       <div className="px-4 py-3">
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <label htmlFor="textModule" className="text-[11px] text-muted">
+            Text module
+          </label>
+          <select
+            id="textModule"
+            defaultValue=""
+            onChange={(event) => {
+              insertModule(event.target.value);
+              event.target.value = "";
+            }}
+            className="field h-7 w-auto max-w-[260px] text-[11.5px]"
+          >
+            <option value="">Insert a snippet…</option>
+            {textModules.map((module) => (
+              <option key={module.id} value={module.id}>
+                {module.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] text-muted">maintained in Masters</span>
+        </div>
         <label htmlFor="body" className="sr-only">
           Message
         </label>
@@ -77,6 +115,8 @@ export function TicketReplyForm({
           required
           rows={4}
           maxLength={8000}
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
           placeholder={kind === "web" ? "Write a reply…" : "Notes for the team…"}
           className="field resize-none"
         />

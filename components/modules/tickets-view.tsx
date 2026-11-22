@@ -32,6 +32,7 @@ const COLUMNS: Column[] = [
   { key: "queue", label: "Queue", type: "muted", width: "150px" },
   { key: "priority", label: "Priority", width: "96px" },
   { key: "state", label: "State", type: "status", width: "100px" },
+  { key: "checklist", label: "Checklist", type: "muted", width: "92px" },
   { key: "owner", label: "Owner", type: "muted", width: "150px" },
   { key: "requester", label: "Raised by", type: "muted", width: "150px" },
   { key: "updated", label: "Updated", type: "muted", width: "110px" },
@@ -62,7 +63,12 @@ function Stat({
   );
 }
 
-function rowsFor(tickets: TicketRecord[], view: TicketView, userId: string): TableRow[] {
+function rowsFor(
+  tickets: TicketRecord[],
+  view: TicketView,
+  userId: string,
+  checklistCell: (id: string) => string,
+): TableRow[] {
   return ticketsForView(tickets, view, userId)
     .sort(byRecentActivity)
     .map((ticket) => {
@@ -79,6 +85,7 @@ function rowsFor(tickets: TicketRecord[], view: TicketView, userId: string): Tab
           queue: ticket.queueName || "—",
           priority: overdue ? `${priority.label} · overdue` : priority.label,
           state: state.label,
+          checklist: checklistCell(ticket.id),
           owner: ticket.ownerName || "Unassigned",
           requester: ticket.requesterName || "—",
           updated: formatDayMonth(ticket.updatedAt),
@@ -90,17 +97,24 @@ function rowsFor(tickets: TicketRecord[], view: TicketView, userId: string): Tab
 export function TicketsView({
   user,
   tickets,
+  taskCounts = {},
   view,
   created,
   agent,
 }: {
   user: SessionUser;
   tickets: TicketRecord[];
+  /** Checklist progress per ticket id — "2/3" in the list. */
+  taskCounts?: Record<string, { done: number; total: number }>;
   view?: string;
   created?: string;
   /** Agents see the whole board; everyone else only what they raised or own. */
   agent: boolean;
 }) {
+  const checklistCell = (id: string) => {
+    const counts = taskCounts[id];
+    return counts && counts.total > 0 ? `${counts.done}/${counts.total}` : "—";
+  };
   // The row-level rule already limits the query on the server; this keeps the
   // demo store honest and stops an agent-only tab from showing for others.
   const scoped = agent
@@ -127,7 +141,7 @@ export function TicketsView({
     overdue: open.filter((ticket) => isOverdue(ticket)).length,
   };
   const rows = agent
-    ? rowsFor(scoped, active, user.id)
+    ? rowsFor(scoped, active, user.id, checklistCell)
     : scoped
         .filter((ticket) => (active === "closed" ? ticket.state === "closed" : ticket.state !== "closed"))
         .sort(byRecentActivity)
@@ -143,6 +157,7 @@ export function TicketsView({
               ? `${priorityMeta(ticket.priority).label} · overdue`
               : priorityMeta(ticket.priority).label,
             state: stateMeta(ticket.state).label,
+            checklist: checklistCell(ticket.id),
             owner: ticket.ownerName || "Unassigned",
             requester: ticket.requesterName || "—",
             updated: formatDayMonth(ticket.updatedAt),

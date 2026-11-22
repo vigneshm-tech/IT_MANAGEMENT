@@ -7,10 +7,17 @@ import { Button, buttonClass } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { createTicketAction } from "@/app/(app)/modules/tickets/actions";
 import { TICKET_PRIORITIES } from "@/lib/tickets/core";
-import type { TicketQueueRecord } from "@/lib/records/repository";
+import type { ClientRecord, TicketQueueRecord } from "@/lib/records/repository";
 
 /** Raise a ticket: subject, queue, priority, optional tags, then the message. */
-export function TicketCreateForm({ queues }: { queues: TicketQueueRecord[] }) {
+export function TicketCreateForm({
+  queues,
+  clients = [],
+}: {
+  queues: TicketQueueRecord[];
+  /** Optional organization the ticket sits against. */
+  clients?: Pick<ClientRecord, "id" | "name">[];
+}) {
   const [state, formAction, pending] = useActionState(createTicketAction, {} as FormState);
 
   return (
@@ -87,6 +94,22 @@ export function TicketCreateForm({ queues }: { queues: TicketQueueRecord[] }) {
             <option value="chat">Chat</option>
           </select>
         </div>
+
+        <div>
+          <label htmlFor="clientId" className="field-label">
+            Organization
+          </label>
+          <select id="clientId" name="clientId" defaultValue="" className="field">
+            <option value="">No organization</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="hidden sm:block" />
 
         <div className="sm:col-span-2">
           <label htmlFor="body" className="field-label">
