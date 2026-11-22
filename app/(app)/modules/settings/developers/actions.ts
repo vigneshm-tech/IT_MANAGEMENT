@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { canAccessModule } from "@/lib/access";
 import { createApiKey, listApiKeys, revokeApiKey } from "@/lib/api/keys";
 import { apiKeyNameError, resolveScopes } from "@/lib/api/scopes";
+import { revokeConnectedApp } from "@/lib/mcp/oauth";
 
 export type KeyFormState = {
   ok?: boolean;
@@ -75,6 +76,24 @@ export async function createApiKeyAction(
     console.error("[api-keys] create failed", cause);
     return { error: "The key could not be saved. Please try again." };
   }
+}
+
+/**
+ * Revoke an app that connected over OAuth.
+ *
+ * Revoking the access token also kills the refresh token issued beside it, so
+ * the app cannot quietly mint itself a new one — otherwise "revoke" would mean
+ * "wait an hour".
+ */
+export async function revokeConnectedAppAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!canAccessModule(user.role, "settings")) return;
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  await revokeConnectedApp(user.id, id);
+  revalidate();
 }
 
 export async function revokeApiKeyAction(formData: FormData): Promise<void> {

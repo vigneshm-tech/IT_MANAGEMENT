@@ -118,8 +118,12 @@ copy would describe the surface to nobody who can use it.
 ### MCP — `POST /api/mcp`
 
 JSON-RPC 2.0 over streamable HTTP, protocol `2025-06-18`, single response per POST, `202` and no
-body for notifications. `GET` answers `405` — serving tool calls in one message means no
-server-initiated stream is needed, and pretending otherwise would leave clients waiting.
+body for notifications. `GET` answers `405` with `Allow` — every tool answers in the POST that
+asked, so no server-initiated stream is needed, and saying so is better than a socket that hangs.
+`DELETE` is accepted and ignored (there is no session to end), `OPTIONS` answers CORS.
+
+**Two ways in, one identity.** Either a personal key (`Authorization: Bearer tt_…`) or an OAuth
+access token (`ttm_…`). Both resolve to the same `ApiCaller`; neither can exceed the person's role.
 
 Tools, one per REST capability:
 
@@ -143,6 +147,36 @@ Tools, one per REST capability:
 
 No tool writes anything except `tickets_create`. Read-only is a property of the catalogue, not a
 promise in the docs.
+
+### OAuth 2.1 — why a key was not enough
+
+A connector screen cannot be given a header. It is handed a `401`, looks for an authorisation
+server, finds none, and reports **"no tools loaded"**. That is the failure this document exists to
+fix, so the endpoint is also a small authorisation server:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/.well-known/oauth-authorization-server` | RFC 8414 metadata: where to register, ask, exchange |
+| `/.well-known/oauth-protected-resource[/api/mcp]` | RFC 9728: which authorisation server protects `/api/mcp` |
+| `POST /api/oauth/register` | RFC 7591 dynamic client registration; `redirect_uris` must be https or loopback |
+| `GET /oauth/authorize` | consent screen, on the ordinary signed-in session |
+| `POST /oauth/authorize/decide` | plain form post — works with no JavaScript at all |
+| `POST /api/oauth/token` | `authorization_code` + PKCE **S256 only**, and `refresh_token` |
+
+Rules that keep it honest:
+
+- **Registration grants nothing.** No scopes, no data, no identity — only the right to *ask*. Every
+  authority comes from a person pressing Allow.
+- **PKCE is mandatory.** A client that cannot do S256 cannot connect.
+- **Access tokens live one hour; refresh tokens thirty days and rotate** — the old refresh token is
+  revoked in the same step that mints its replacement, so a replay is detectable and useless.
+- **Consent uses the session cookie**, so the app never sees a password and there is no second
+  login form to phish.
+- **Revoking an app kills both tokens**, otherwise "revoke" would mean "wait an hour".
+- **A 401 advertises the server**: `WWW-Authenticate: Bearer resource_metadata="…"` is what lets a
+  client discover the flow in the first place.
+
+Connected apps appear in Settings → Developers with their scopes and last use, revocable in place.
 
 ---
 
@@ -210,7 +244,7 @@ half of this work, because API keys had nowhere honest to live on a page like th
 | Webhooks / outbound events | The outbox already exists for email; a signed webhook is its own design | `POST` to a subscriber, HMAC-signed, retried |
 | Shared rate-limit store | One instance today; the demo runs in memory | Redis/Upstash or a Postgres counter |
 | Per-call audit trail | Needs a retention decision | `api_key_events(id, key_id, method, path, status, at)` |
-| OAuth for MCP | Bearer keys are enough for a personal client | OAuth 2.1 + dynamic client registration |
+| Multi-user SaaS clients | One deployment, one employee per consent | tenant-aware consent, client allowlists |
 
 ---
 
@@ -227,21 +261,30 @@ lib/api/http.ts                         ok/fail envelope, query parsing
 lib/api/endpoints.ts                    one list, shared by the index route and the docs page
 lib/api/handler.ts                      apiRoute: authenticate → scope → service role
 lib/mcp/server.ts                       tool catalogue + JSON-RPC dispatch
-app/api/mcp/route.ts                    POST (batch, 202 for notifications), GET → 405
+lib/mcp/oauth.ts                        clients, codes, tokens, PKCE, metadata
+lib/mcp/origin.ts                       absolute URLs from the request's own host
+app/api/mcp/route.ts                    POST (batch, 202 for notifications), GET → 405, CORS
+app/api/oauth/{register,token}/route.ts dynamic client registration, code + refresh exchange
+app/oauth/authorize/                    consent screen and its form handler
+app/.well-known/**                      authorisation-server and protected-resource metadata
 app/api/v1/**                           the REST surface
 app/(app)/modules/settings/**           hub + four sections
 components/modules/settings-tabs.tsx    the strip
 components/modules/api-key-form.tsx     issue a key, reveal the secret once
 tests/api-mcp.test.ts                   scopes, keys, auth, MCP dispatch
+tests/mcp-oauth.test.ts                 registration, PKCE, codes, tokens, revocation
 ```
 
 ---
 
 ## 9. Verification
 
-- `npm test` — 326 tests, including 13 for this layer: key generation, prefix/hash separation,
+- `npm test` — 338 tests, including 25 for this layer: key generation, prefix/hash separation,
   scope refusal at issue time, narrowing by role, authentication, revocation, expiry, and MCP
-  `initialize` / `tools/list` filtering / `tools/call` refusal.
+  `initialize` / `tools/list` filtering / `tools/call` refusal, plus the OAuth flow: registration,
+  PKCE, single-use codes, refresh rotation, revocation.
+- Manual, over HTTP: register a client → consent → exchange the code → `tools/list` returns only
+  the scopes granted → replay the code (fails) → refresh (rotates).
 - `npm run build` — the routes compile; `force-dynamic` everywhere, because a cached API answer is
   a lie told confidently.
 - Manual: issue a key in `/modules/settings/developers`, `curl` `/api/v1/me` and `/api/v1/tickets`,

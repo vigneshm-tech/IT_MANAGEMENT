@@ -6,6 +6,8 @@ import { createSupabaseServerClient, runWithServiceRole } from "../supabase/serv
 import { findDemoDirectoryUser } from "../users/store";
 import { fail } from "./http";
 import { authenticateApiKey, type ApiKeyView } from "./keys";
+import { liveScopes, verifyAccessToken } from "../mcp/oauth";
+import { originFrom } from "../mcp/origin";
 import { checkApiRateLimit } from "./rate-limit";
 import { effectiveScopes, type ApiScope } from "./scopes";
 
@@ -83,22 +85,91 @@ export function callerScopes(key: ApiKeyView, role: RoleId): ApiScope[] {
 }
 
 /**
- * Authenticates a request end to end: header → key → person → limit.
+ * A 401 has to say where to go next.
  *
- * Every failure is a JSON body with a code a client can branch on, not just a
- * status: `invalid_key` and `revoked_key` are the same 401 on purpose (an
- * attacker learns nothing) but mean different things to the person debugging.
+ * MCP clients discover the authorisation server from this header (RFC 9728).
+ * Without it a connector screen receives a 401, finds no `WWW-Authenticate`, and
+ * reports "no tools loaded" — which is exactly what happened before OAuth.
+ */
+function unauthorized(request: Request, code: string, message: string): NextResponse {
+  const response = fail(401, code, message);
+  const origin = originFrom(request.headers, request.url);
+  response.headers.set(
+    "www-authenticate",
+    `Bearer realm="tasktornado", resource_metadata="${origin}/.well-known/oauth-protected-resource/api/mcp"`,
+  );
+  return response;
+}
+
+/**
+ * Authenticates a request end to end: header → credential → person → limit.
+ *
+ * Two kinds of credential are accepted and they are deliberately different
+ * things:
+ *   * `tt_…` — a personal API key, issued in Settings by the person using it.
+ *   * `ttm_…` — an OAuth access token, issued to an app that a person approved
+ *     on the consent screen. Revoking it ends the app, not the person.
+ *
+ * Either way the answer is one `ApiCaller`: the same identity the browser
+ * session would have, narrowed to the scopes the credential carries *and* the
+ * role the person holds right now.
  */
 export async function authenticateRequest(request: Request): Promise<ApiAuthResult> {
   const secret = bearer(request);
   if (!secret) {
     return {
       ok: false,
-      response: fail(
-        401,
+      response: unauthorized(
+        request,
         "missing_key",
-        "Send the key as `Authorization: Bearer tt_…` or `X-Api-Key: tt_…`.",
+        "Send `Authorization: Bearer …` with an API key (tt_…) or an OAuth access token (ttm_…).",
       ),
+    };
+  }
+
+  if (secret.startsWith("ttm_")) {
+    const token = await verifyAccessToken(secret);
+    if (!token.ok) {
+      const message =
+        token.reason === "revoked"
+          ? "This connection was revoked."
+          : token.reason === "expired"
+            ? "The access token expired. Refresh it, or connect again."
+            : "That access token is not valid.";
+      return { ok: false, response: unauthorized(request, "invalid_token", message) };
+    }
+
+    const profile = await resolveProfile(token.token.userId);
+    if (!profile) {
+      return {
+        ok: false,
+        response: unauthorized(request, "inactive_account", "The account behind this connection is not active."),
+      };
+    }
+
+    const limit = checkApiRateLimit(token.token.tokenId);
+    if (!limit.allowed) {
+      const response = fail(
+        429,
+        "rate_limited",
+        `This connection may make ${limit.limit} requests a minute. Try again in ${limit.resetSeconds}s.`,
+      );
+      response.headers.set("retry-after", String(limit.resetSeconds));
+      return { ok: false, response };
+    }
+
+    return {
+      ok: true,
+      caller: {
+        keyId: token.token.tokenId,
+        keyName: token.token.clientName,
+        userId: token.token.userId,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        scopes: liveScopes(token.token.scopes, profile.role),
+      },
+      remaining: limit.remaining,
     };
   }
 
@@ -110,14 +181,14 @@ export async function authenticateRequest(request: Request): Promise<ApiAuthResu
         : result.reason === "expired"
           ? "This key has expired."
           : "That key is not valid.";
-    return { ok: false, response: fail(401, `invalid_key`, message) };
+    return { ok: false, response: unauthorized(request, "invalid_key", message) };
   }
 
   const profile = await resolveProfile(result.key.userId);
   if (!profile) {
     return {
       ok: false,
-      response: fail(401, "inactive_account", "The account behind this key is not active."),
+      response: unauthorized(request, "inactive_account", "The account behind this key is not active."),
     };
   }
 

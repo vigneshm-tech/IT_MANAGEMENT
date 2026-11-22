@@ -14,8 +14,9 @@ import { listApiKeys } from "@/lib/api/keys";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { API_SCOPES, grantableScopes } from "@/lib/api/scopes";
 import { MCP_PROTOCOL_VERSION, MCP_TOOLS } from "@/lib/mcp/server";
+import { listConnectedApps } from "@/lib/mcp/oauth";
 import { formatDateTime } from "@/lib/format";
-import { createApiKeyAction, revokeApiKeyAction } from "./actions";
+import { createApiKeyAction, revokeApiKeyAction, revokeConnectedAppAction } from "./actions";
 
 export const metadata: Metadata = { title: "Developers" };
 
@@ -42,7 +43,11 @@ export default async function DevelopersSettingsPage({
   }
 
   const { revoke } = await searchParams;
-  const [keys, headerList] = await Promise.all([listApiKeys(user.id), headers()]);
+  const [keys, apps, headerList] = await Promise.all([
+    listApiKeys(user.id),
+    listConnectedApps(user.id),
+    headers(),
+  ]);
   const host = headerList.get("host") ?? "localhost:3000";
   const origin = `${host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https"}://${host}`;
 
@@ -53,6 +58,9 @@ export default async function DevelopersSettingsPage({
     summary: scope.summary,
   }));
   const activeKeys = keys.filter(isLive);
+  const liveApps = apps.filter(
+    (app) => !app.revokedAt && new Date(app.expiresAt) > new Date(),
+  );
   const confirming = revoke ? keys.find((key) => key.id === revoke && isLive(key)) : undefined;
 
   const sampleSecret = "tt_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
@@ -66,8 +74,10 @@ export default async function DevelopersSettingsPage({
             {activeKeys.length === 0
               ? "No active keys"
               : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"}`}{" "}
-            · {granting.length} of {API_SCOPES.length} scopes your role can grant · MCP tools are
-            the same surface
+            · {granting.length} of {API_SCOPES.length} scopes your role can grant ·{" "}
+            {liveApps.length === 0
+              ? "no connected apps"
+              : `${liveApps.length} connected ${liveApps.length === 1 ? "app" : "apps"}`}
           </p>
         </div>
       </PageHeader>
@@ -173,6 +183,74 @@ export default async function DevelopersSettingsPage({
         <ApiKeyForm action={createApiKeyAction} scopes={available} />
       </section>
 
+      <section aria-labelledby="apps-heading" className="space-y-3">
+        <div>
+          <h2 id="apps-heading" className="text-[13px] font-semibold text-navy">
+            Connected apps
+          </h2>
+          <p className="mt-0.5 text-[11.5px] text-muted">
+            Apps that connected themselves over OAuth and act as you until you revoke them. This is
+            what a connector screen uses — it never sees a key.
+          </p>
+        </div>
+
+        {liveApps.length === 0 ? (
+          <p className="border-y border-line bg-surface px-4 py-5 text-[12.5px] text-muted">
+            No app is connected. Add{" "}
+            <code className="font-mono text-navy">{origin}/api/mcp</code> as an MCP connector and it
+            will land on a consent screen instead of failing.
+          </p>
+        ) : (
+          <div className="overflow-x-auto border-y border-line">
+            <table className="w-full min-w-[720px] text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-line bg-[#f7f9fc] text-[10.5px] uppercase tracking-[0.07em] text-muted">
+                  <th className="px-3 py-2 font-medium">App</th>
+                  <th className="px-3 py-2 font-medium">Scopes</th>
+                  <th className="px-3 py-2 font-medium">Connected</th>
+                  <th className="px-3 py-2 font-medium">Last used</th>
+                  <th className="px-3 py-2 font-medium">Expires</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line bg-surface">
+                {liveApps.map((app) => (
+                  <tr key={app.id} className="align-top">
+                    <td className="px-3 py-2.5 font-medium text-navy">{app.clientName}</td>
+                    <td className="px-3 py-2.5 text-muted">{app.scopes.join(", ") || "—"}</td>
+                    <td className="px-3 py-2.5 text-muted">
+                      {formatDateTime(new Date(app.createdAt))}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted">
+                      {app.lastUsedAt ? formatDateTime(new Date(app.lastUsedAt)) : "Not yet"}
+                    </td>
+                    <td className="px-3 py-2.5 text-muted">
+                      {formatDateTime(new Date(app.expiresAt))}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <form action={revokeConnectedAppAction}>
+                        <input type="hidden" name="id" value={app.id} />
+                        <button
+                          type="submit"
+                          className="text-[11.5px] text-danger underline-offset-2 hover:underline"
+                        >
+                          Revoke
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-[11.5px] leading-relaxed text-muted">
+          Revoking ends the app&apos;s access token and the refresh token beside it, so it cannot mint
+          a new one on the next call. An app can also hold an access token that is simply left to
+          expire — an hour is a short leash on purpose.
+        </p>
+      </section>
+
       <section aria-labelledby="api-heading" className="space-y-3">
         <div>
           <h2
@@ -249,14 +327,29 @@ export default async function DevelopersSettingsPage({
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
             <code className="font-mono text-navy">{origin}/api/mcp</code> · JSON-RPC 2.0 over POST ·
-            protocol <code className="font-mono text-navy">{MCP_PROTOCOL_VERSION}</code> · the same
-            key, the same scopes
+            protocol <code className="font-mono text-navy">{MCP_PROTOCOL_VERSION}</code> · OAuth 2.1
+            or a personal key, the same scopes either way
           </p>
+        </div>
+
+        <div className="border border-line bg-surface">
+          <div className="border-b border-line px-4 py-2.5">
+            <p className="text-[12px] font-medium text-navy">If your client has a connector screen</p>
+          </div>
+          <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
+            Paste <code className="font-mono text-navy">{origin}/api/mcp</code> as the server URL and
+            leave authentication empty. The client registers itself, sends you to a consent screen on
+            this deployment, and gets a short-lived token — no key to copy. Its metadata lives at{" "}
+            <code className="font-mono">/.well-known/oauth-authorization-server</code> and{" "}
+            <code className="font-mono">/.well-known/oauth-protected-resource</code>.
+          </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div>
-            <p className="mb-1.5 text-[11.5px] font-medium text-navy">Client config</p>
+            <p className="mb-1.5 text-[11.5px] font-medium text-navy">
+              If your client takes a config file (key)
+            </p>
             <Code>{`{
   "mcpServers": {
     "tasktornado": {
