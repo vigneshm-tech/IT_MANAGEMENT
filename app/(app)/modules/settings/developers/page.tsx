@@ -402,12 +402,52 @@ export default async function DevelopersSettingsPage({
           <div className="border-b border-line px-4 py-2.5">
             <p className="text-[12px] font-medium text-navy">If your client has a connector screen</p>
           </div>
-          <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
-            Paste <code className="font-mono text-navy">{origin}/api/mcp</code> as the server URL and
-            leave authentication empty. The client registers itself, sends you to a consent screen on
-            this deployment, and gets a short-lived token — no key to copy. Its metadata lives at{" "}
-            <code className="font-mono">/.well-known/oauth-authorization-server</code> and{" "}
-            <code className="font-mono">/.well-known/oauth-protected-resource</code>.
+          <div className="space-y-3 px-4 py-3 text-[11.5px] leading-relaxed text-muted">
+            <p>
+              Paste <code className="font-mono text-navy">{origin}/api/mcp</code> as the server URL and
+              leave authentication empty. The client registers itself, sends you to a consent screen on
+              this deployment, and gets a short-lived token — no key to copy. Its metadata lives at{" "}
+              <code className="font-mono">/.well-known/oauth-authorization-server</code> and{" "}
+              <code className="font-mono">/.well-known/oauth-protected-resource</code>.
+            </p>
+            <p>
+              If the dialog asks you for headers instead, either row below works — same key, two
+              spellings. Use the first if the client hides or overwrites{" "}
+              <code className="font-mono">Authorization</code>.
+            </p>
+            <div className="overflow-x-auto border border-line">
+              <table className="w-full min-w-[420px] text-left text-[11.5px]">
+                <thead>
+                  <tr className="border-b border-line bg-[#f7f9fc] text-[10px] uppercase tracking-[0.07em] text-muted">
+                    <th className="px-2.5 py-1.5 font-medium">Header name</th>
+                    <th className="px-2.5 py-1.5 font-medium">Value</th>
+                    <th className="px-2.5 py-1.5 font-medium">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  <tr>
+                    <td className="px-2.5 py-1.5 font-mono text-navy">X-TaskTornado-Key</td>
+                    <td className="px-2.5 py-1.5 font-mono text-body">tt_…</td>
+                    <td className="px-2.5 py-1.5 text-muted">
+                      App-specific; nothing can silently replace it
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-2.5 py-1.5 font-mono text-navy">Authorization</td>
+                    <td className="px-2.5 py-1.5 font-mono text-body">Bearer tt_…</td>
+                    <td className="px-2.5 py-1.5 text-muted">
+                      The standard; <code className="font-mono">tt_…</code> alone also works
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              <code className="font-mono">X-TaskTornado-Api-Key</code> and{" "}
+              <code className="font-mono">X-TaskTornado-Token</code> are accepted too, as are{" "}
+              <code className="font-mono">X-Api-Key</code> and <code className="font-mono">Api-Key</code>{" "}
+              — the value is the credential either way.
+            </p>
           </div>
         </div>
 

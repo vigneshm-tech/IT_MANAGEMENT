@@ -57,7 +57,16 @@ export function credentialFrom(request: Request): string | null {
     return value.length > 0 ? value : null;
   };
 
-  for (const header of ["authorization", "x-api-key", "x-auth-token", "api-key"]) {
+  for (const header of [
+    "authorization",
+    // The app's own names, for clients that hide or overwrite `Authorization`.
+    "x-tasktornado-key",
+    "x-tasktornado-api-key",
+    "x-tasktornado-token",
+    "x-api-key",
+    "x-auth-token",
+    "api-key",
+  ]) {
     const value = clean(request.headers.get(header));
     if (!value) continue;
     if (looksLikeCredential(value)) return value;

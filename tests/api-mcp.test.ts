@@ -207,6 +207,11 @@ test("the credential is read however the client wrote the header", () => {
     [{ authorization: `"${key}"` }, key],
     [{ "x-api-key": key }, key],
     [{ "x-auth-token": key }, key],
+    // The app's own header names: what a connector dialog should be given when
+    // it hides or overwrites `Authorization`.
+    [{ "x-tasktornado-key": key }, key],
+    [{ "x-tasktornado-api-key": key }, key],
+    [{ "x-tasktornado-token": `Bearer ${key}` }, key],
     [{ authorization: "Basic dXNlcjpwYXNz" }, null],
     [{ authorization: "Bearer not-a-tasktornado-key" }, null],
     [{}, null],

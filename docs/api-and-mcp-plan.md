@@ -130,6 +130,11 @@ access token (`ttm_…`). Both resolve to the same `ApiCaller`; neither can exce
 "Headers" row, so a pasted or doubled prefix is the easiest mistake a person can make — and a 401
 for it teaches nobody anything.
 
+**The app has its own header name.** `X-TaskTornado-Key: tt_…` (also `X-TaskTornado-Api-Key`,
+`X-TaskTornado-Token`) is accepted alongside `Authorization`. Some connector dialogs hide the
+`Authorization` row or quietly replace its scheme, and a header nobody else claims cannot be
+overwritten. Settings → Developers shows both spellings side by side, so a person copies one.
+
 **`GET /api/mcp` is a probe, not a stream.** A client asking for `text/event-stream` gets the spec's
 `405` and falls back to POSTing. Anything else — a browser, `curl`, a person wondering whether their
 connector is configured — gets JSON: server info, protocol version, the caller, and the tools this

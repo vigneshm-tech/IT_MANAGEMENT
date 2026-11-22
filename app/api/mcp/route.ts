@@ -38,7 +38,8 @@ const MAX_BATCH = 20;
 const CORS: Record<string, string> = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers":
-    "authorization, content-type, mcp-protocol-version, mcp-session-id, accept, x-api-key",
+    "authorization, x-tasktornado-key, x-tasktornado-api-key, x-tasktornado-token, " +
+    "content-type, mcp-protocol-version, mcp-session-id, accept, x-api-key",
   "access-control-allow-methods": "POST, GET, DELETE, OPTIONS",
   "access-control-expose-headers":
     "mcp-session-id, x-ratelimit-limit, x-ratelimit-remaining, retry-after",
