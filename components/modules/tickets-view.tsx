@@ -5,16 +5,20 @@ import { buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { SessionUser } from "@/lib/auth/token";
-import type { TicketRecord } from "@/lib/records/repository";
+import type { TicketOverviewRecord, TicketQueueRecord, TicketRecord } from "@/lib/records/repository";
+import { TicketFilters as TicketFiltersBar } from "@/components/modules/ticket-filters";
 import {
   TICKET_VIEWS,
+  applyTicketFilters,
   byRecentActivity,
+  hasFilters,
   isOverdue,
   isTicketView,
   priorityMeta,
   stateMeta,
   ticketsForView,
   viewCounts,
+  type TicketFilters,
   type TicketView,
 } from "@/lib/tickets/core";
 import { formatDayMonth } from "@/lib/format";
@@ -101,6 +105,10 @@ export function TicketsView({
   view,
   created,
   agent,
+  filters = {},
+  queues = [],
+  overviews = [],
+  activeOverviewId,
 }: {
   user: SessionUser;
   tickets: TicketRecord[];
@@ -110,6 +118,11 @@ export function TicketsView({
   created?: string;
   /** Agents see the whole board; everyone else only what they raised or own. */
   agent: boolean;
+  /** The filter bar: queue, state, priority, tag, owner. */
+  filters?: TicketFilters;
+  queues?: TicketQueueRecord[];
+  overviews?: TicketOverviewRecord[];
+  activeOverviewId?: string;
 }) {
   const checklistCell = (id: string) => {
     const counts = taskCounts[id];
@@ -117,23 +130,25 @@ export function TicketsView({
   };
   // The row-level rule already limits the query on the server; this keeps the
   // demo store honest and stops an agent-only tab from showing for others.
-  const scoped = agent
+  const visible = agent
     ? tickets
     : tickets.filter(
         (ticket) => ticket.requesterId === user.id || ticket.ownerId === user.id,
       );
+  // Filters refine the tab, they do not replace it.
+  const scoped = hasFilters(filters) ? applyTicketFilters(visible, filters, user.id) : visible;
   const requested: TicketView = isTicketView(view) ? view : "mine";
   const active: TicketView = !agent && requested !== "closed" ? "mine" : requested;
   const counts = agent
-    ? viewCounts(scoped, user.id)
+    ? viewCounts(visible, user.id)
     : {
-        mine: scoped.filter((ticket) => ticket.state !== "closed").length,
+        mine: visible.filter((ticket) => ticket.state !== "closed").length,
         unassigned: 0,
-        open: scoped.filter((ticket) => ticket.state !== "closed").length,
-        closed: scoped.filter((ticket) => ticket.state === "closed").length,
+        open: visible.filter((ticket) => ticket.state !== "closed").length,
+        closed: visible.filter((ticket) => ticket.state === "closed").length,
       };
   const tabs = agent ? TICKET_VIEWS : TICKET_VIEWS.filter((tab) => tab.id === "mine" || tab.id === "closed");
-  const open = scoped.filter((ticket) => ticket.state !== "closed");
+  const open = visible.filter((ticket) => ticket.state !== "closed");
   const stats = {
     open: open.length,
     unassigned: counts.unassigned,
@@ -239,7 +254,29 @@ export function TicketsView({
         })}
       </div>
 
-      {rows.length === 0 ? (
+      <TicketFiltersBar
+        view={active}
+        filters={filters}
+        queues={queues}
+        overviews={overviews}
+        activeOverviewId={activeOverviewId}
+      />
+
+      {rows.length === 0 && hasFilters(filters) ? (
+        <EmptyState
+          icon={TicketIcon}
+          title="No tickets match these filters"
+          description="Nothing in this view has that queue, state, priority, tag or owner. Clear the filters to see the whole tab."
+          action={
+            <Link
+              href={active === "mine" ? "/modules/tickets" : `/modules/tickets?view=${active}`}
+              className={buttonClass({ size: "sm" })}
+            >
+              Clear filters
+            </Link>
+          }
+        />
+      ) : rows.length === 0 ? (
         active === "mine" ? (
           agent ? (
             <EmptyState

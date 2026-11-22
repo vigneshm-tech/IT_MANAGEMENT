@@ -452,6 +452,9 @@ article, so the thread is the audit trail.
   tags (agents only).
 - Raise: `/modules/tickets/new` — queue, priority, tags, channel and the first
   message.
+- Filters (queue, state, priority, tag, owner) sit above the list, and any
+  filtered view can be saved as a personal overview (`ticket_overviews`) and
+  pinned as a chip. Overviews refine the current tab, they never replace it.
 - Phase 2 adds the agent tools: a checklist per ticket (`ticket_tasks`, shown
   as `2/3` in the list), macros (`ticket_macros`, Masters → Ticket macros),
   reply snippets (Masters → Text modules) and related/parent/child/duplicate

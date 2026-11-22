@@ -447,3 +447,109 @@ export function macroActionError(input: {
     ? "Pick at least one change — a state, a priority, a queue or a tag."
     : null;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Overviews: saved filters over the ticket list                             */
+/* -------------------------------------------------------------------------- */
+
+export type TicketFilters = {
+  queue?: string;
+  state?: TicketState;
+  priority?: TicketPriority;
+  tag?: string;
+  owner?: "me" | "unassigned";
+};
+
+export type TicketFilterInput = Record<string, string | undefined>;
+
+/** Only values the lists actually know survive; everything else is dropped. */
+export function parseTicketFilters(params: TicketFilterInput): TicketFilters {
+  const filters: TicketFilters = {};
+
+  const queue = (params.queue ?? "").trim();
+  if (queue) filters.queue = queue;
+
+  const state = (params.state ?? "").trim();
+  if (isTicketState(state)) filters.state = state;
+
+  const priority = (params.priority ?? "").trim();
+  if (isTicketPriority(priority)) filters.priority = priority;
+
+  const tag = (params.tag ?? "").replace(/\s+/g, " ").trim().slice(0, TAG_MAX);
+  if (tag) filters.tag = tag;
+
+  const owner = (params.owner ?? "").trim();
+  if (owner === "me" || owner === "unassigned") filters.owner = owner;
+
+  return filters;
+}
+
+export function hasFilters(filters: TicketFilters): boolean {
+  return Object.values(filters).some((value) => Boolean(value));
+}
+
+/** Turns the filter object back into search params. */
+export function filtersToQuery(filters: TicketFilters): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => Boolean(value)) as [string, string][],
+  );
+}
+
+/**
+ * Filters refine the tab, they do not replace it: the view still decides which
+ * tickets are in scope, then the filters narrow that list.
+ */
+export function applyTicketFilters<
+  T extends { state: string; priority: string; queueId: string | null; tags: string[]; ownerId: string | null },
+>(tickets: T[], filters: TicketFilters, userId: string): T[] {
+  return tickets.filter((ticket) => {
+    if (filters.queue && ticket.queueId !== filters.queue) return false;
+    if (filters.state && ticket.state !== filters.state) return false;
+    if (filters.priority && ticket.priority !== filters.priority) return false;
+    if (filters.tag) {
+      const wanted = filters.tag.toLowerCase();
+      if (!ticket.tags.some((tag) => tag.toLowerCase() === wanted)) return false;
+    }
+    if (filters.owner === "me" && ticket.ownerId !== userId) return false;
+    if (filters.owner === "unassigned" && ticket.ownerId) return false;
+    return true;
+  });
+}
+
+/** "Infrastructure · High · tag vpn" — what the filter bar is showing. */
+export function filterSummary(
+  filters: TicketFilters,
+  queues: { id: string; name: string }[] = [],
+): string {
+  const parts: string[] = [];
+  if (filters.queue) {
+    parts.push(queues.find((queue) => queue.id === filters.queue)?.name ?? filters.queue);
+  }
+  if (filters.state) parts.push(stateLabel(filters.state));
+  if (filters.priority) parts.push(`${priorityLabel(filters.priority)} priority`);
+  if (filters.tag) parts.push(`tag ${filters.tag}`);
+  if (filters.owner === "me") parts.push("mine");
+  if (filters.owner === "unassigned") parts.push("unassigned");
+  return parts.length === 0 ? "No filters" : parts.join(" · ");
+}
+
+export const OVERVIEW_NAME_MAX = 40;
+
+export function normaliseOverviewName(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+export function overviewNameError(
+  raw: string,
+  existing: { id: string; name: string }[] = [],
+  options: { ignoreId?: string } = {},
+): string | null {
+  const name = normaliseOverviewName(raw);
+  if (name.length < 2) return "Give the overview a name of at least 2 characters.";
+  if (name.length > OVERVIEW_NAME_MAX) return `Keep the name under ${OVERVIEW_NAME_MAX} characters.`;
+  const clash = existing.find(
+    (item) => item.id !== options.ignoreId && item.name.trim().toLowerCase() === name.toLowerCase(),
+  );
+  if (clash) return `You already have an overview called "${clash.name}".`;
+  return null;
+}

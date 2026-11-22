@@ -17,6 +17,8 @@ import { readCache, writeCache } from "../cache/ttl";
 import type { RoleId } from "../roles";
 import {
   TICKET_ARTICLE_KINDS,
+  normaliseOverviewName,
+  type TicketFilters,
   articleIsInternal,
   byRecentActivity,
   closedAtFor,
@@ -206,6 +208,14 @@ export type TicketTextModuleRecord = {
   sortOrder: number;
 };
 
+export type TicketOverviewRecord = {
+  id: string;
+  name: string;
+  filters: TicketFilters;
+  sortOrder: number;
+  createdAt: string;
+};
+
 export type TicketRecord = {
   id: string;
   subject: string;
@@ -281,6 +291,8 @@ type Store = {
   ticketLinks: TicketLinkRecord[];
   ticketMacros: TicketMacroRecord[];
   ticketTextModules: TicketTextModuleRecord[];
+  /** Rows carry their owner; `listTicketOverviews` filters by it. */
+  ticketOverviewRows: (TicketOverviewRecord & { userId: string })[];
   /** Last number handed out in demo mode (the live table uses a sequence). */
   ticketSeq: number;
 };
@@ -650,6 +662,27 @@ function seededTicketTextModules(): TicketTextModuleRecord[] {
   ];
 }
 
+function seededTicketOverviews(): (TicketOverviewRecord & { userId: string })[] {
+  return [
+    {
+      id: "OV-1",
+      userId: "u-super-admin",
+      name: "Infrastructure queue",
+      filters: { queue: "infrastructure" },
+      sortOrder: 100,
+      createdAt: iso(-5, 9),
+    },
+    {
+      id: "OV-2",
+      userId: "u-super-admin",
+      name: "Urgent and unassigned",
+      filters: { priority: "urgent", owner: "unassigned" },
+      sortOrder: 110,
+      createdAt: iso(-4, 9),
+    },
+  ];
+}
+
 function freeTicketMacroId(name: string, existing: { id: string }[]): string {
   return freeTicketSlugId(name, existing);
 }
@@ -941,6 +974,7 @@ function demoStore(): Store {
       ticketLinks: seededTicketLinks(),
       ticketMacros: seededTicketMacros(),
       ticketTextModules: seededTicketTextModules(),
+      ticketOverviewRows: seededTicketOverviews(),
       ticketSeq: 1005,
     };
   }
@@ -960,6 +994,7 @@ function demoStore(): Store {
   if (!Array.isArray(store.ticketLinks)) store.ticketLinks = seededTicketLinks();
   if (!Array.isArray(store.ticketMacros)) store.ticketMacros = seededTicketMacros();
   if (!Array.isArray(store.ticketTextModules)) store.ticketTextModules = seededTicketTextModules();
+  if (!Array.isArray(store.ticketOverviewRows)) store.ticketOverviewRows = seededTicketOverviews();
   if (typeof store.ticketSeq !== "number") store.ticketSeq = 1005;
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
@@ -2295,6 +2330,118 @@ export async function deleteTicketTextModule(id: string): Promise<boolean> {
     .from("ticket_text_modules")
     .delete()
     .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Saved overviews (per person)                                              */
+/* -------------------------------------------------------------------------- */
+
+function mapTicketOverview(row: Record<string, unknown>): TicketOverviewRecord {
+  const raw = (row.filters ?? {}) as Record<string, unknown>;
+  const filters: TicketFilters = {};
+  if (typeof raw.queue === "string" && raw.queue) filters.queue = raw.queue;
+  if (typeof raw.state === "string" && isTicketState(raw.state)) filters.state = raw.state;
+  if (typeof raw.priority === "string" && isTicketPriority(raw.priority)) {
+    filters.priority = raw.priority;
+  }
+  if (typeof raw.tag === "string" && raw.tag) filters.tag = raw.tag;
+  if (raw.owner === "me" || raw.owner === "unassigned") filters.owner = raw.owner;
+
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    filters,
+    sortOrder: n(row.sort_order, 100),
+    createdAt: s(row.created_at, new Date().toISOString()),
+  };
+}
+
+/** This person's overviews, in the order they saved them. */
+export async function listTicketOverviews(userId: string): Promise<TicketOverviewRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketOverviewRows.filter((overview) => overview.userId === userId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map(({ userId: _owner, ...overview }) => overview);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_overviews")
+      .select("*")
+      .eq("user_id", userId)
+      .order("sort_order", { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketOverview(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] overviews read failed", error);
+    return [];
+  }
+}
+
+export async function getTicketOverview(
+  userId: string,
+  id: string,
+): Promise<TicketOverviewRecord | null> {
+  return (await listTicketOverviews(userId)).find((overview) => overview.id === id) ?? null;
+}
+
+export async function createTicketOverview(
+  user: Pick<SessionUser, "id">,
+  name: string,
+  filters: TicketFilters,
+): Promise<TicketOverviewRecord> {
+  const clean = normaliseOverviewName(name);
+  const existing = await listTicketOverviews(user.id);
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: TicketOverviewRecord = {
+      id: `OV-${store.ticketOverviewRows.length + 1}-${Date.now()}`,
+      name: clean,
+      filters,
+      sortOrder: 100 + existing.length * 10,
+      createdAt: new Date().toISOString(),
+    };
+    store.ticketOverviewRows.push({ ...record, userId: user.id });
+    return record;
+  }
+
+  return insertRow(
+    "ticket_overviews",
+    {
+      user_id: user.id,
+      name: clean,
+      filters,
+      sort_order: 100 + existing.length * 10,
+    },
+    mapTicketOverview,
+  );
+}
+
+export async function deleteTicketOverview(userId: string, id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketOverviewRows.findIndex(
+      (overview) => overview.id === id && overview.userId === userId,
+    );
+    if (index < 0) return false;
+    store.ticketOverviewRows.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("ticket_overviews")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId)
     .select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;

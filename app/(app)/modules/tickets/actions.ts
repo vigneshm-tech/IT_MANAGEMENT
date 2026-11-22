@@ -8,6 +8,9 @@ import { clearCache } from "@/lib/cache/ttl";
 import type { FormState } from "@/lib/forms";
 import {
   addTicketArticle,
+  createTicketOverview,
+  deleteTicketOverview,
+  listTicketOverviews,
   addTicketLink,
   addTicketTask,
   createTicket,
@@ -28,6 +31,9 @@ import {
   checklistTitleError,
   mergeError,
   normaliseChecklistTitle,
+  normaliseOverviewName,
+  overviewNameError,
+  parseTicketFilters,
   isTicketChannel,
   isTicketPriority,
   isTicketState,
@@ -550,4 +556,63 @@ export async function mergeTicketAction(formData: FormData): Promise<void> {
 
   revalidateTicket(ticketId, target!.id);
   redirect(`/modules/tickets/${target!.id}?merged=${ticketId}`);
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*  Overviews: saved filters                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Saves the filters currently on screen under a name the person picks. */
+export async function saveTicketOverviewAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "view")) {
+    return { error: "You cannot save ticket views." };
+  }
+
+  const name = normaliseOverviewName(String(formData.get("name") ?? ""));
+  const filters = parseTicketFilters({
+    queue: String(formData.get("queue") ?? ""),
+    state: String(formData.get("state") ?? ""),
+    priority: String(formData.get("priority") ?? ""),
+    tag: String(formData.get("tag") ?? ""),
+    owner: String(formData.get("owner") ?? ""),
+  });
+
+  const error = overviewNameError(name, await listTicketOverviews(user.id));
+  if (error) return { error };
+  if (Object.keys(filters).length === 0) {
+    return { error: "Set a filter first — an overview with no filters is just the whole list." };
+  }
+
+  try {
+    await createTicketOverview(user, name, filters);
+  } catch (cause) {
+    console.error("[tickets] overview save failed", cause);
+    return { error: "The overview could not be saved. Please try again." };
+  }
+
+  revalidatePath("/modules/tickets");
+  return { ok: true, message: `"${name}" was saved above the list.` };
+}
+
+export async function deleteTicketOverviewAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!can(user.role, "tickets", "view")) return;
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  try {
+    await deleteTicketOverview(user.id, id);
+  } catch (cause) {
+    console.error("[tickets] overview delete failed", cause);
+    return;
+  }
+
+  revalidatePath("/modules/tickets");
+  redirect("/modules/tickets");
 }

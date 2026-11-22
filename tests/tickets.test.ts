@@ -27,6 +27,12 @@ import {
   normaliseChecklistTitle,
   ticketSlug,
   freeTicketSlugId,
+  applyTicketFilters,
+  filterSummary,
+  filtersToQuery,
+  hasFilters,
+  overviewNameError,
+  parseTicketFilters,
   textModuleBodyError,
   stateMeta,
   subjectError,
@@ -283,4 +289,81 @@ test("text module and macro ids are slugs that never collide", () => {
     freeTicketSlugId("Acknowledge", [{ id: "acknowledge" }, { id: "acknowledge-2" }]),
     "acknowledge-3",
   );
+});
+
+/* Phase 2 — saved overviews ------------------------------------------------ */
+
+const FILTERABLE = [
+  { state: "open", priority: "high", queueId: "infrastructure", tags: ["vpn", "network"], ownerId: "u-arun" },
+  { state: "open", priority: "urgent", queueId: "security", tags: ["phishing"], ownerId: null },
+  { state: "closed", priority: "low", queueId: "service-desk", tags: [], ownerId: "u-meera" },
+];
+
+test("filters keep only values the lists understand", () => {
+  assert.deepEqual(
+    parseTicketFilters({
+      queue: " infrastructure ",
+      state: "open",
+      priority: "urgent",
+      tag: " VPN ",
+      owner: "me",
+    }),
+    { queue: "infrastructure", state: "open", priority: "urgent", tag: "VPN", owner: "me" },
+  );
+  assert.deepEqual(parseTicketFilters({ state: "solved", priority: "critical", owner: "anyone" }), {});
+});
+
+test("a filter narrows the list without widening the tab", () => {
+  const queue = applyTicketFilters(FILTERABLE, { queue: "infrastructure" }, "u-arun");
+  assert.equal(queue.length, 1);
+
+  const openHigh = applyTicketFilters(FILTERABLE, { state: "open", priority: "high" }, "u-arun");
+  assert.deepEqual(
+    openHigh.map((ticket) => ticket.queueId),
+    ["infrastructure"],
+  );
+
+  const tag = applyTicketFilters(FILTERABLE, { tag: "vpn" }, "u-arun");
+  assert.equal(tag.length, 1, "tag matching is case-insensitive");
+
+  const mine = applyTicketFilters(FILTERABLE, { owner: "me" }, "u-arun");
+  assert.equal(mine.length, 1);
+
+  const unassigned = applyTicketFilters(FILTERABLE, { owner: "unassigned" }, "u-arun");
+  assert.deepEqual(
+    unassigned.map((ticket) => ticket.queueId),
+    ["security"],
+  );
+});
+
+test("an empty filter set matches everything and reports itself as empty", () => {
+  assert.equal(hasFilters({}), false);
+  assert.equal(hasFilters({ tag: "vpn" }), true);
+  assert.equal(applyTicketFilters(FILTERABLE, {}, "u-arun").length, FILTERABLE.length);
+});
+
+test("filters round-trip through the query string and read back as a summary", () => {
+  const filters = { queue: "security", priority: "urgent" as const, tag: "phishing" };
+  assert.deepEqual(filtersToQuery(filters), {
+    queue: "security",
+    priority: "urgent",
+    tag: "phishing",
+  });
+  assert.equal(
+    filterSummary(filters, [{ id: "security", name: "Security" }]),
+    "Security · Urgent priority · tag phishing",
+  );
+  assert.equal(filterSummary({ owner: "unassigned" }), "unassigned");
+  assert.equal(filterSummary({}), "No filters");
+});
+
+test("overview names are unique per person and bounded", () => {
+  const existing = [{ id: "OV-1", name: "My urgent VPN tickets" }];
+  assert.match(String(overviewNameError(" m ")), /at least 2/);
+  assert.match(String(overviewNameError("M".repeat(41))), /under 40/);
+  assert.match(
+    String(overviewNameError("  my URGENT vpn tickets ", existing)),
+    /already have an overview/,
+  );
+  assert.equal(overviewNameError("Security queue", existing), null);
 });

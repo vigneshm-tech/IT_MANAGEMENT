@@ -12,6 +12,7 @@ import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { can, canAccessModule } from "@/lib/access";
 import { approvalView } from "@/lib/approvals/views";
+import { parseTicketFilters } from "@/lib/tickets/core";
 import { requireUser } from "@/lib/auth";
 import { integrationStatus } from "@/lib/integrations/store";
 import { canManageAction1 } from "@/lib/integrations/access";
@@ -29,6 +30,8 @@ import {
   listRenewals,
   listRequestTypes,
   listTicketMacros,
+  listTicketOverviews,
+  listTicketQueues,
   listTicketTaskCounts,
   listTicketTextModules,
   listTickets,
@@ -43,6 +46,13 @@ type PageProps = {
     created?: string;
     updated?: string;
     page?: string;
+    /** Ticket filters, also stored by a saved overview. */
+    queue?: string;
+    state?: string;
+    priority?: string;
+    tag?: string;
+    owner?: string;
+    overview?: string;
   }>;
 };
 
@@ -69,11 +79,19 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "tickets": {
-      const [{ view, created }, tickets, taskCounts] = await Promise.all([
-        searchParams,
-        listTickets(),
-        listTicketTaskCounts(),
-      ]);
+      const [{ view, created, overview, ...rest }, tickets, taskCounts, overviews, queues] =
+        await Promise.all([
+          searchParams,
+          listTickets(),
+          listTicketTaskCounts(),
+          listTicketOverviews(user.id),
+          listTicketQueues(),
+        ]);
+      // A pinned overview replaces the ad-hoc filters with its saved ones.
+      const activeOverview = overview
+        ? overviews.find((item) => item.id === overview)
+        : undefined;
+      const filters = activeOverview ? activeOverview.filters : parseTicketFilters(rest);
       return (
         <TicketsView
           user={user}
@@ -82,6 +100,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           view={view}
           created={created}
           agent={can(user.role, "tickets", "edit")}
+          filters={filters}
+          queues={queues}
+          overviews={overviews}
+          activeOverviewId={activeOverview?.id}
         />
       );
     }

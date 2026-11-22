@@ -27,7 +27,7 @@ Every module in the Zammad admin docs, and where it lands here.
 | **Users** | Agents and customers | `profiles` directory (already exists) | **1 — shipped** |
 | **Roles / permissions** | Who may see and change what | `lib/access.ts` capability matrix on the `tickets` module | **1 — shipped** |
 | **Organizations** | Customer company records | `tickets.client_id` → `clients`, picker on create and in the sidebar | **2 — shipped** |
-| **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Four fixed tabs shipped; user-saved views are the next slice | 2 (partial) |
+| **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Four tabs + filter bar (queue/state/priority/tag/owner) + per-person saved overviews | **2 — shipped** |
 | **Checklist** | Sub-items inside one ticket | `ticket_tasks` + sidebar panel + `2/3` in the list | **2 — shipped** |
 | **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state, merge action | **2 — shipped** |
 | **Macros** | One-click bundle of changes | `ticket_macros`, Masters page, apply action | **2 — shipped** |
@@ -118,10 +118,13 @@ Shipped in migration `0025_ticket_tools.sql`:
 - **Organizations** — `tickets.client_id` + `client_name` snapshot, chosen when
   raising a ticket or in the sidebar, against the client register.
 
-Still open in this phase:
+- **Overviews** — `ticket_overviews`: a filter bar (queue, state, priority, tag,
+  owner) on the ticket list, and any filtered view can be saved under a name and
+  pinned above the list as a chip. Overviews are per person (RLS is
+  `user_id = auth.uid()`), and a chip applies its saved filters to the current
+  tab without changing it.
 
-- **Overviews** — user-saved filters (queue + state + owner + tag) pinned above
-  the list. The four fixed views are in place; the saved layer is the next slice.
+Phase 2 is complete.
 
 ## 4. Phase 3 — promises and reporting
 
