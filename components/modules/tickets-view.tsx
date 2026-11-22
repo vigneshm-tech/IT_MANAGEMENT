@@ -12,7 +12,6 @@ import {
   applyTicketFilters,
   byRecentActivity,
   hasFilters,
-  isOverdue,
   isTicketView,
   priorityMeta,
   stateMeta,
@@ -21,6 +20,7 @@ import {
   type TicketFilters,
   type TicketView,
 } from "@/lib/tickets/core";
+import { isSlaOverdue, slaState } from "@/lib/tickets/sla";
 import { formatDayMonth } from "@/lib/format";
 
 const VIEW_ICON: Record<TicketView, typeof Inbox> = {
@@ -37,6 +37,7 @@ const COLUMNS: Column[] = [
   { key: "priority", label: "Priority", width: "96px" },
   { key: "state", label: "State", type: "status", width: "100px" },
   { key: "checklist", label: "Checklist", type: "muted", width: "92px" },
+  { key: "sla", label: "SLA", type: "muted", width: "132px" },
   { key: "owner", label: "Owner", type: "muted", width: "150px" },
   { key: "requester", label: "Raised by", type: "muted", width: "150px" },
   { key: "updated", label: "Updated", type: "muted", width: "110px" },
@@ -78,7 +79,7 @@ function rowsFor(
     .map((ticket) => {
       const priority = priorityMeta(ticket.priority);
       const state = stateMeta(ticket.state);
-      const overdue = isOverdue(ticket);
+      const overdue = isSlaOverdue(ticket);
       return {
         id: ticket.id,
         href: `/modules/tickets/${ticket.id}`,
@@ -90,6 +91,7 @@ function rowsFor(
           priority: overdue ? `${priority.label} · overdue` : priority.label,
           state: state.label,
           checklist: checklistCell(ticket.id),
+          sla: slaState(ticket).label,
           owner: ticket.ownerName || "Unassigned",
           requester: ticket.requesterName || "—",
           updated: formatDayMonth(ticket.updatedAt),
@@ -153,7 +155,7 @@ export function TicketsView({
     open: open.length,
     unassigned: counts.unassigned,
     urgent: open.filter((ticket) => ticket.priority === "urgent" || ticket.priority === "high").length,
-    overdue: open.filter((ticket) => isOverdue(ticket)).length,
+    breached: open.filter((ticket) => isSlaOverdue(ticket)).length,
   };
   const rows = agent
     ? rowsFor(scoped, active, user.id, checklistCell)
@@ -168,11 +170,12 @@ export function TicketsView({
             id: ticket.id,
             subject: ticket.subject,
             queue: ticket.queueName || "—",
-            priority: isOverdue(ticket)
+            priority: isSlaOverdue(ticket)
               ? `${priorityMeta(ticket.priority).label} · overdue`
               : priorityMeta(ticket.priority).label,
             state: stateMeta(ticket.state).label,
             checklist: checklistCell(ticket.id),
+            sla: "—",
             owner: ticket.ownerName || "Unassigned",
             requester: ticket.requesterName || "—",
             updated: formatDayMonth(ticket.updatedAt),
@@ -186,6 +189,14 @@ export function TicketsView({
         title="Tickets"
         actions={
           <div className="flex items-center gap-2">
+            {agent && (
+              <Link
+                href="/modules/tickets/reports"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                Reports
+              </Link>
+            )}
             <Link
               href="/modules/tickets/redmine"
               className={buttonClass({ variant: "secondary", size: "sm" })}
@@ -218,7 +229,7 @@ export function TicketsView({
         <Stat label="Open" value={stats.open} />
         {agent && <Stat label="Unassigned" value={stats.unassigned} />}
         <Stat label="High or urgent" value={stats.urgent} tone="danger" />
-        <Stat label="Overdue" value={stats.overdue} tone="danger" />
+        <Stat label={agent ? "SLA breached" : "Overdue"} value={stats.breached} tone="danger" />
         <Stat label="Closed" value={counts.closed} />
       </dl>
 
@@ -327,7 +338,7 @@ export function TicketsView({
         )
       ) : (
         <DataTable
-          columns={COLUMNS}
+          columns={agent ? COLUMNS : COLUMNS.filter((column) => column.key !== "sla")}
           rows={rows}
           tableId="tickets"
           exportName="tasktornado-tickets"

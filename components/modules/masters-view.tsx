@@ -11,6 +11,8 @@ type CountKey =
   | "requestTypes"
   | "textModules"
   | "ticketMacros"
+  | "serviceTargets"
+  | "ticketTriggers"
   | "customFields";
 
 /**
@@ -64,6 +66,22 @@ const REGISTERS: {
     summary: "One-click bundles of ticket changes",
     href: "/modules/masters/ticket-macros",
     noun: "macros",
+    guard: "masters",
+  },
+  {
+    key: "serviceTargets",
+    title: "Service targets",
+    summary: "Promises per queue and priority, measured on the office clock",
+    href: "/modules/masters/slas",
+    noun: "targets",
+    guard: "masters",
+  },
+  {
+    key: "ticketTriggers",
+    title: "Ticket triggers",
+    summary: "If this, then that — automatic changes on new tickets and messages",
+    href: "/modules/masters/ticket-triggers",
+    noun: "triggers",
     guard: "masters",
   },
   {

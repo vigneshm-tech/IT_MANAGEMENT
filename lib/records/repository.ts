@@ -36,6 +36,23 @@ import {
   type TicketPriority,
   type TicketState,
 } from "../tickets/core";
+import {
+  DEFAULT_CALENDAR,
+  SLA_SEED,
+  computeSlaTargets,
+  type BusinessCalendar,
+  type SlaRule,
+} from "../tickets/sla";
+import { TRIGGER_SEED, type TicketTriggerRecord } from "../tickets/triggers";
+
+export type { BusinessCalendar, SlaRule } from "../tickets/sla";
+export type {
+  TicketTriggerEvent,
+  TicketTriggerRecord,
+  TriggerField,
+  TriggerOperator,
+} from "../tickets/triggers";
+
 import { isPatchOutcome, pendingForApprover } from "../patching/plan";
 import type {
   PatchApprover,
@@ -234,7 +251,17 @@ export type TicketRecord = {
   clientId: string | null;
   clientName: string;
   tags: string[];
+  /** Resolution target, measured on the business calendar. */
   dueAt: string | null;
+  /** Service target this ticket is measured against, if a rule matched. */
+  slaId: string | null;
+  firstResponseAt: string | null;
+  firstResponseDueAt: string | null;
+  firstResponseBreachedAt: string | null;
+  resolveBreachedAt: string | null;
+  reminderSentAt: string | null;
+  /** Times the ticket came back out of Closed. */
+  reopenCount: number;
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -293,6 +320,9 @@ type Store = {
   ticketTextModules: TicketTextModuleRecord[];
   /** Rows carry their owner; `listTicketOverviews` filters by it. */
   ticketOverviewRows: (TicketOverviewRecord & { userId: string })[];
+  ticketCalendars: BusinessCalendar[];
+  ticketSlas: SlaRule[];
+  ticketTriggers: TicketTriggerRecord[];
   /** Last number handed out in demo mode (the live table uses a sequence). */
   ticketSeq: number;
 };
@@ -345,7 +375,7 @@ function seededTicketQueues(): TicketQueueRecord[] {
 
 function ticketRecord(input: Partial<TicketRecord> & Pick<TicketRecord, "id" | "subject">): TicketRecord {
   const createdAt = input.createdAt ?? iso(-1);
-  return {
+  const base: TicketRecord = {
     state: "new",
     priority: "normal",
     queueId: "service-desk",
@@ -356,13 +386,31 @@ function ticketRecord(input: Partial<TicketRecord> & Pick<TicketRecord, "id" | "
     requesterName: "Rahul Menon",
     requesterEmail: "rahul.menon@infeara.example",
     channel: "web",
+    clientId: null,
+    clientName: "",
     tags: [],
-    dueAt: dueAtFor(createdAt, input.priority ?? "normal"),
+    dueAt: null,
+    slaId: null,
+    firstResponseAt: null,
+    firstResponseDueAt: null,
+    firstResponseBreachedAt: null,
+    resolveBreachedAt: null,
+    reminderSentAt: null,
+    reopenCount: 0,
     closedAt: null,
     updatedAt: createdAt,
     createdAt,
     ...input,
-  } as TicketRecord;
+  };
+
+  // Demo tickets are promised against the same rules the live ones are.
+  const targets = computeSlaTargets(base, SLA_SEED, [DEFAULT_CALENDAR]);
+  return {
+    ...base,
+    slaId: base.slaId ?? targets.slaId,
+    dueAt: base.dueAt ?? targets.resolveDueAt,
+    firstResponseDueAt: base.firstResponseDueAt ?? targets.firstResponseDueAt,
+  };
 }
 
 function seededTickets(): TicketRecord[] {
@@ -377,6 +425,7 @@ function seededTickets(): TicketRecord[] {
       ownerId: "u-it-engineer",
       ownerName: "Arun Prakash",
       tags: ["vpn", "network"],
+      firstResponseAt: iso(-2, 10),
       createdAt: iso(-2, 9),
       updatedAt: iso(-1, 15),
     }),
@@ -407,6 +456,9 @@ function seededTickets(): TicketRecord[] {
       requesterName: "Sneha Pillai",
       requesterEmail: "sneha.pillai@infeara.example",
       tags: ["finance", "upgrade"],
+      firstResponseAt: iso(-3, 11),
+      // It was closed once and came back — the reopen rate counts this one.
+      reopenCount: 1,
       createdAt: iso(-3, 10),
       updatedAt: iso(-1, 17),
     }),
@@ -421,6 +473,7 @@ function seededTickets(): TicketRecord[] {
       requesterEmail: "super.admin@tasktornado.dev",
       channel: "phone",
       tags: ["phishing"],
+      firstResponseAt: iso(0, 9),
       createdAt: iso(0, 8),
       updatedAt: iso(0, 8),
     }),
@@ -434,6 +487,7 @@ function seededTickets(): TicketRecord[] {
       ownerId: "u-it-engineer",
       ownerName: "Arun Prakash",
       tags: ["printer"],
+      firstResponseAt: iso(-6, 13),
       createdAt: iso(-6, 12),
       updatedAt: iso(-1, 9),
       closedAt: iso(-1, 9),
@@ -681,6 +735,30 @@ function seededTicketOverviews(): (TicketOverviewRecord & { userId: string })[] 
       createdAt: iso(-4, 9),
     },
   ];
+}
+
+function seededTicketCalendars(): BusinessCalendar[] {
+  return [
+    { ...DEFAULT_CALENDAR },
+    {
+      id: "ist-extended",
+      name: "India extended hours",
+      utcOffsetMinutes: 330,
+      days: [1, 2, 3, 4, 5, 6],
+      startMinute: 8 * 60,
+      endMinute: 20 * 60,
+      status: "active",
+      sortOrder: 20,
+    },
+  ];
+}
+
+function seededTicketSlas(): SlaRule[] {
+  return SLA_SEED.map((rule) => ({ ...rule }));
+}
+
+function seededTicketTriggers(): TicketTriggerRecord[] {
+  return TRIGGER_SEED.map((trigger) => ({ ...trigger }));
 }
 
 function freeTicketMacroId(name: string, existing: { id: string }[]): string {
@@ -975,6 +1053,9 @@ function demoStore(): Store {
       ticketMacros: seededTicketMacros(),
       ticketTextModules: seededTicketTextModules(),
       ticketOverviewRows: seededTicketOverviews(),
+      ticketCalendars: seededTicketCalendars(),
+      ticketSlas: seededTicketSlas(),
+      ticketTriggers: seededTicketTriggers(),
       ticketSeq: 1005,
     };
   }
@@ -995,6 +1076,9 @@ function demoStore(): Store {
   if (!Array.isArray(store.ticketMacros)) store.ticketMacros = seededTicketMacros();
   if (!Array.isArray(store.ticketTextModules)) store.ticketTextModules = seededTicketTextModules();
   if (!Array.isArray(store.ticketOverviewRows)) store.ticketOverviewRows = seededTicketOverviews();
+  if (!Array.isArray(store.ticketCalendars)) store.ticketCalendars = seededTicketCalendars();
+  if (!Array.isArray(store.ticketSlas)) store.ticketSlas = seededTicketSlas();
+  if (!Array.isArray(store.ticketTriggers)) store.ticketTriggers = seededTicketTriggers();
   if (typeof store.ticketSeq !== "number") store.ticketSeq = 1005;
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
@@ -1527,6 +1611,13 @@ function mapTicket(row: Record<string, unknown>): TicketRecord {
     clientName: s(row.client_name),
     tags: Array.isArray(row.tags) ? (row.tags as unknown[]).filter((tag) => typeof tag === "string") : [],
     dueAt: s(row.due_at) || null,
+    slaId: s(row.sla_id) || null,
+    firstResponseAt: s(row.first_response_at) || null,
+    firstResponseDueAt: s(row.first_response_due_at) || null,
+    firstResponseBreachedAt: s(row.first_response_breached_at) || null,
+    resolveBreachedAt: s(row.resolve_breached_at) || null,
+    reminderSentAt: s(row.reminder_sent_at) || null,
+    reopenCount: n(row.reopen_count),
     closedAt: s(row.closed_at) || null,
     createdAt: s(row.created_at, new Date().toISOString()),
     updatedAt: s(row.updated_at, new Date().toISOString()),
@@ -1632,7 +1723,20 @@ export async function createTicket(
   input: NewTicketInput,
 ): Promise<TicketRecord> {
   const now = new Date().toISOString();
-  const queue = (await listTicketQueues()).find((item) => item.id === input.queueId);
+  const [queues, slaRules, calendars] = await Promise.all([
+    listTicketQueues(),
+    listTicketSlas(),
+    listTicketCalendars(),
+  ]);
+  const queue = queues.find((item) => item.id === input.queueId);
+  // The promise is cut at creation, on the office clock, from the rule that
+  // matches this queue and priority. It is stored, not recomputed on read, so a
+  // later change to the rules cannot rewrite history.
+  const targets = computeSlaTargets(
+    { createdAt: now, priority: input.priority, queueId: queue?.id ?? null },
+    slaRules,
+    calendars,
+  );
   // The action normalises too; the store is the last line of defence because a
   // ticket number and subject are permanent once written.
   const created: Omit<TicketRecord, "id"> = {
@@ -1650,7 +1754,14 @@ export async function createTicket(
     clientId: input.clientId || null,
     clientName: input.clientName ?? "",
     tags: normaliseTags(input.tags),
-    dueAt: dueAtFor(now, input.priority),
+    dueAt: targets.resolveDueAt,
+    slaId: targets.slaId,
+    firstResponseAt: null,
+    firstResponseDueAt: targets.firstResponseDueAt,
+    firstResponseBreachedAt: null,
+    resolveBreachedAt: null,
+    reminderSentAt: null,
+    reopenCount: 0,
     closedAt: null,
     createdAt: now,
     updatedAt: now,
@@ -1694,6 +1805,8 @@ export async function createTicket(
       client_name: created.clientName,
       tags: created.tags,
       due_at: created.dueAt,
+      sla_id: created.slaId,
+      first_response_due_at: created.firstResponseDueAt,
     },
     mapTicket,
   );
@@ -1727,22 +1840,38 @@ export type TicketPatch = {
   ownerName?: string;
   subject?: string;
   tags?: string[];
+  /** Set by the sweep and the first-reply path, never by the sidebar form. */
+  firstResponseAt?: string | null;
+  firstResponseBreachedAt?: string | null;
+  resolveBreachedAt?: string | null;
+  reminderSentAt?: string | null;
+  reopenCount?: number;
 };
 
-/** Applies a patch and bumps `updated_at` so the ticket jumps the queue. */
+/**
+ * Applies a patch and bumps `updated_at` so the ticket jumps the queue.
+ *
+ * Two things happen here rather than in the actions, because every write path
+ * goes through this function: a ticket taken out of Closed counts a reopen, and
+ * a change of priority or queue re-cuts the promise from the rules as they are
+ * now. An existing breach stamp is deliberately left alone — the promise was
+ * broken, and moving the target later does not un-break it.
+ */
 export async function updateTicket(id: string, patch: TicketPatch): Promise<boolean> {
   const now = new Date().toISOString();
   const values: Record<string, unknown> = { updated_at: now };
+  const existing = await getTicket(id);
 
   if (patch.state) {
     values.state = patch.state;
     values.closed_at = closedAtFor(patch.state);
+    if (patch.state !== "closed" && existing?.closedAt) {
+      values.reopen_count = (existing.reopenCount ?? 0) + 1;
+      // A reopened ticket is work again, so a new pending reminder is due.
+      values.reminder_sent_at = null;
+    }
   }
-  if (patch.priority) {
-    values.priority = patch.priority;
-    const existing = await getTicket(id);
-    if (existing) values.due_at = dueAtFor(existing.createdAt, patch.priority);
-  }
+  if (patch.priority) values.priority = patch.priority;
   if (patch.queueId !== undefined) {
     values.queue_id = patch.queueId;
     values.queue_name = patch.queueName ?? "";
@@ -1758,6 +1887,30 @@ export async function updateTicket(id: string, patch: TicketPatch): Promise<bool
   if (patch.subject) values.subject = patch.subject;
   if (patch.tags) values.tags = patch.tags;
 
+  if (patch.firstResponseAt !== undefined) values.first_response_at = patch.firstResponseAt;
+  if (patch.firstResponseBreachedAt !== undefined) {
+    values.first_response_breached_at = patch.firstResponseBreachedAt;
+  }
+  if (patch.resolveBreachedAt !== undefined) values.resolve_breached_at = patch.resolveBreachedAt;
+  if (patch.reminderSentAt !== undefined) values.reminder_sent_at = patch.reminderSentAt;
+  if (patch.reopenCount !== undefined) values.reopen_count = patch.reopenCount;
+
+  // The promise follows the queue and the priority. Nothing else moves it.
+  if (existing && (patch.priority || patch.queueId !== undefined)) {
+    const targets = computeSlaTargets(
+      {
+        createdAt: existing.createdAt,
+        priority: patch.priority ?? existing.priority,
+        queueId: patch.queueId !== undefined ? patch.queueId : existing.queueId,
+      },
+      await listTicketSlas(),
+      await listTicketCalendars(),
+    );
+    values.due_at = targets.resolveDueAt;
+    values.sla_id = targets.slaId;
+    values.first_response_due_at = targets.firstResponseDueAt;
+  }
+
   if (!isSupabaseConfigured) {
     const record = demoStore().tickets.find((ticket) => ticket.id === id);
     if (!record) return false;
@@ -1766,7 +1919,6 @@ export async function updateTicket(id: string, patch: TicketPatch): Promise<bool
       record.closedAt = (values.closed_at as string | null) ?? null;
     }
     if (patch.priority) record.priority = patch.priority;
-    if (typeof values.due_at === "string") record.dueAt = values.due_at;
     if (patch.queueId !== undefined) {
       record.queueId = patch.queueId;
       record.queueName = patch.queueName ?? "";
@@ -1781,6 +1933,21 @@ export async function updateTicket(id: string, patch: TicketPatch): Promise<bool
     }
     if (patch.subject) record.subject = patch.subject;
     if (patch.tags) record.tags = patch.tags;
+    if (typeof values.due_at === "string") record.dueAt = values.due_at;
+    if (typeof values.sla_id === "string") record.slaId = values.sla_id;
+    if (typeof values.first_response_due_at === "string") {
+      record.firstResponseDueAt = values.first_response_due_at;
+    }
+    if (patch.firstResponseAt !== undefined) record.firstResponseAt = patch.firstResponseAt;
+    if (patch.firstResponseBreachedAt !== undefined) {
+      record.firstResponseBreachedAt = patch.firstResponseBreachedAt;
+    }
+    if (patch.resolveBreachedAt !== undefined) {
+      record.resolveBreachedAt = patch.resolveBreachedAt;
+    }
+    if (typeof values.reopen_count === "number") record.reopenCount = values.reopen_count;
+    if (typeof values.reminder_sent_at === "string") record.reminderSentAt = values.reminder_sent_at;
+    else if (patch.reminderSentAt !== undefined) record.reminderSentAt = patch.reminderSentAt;
     record.updatedAt = now;
     return true;
   }
@@ -1844,6 +2011,62 @@ export async function addTicketArticle(
   // The article insert does not touch its ticket, so nudge it forward by hand.
   await patchRow("tickets", input.ticketId, { updated_at: now });
   return article;
+}
+
+/**
+ * Stamps the first agent reply. The first-response SLA measures from creation to
+ * this moment, so it is written once and never moved.
+ */
+export async function markTicketFirstResponse(
+  ticketId: string,
+  at: string = new Date().toISOString(),
+): Promise<boolean> {
+  const ticket = await getTicket(ticketId);
+  if (!ticket || ticket.firstResponseAt) return false;
+  return updateTicket(ticketId, { firstResponseAt: at });
+}
+
+/**
+ * A `system` line written by the app rather than a person — the sweep uses this
+ * so its decisions read like any other change in the thread. It does not bump
+ * `updated_at`: a reminder must not postpone the very clock it is warning about.
+ */
+export async function recordTicketSystemEvent(ticketId: string, body: string): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const ticket = store.tickets.find((item) => item.id === ticketId);
+    if (!ticket) return;
+    store.ticketArticles.push({
+      id: `TA-${ticketId}-${store.ticketArticles.length + 1}`,
+      ticketId,
+      kind: "system",
+      internal: true,
+      authorId: null,
+      authorName: "Automation",
+      authorRole: "system",
+      body,
+      timeMinutes: 0,
+      createdAt: now,
+    });
+    return;
+  }
+
+  await insertRow(
+    "ticket_articles",
+    {
+      ticket_id: ticketId,
+      kind: "system",
+      internal: true,
+      author_id: null,
+      author_name: "Automation",
+      author_role: "system",
+      body,
+      time_minutes: 0,
+    },
+    mapTicketArticle,
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -2443,6 +2666,383 @@ export async function deleteTicketOverview(userId: string, id: string): Promise<
     .eq("id", id)
     .eq("user_id", userId)
     .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Business calendars, service targets and triggers (phase 3)                */
+/* -------------------------------------------------------------------------- */
+
+function mapTicketCalendar(row: Record<string, unknown>): BusinessCalendar {
+  const days = Array.isArray(row.days)
+    ? (row.days as unknown[]).map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    : DEFAULT_CALENDAR.days;
+
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    utcOffsetMinutes: n(row.utc_offset_minutes, DEFAULT_CALENDAR.utcOffsetMinutes),
+    days: days.length > 0 ? days : DEFAULT_CALENDAR.days,
+    startMinute: n(row.start_minute, DEFAULT_CALENDAR.startMinute),
+    endMinute: n(row.end_minute, DEFAULT_CALENDAR.endMinute),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+/** The office clock. Active calendars first, in the order IT filed them. */
+export async function listTicketCalendars(includeInactive = false): Promise<BusinessCalendar[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketCalendars.filter((calendar) => includeInactive || calendar.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("ticket_calendars").select("*").order("sort_order", { ascending: true });
+    if (!includeInactive) query = query.eq("status", "active");
+    const { data, error } = await query.limit(50);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketCalendar(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] calendars read failed", error);
+    return [DEFAULT_CALENDAR];
+  }
+}
+
+export async function createTicketCalendar(input: {
+  name: string;
+  utcOffsetMinutes: number;
+  days: number[];
+  startMinute: number;
+  endMinute: number;
+}): Promise<BusinessCalendar> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const existing = await listTicketCalendars(true);
+  const id = freeTicketSlugId(name, existing);
+  const sortOrder = 100 + existing.length * 10;
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: BusinessCalendar = { ...input, id, name, status: "active", sortOrder };
+    store.ticketCalendars.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_calendars",
+    {
+      id,
+      name,
+      utc_offset_minutes: input.utcOffsetMinutes,
+      days: input.days,
+      start_minute: input.startMinute,
+      end_minute: input.endMinute,
+      sort_order: sortOrder,
+    },
+    mapTicketCalendar,
+  );
+}
+
+export async function setTicketCalendarStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const calendar = demoStore().ticketCalendars.find((item) => item.id === id);
+    if (!calendar) return false;
+    calendar.status = status;
+    return true;
+  }
+  return patchRow("ticket_calendars", id, { status });
+}
+
+export async function deleteTicketCalendar(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketCalendars.findIndex((calendar) => calendar.id === id);
+    if (index < 0) return false;
+    store.ticketCalendars.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_calendars").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+function mapTicketSla(row: Record<string, unknown>): SlaRule {
+  const priority = s(row.priority);
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    queueId: s(row.queue_id) || null,
+    queueName: "",
+    priority: isTicketPriority(priority) ? priority : null,
+    firstResponseMinutes: n(row.first_response_minutes, 480),
+    resolveMinutes: n(row.resolve_minutes, 2880),
+    calendarId: s(row.calendar_id) || DEFAULT_CALENDAR.id,
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+/** Service targets, most specific first — the order the admin list reads in. */
+export async function listTicketSlas(includeInactive = false): Promise<SlaRule[]> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    return store.ticketSlas
+      .filter((rule) => includeInactive || rule.status === "active")
+      .map((rule) => ({
+        ...rule,
+        queueName: store.ticketQueues.find((queue) => queue.id === rule.queueId)?.name ?? "",
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("ticket_slas").select("*").order("sort_order", { ascending: true });
+    if (!includeInactive) query = query.eq("status", "active");
+    const [{ data, error }, queues] = await Promise.all([query.limit(100), listTicketQueues()]);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+      const rule = mapTicketSla(row as Record<string, unknown>);
+      return {
+        ...rule,
+        queueName: queues.find((queue) => queue.id === rule.queueId)?.name ?? "",
+      };
+    });
+  } catch (error) {
+    console.error("[tickets] service targets read failed", error);
+    return [];
+  }
+}
+
+export type NewTicketSlaInput = {
+  name: string;
+  queueId: string | null;
+  priority: TicketPriority | null;
+  firstResponseMinutes: number;
+  resolveMinutes: number;
+  calendarId: string;
+};
+
+export async function createTicketSla(input: NewTicketSlaInput): Promise<SlaRule> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const existing = await listTicketSlas(true);
+  const id = freeTicketSlugId(name, existing);
+  const sortOrder = 100 + existing.length * 10;
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: SlaRule = {
+      id,
+      name,
+      queueId: input.queueId,
+      queueName: store.ticketQueues.find((queue) => queue.id === input.queueId)?.name ?? "",
+      priority: input.priority,
+      firstResponseMinutes: input.firstResponseMinutes,
+      resolveMinutes: input.resolveMinutes,
+      calendarId: input.calendarId,
+      status: "active",
+      sortOrder,
+    };
+    store.ticketSlas.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_slas",
+    {
+      id,
+      name,
+      queue_id: input.queueId,
+      priority: input.priority,
+      first_response_minutes: input.firstResponseMinutes,
+      resolve_minutes: input.resolveMinutes,
+      calendar_id: input.calendarId,
+      sort_order: sortOrder,
+    },
+    mapTicketSla,
+  );
+}
+
+export async function setTicketSlaStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const rule = demoStore().ticketSlas.find((item) => item.id === id);
+    if (!rule) return false;
+    rule.status = status;
+    return true;
+  }
+  return patchRow("ticket_slas", id, { status });
+}
+
+export async function deleteTicketSla(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketSlas.findIndex((rule) => rule.id === id);
+    if (index < 0) return false;
+    store.ticketSlas.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_slas").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+function mapTicketTrigger(row: Record<string, unknown>): TicketTriggerRecord {
+  const event = s(row.event, "ticket.created");
+  const field = s(row.field, "subject");
+  const operator = s(row.operator, "contains");
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    description: s(row.description),
+    event: (event === "article.created" ? "article.created" : "ticket.created") as TicketTriggerRecord["event"],
+    field: (["subject", "body", "queue", "priority", "state", "tag"].includes(field)
+      ? field
+      : "subject") as TicketTriggerRecord["field"],
+    operator: (["contains", "starts_with", "is"].includes(operator)
+      ? operator
+      : "contains") as TicketTriggerRecord["operator"],
+    value: s(row.value),
+    setState: (isTicketState(s(row.set_state)) ? s(row.set_state) : null) as TicketTriggerRecord["setState"],
+    setPriority: (isTicketPriority(s(row.set_priority))
+      ? s(row.set_priority)
+      : null) as TicketTriggerRecord["setPriority"],
+    setQueue: s(row.set_queue) || null,
+    setQueueName: "",
+    addTag: s(row.add_tag),
+    note: s(row.note),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    sortOrder: n(row.sort_order, 100),
+  };
+}
+
+/** Triggers in the order they are evaluated: lowest sort order first. */
+export async function listTicketTriggers(includeInactive = false): Promise<TicketTriggerRecord[]> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    return store.ticketTriggers
+      .filter((trigger) => includeInactive || trigger.status === "active")
+      .map((trigger) => ({
+        ...trigger,
+        setQueueName: store.ticketQueues.find((queue) => queue.id === trigger.setQueue)?.name ?? "",
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("ticket_triggers").select("*").order("sort_order", { ascending: true });
+    if (!includeInactive) query = query.eq("status", "active");
+    const [{ data, error }, queues] = await Promise.all([query.limit(100), listTicketQueues()]);
+
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+      const trigger = mapTicketTrigger(row as Record<string, unknown>);
+      return {
+        ...trigger,
+        setQueueName: queues.find((queue) => queue.id === trigger.setQueue)?.name ?? "",
+      };
+    });
+  } catch (error) {
+    console.error("[tickets] triggers read failed", error);
+    return [];
+  }
+}
+
+export type NewTicketTriggerInput = {
+  name: string;
+  description: string;
+  event: TicketTriggerRecord["event"];
+  field: TicketTriggerRecord["field"];
+  operator: TicketTriggerRecord["operator"];
+  value: string;
+  setState: TicketState | null;
+  setPriority: TicketPriority | null;
+  setQueue: string | null;
+  addTag: string;
+  note: string;
+};
+
+export async function createTicketTrigger(
+  input: NewTicketTriggerInput,
+): Promise<TicketTriggerRecord> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const existing = await listTicketTriggers(true);
+  const id = freeTicketSlugId(name, existing);
+  const sortOrder = 100 + existing.length * 10;
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const record: TicketTriggerRecord = {
+      id,
+      ...input,
+      setQueueName: store.ticketQueues.find((queue) => queue.id === input.setQueue)?.name ?? "",
+      status: "active",
+      sortOrder,
+    };
+    store.ticketTriggers.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_triggers",
+    {
+      id,
+      name,
+      description: input.description,
+      event: input.event,
+      field: input.field,
+      operator: input.operator,
+      value: input.value,
+      set_state: input.setState,
+      set_priority: input.setPriority,
+      set_queue: input.setQueue,
+      add_tag: input.addTag,
+      note: input.note,
+      sort_order: sortOrder,
+    },
+    mapTicketTrigger,
+  );
+}
+
+export async function setTicketTriggerStatus(
+  id: string,
+  status: "active" | "inactive",
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const trigger = demoStore().ticketTriggers.find((item) => item.id === id);
+    if (!trigger) return false;
+    trigger.status = status;
+    return true;
+  }
+  return patchRow("ticket_triggers", id, { status });
+}
+
+export async function deleteTicketTrigger(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.ticketTriggers.findIndex((trigger) => trigger.id === id);
+    if (index < 0) return false;
+    store.ticketTriggers.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("ticket_triggers").delete().eq("id", id).select("id");
   if (error) throw error;
   return (data?.length ?? 0) > 0;
 }

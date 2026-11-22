@@ -22,9 +22,13 @@ import {
   listTicketMacros,
   listTicketQueues,
   listTicketTasks,
+  listTicketTriggers,
+  markTicketFirstResponse,
+  recordTicketSystemEvent,
   setTicketTaskDone,
   updateTicket,
 } from "@/lib/records/repository";
+import { evaluateTriggers, type TicketTriggerEvent } from "@/lib/tickets/triggers";
 import {
   TICKET_LINK_KINDS,
   bodyError,
@@ -59,6 +63,56 @@ function refresh(ticketId?: string) {
   revalidatePath("/modules/tickets");
   revalidatePath("/modules/dashboard");
   if (ticketId) revalidatePath(`/modules/tickets/${ticketId}`);
+}
+
+/**
+ * Runs the triggers for one event and applies whatever they ask for.
+ *
+ * The rule engine is pure; this is the only place that writes. A rule that
+ * changes nothing still leaves its line, because "the rule looked and decided
+ * this was already true" is information an agent reading the thread wants.
+ */
+async function runTicketTriggers(
+  ticket: Awaited<ReturnType<typeof getTicket>>,
+  event: TicketTriggerEvent,
+  body: string,
+): Promise<void> {
+  if (!ticket) return;
+
+  try {
+    const triggers = await listTicketTriggers();
+    if (triggers.length === 0) return;
+
+    const effect = evaluateTriggers(triggers, event, {
+      subject: ticket.subject,
+      body,
+      queueId: ticket.queueId,
+      priority: ticket.priority,
+      state: ticket.state,
+      tags: ticket.tags,
+    });
+    if (effect.matched.length === 0) return;
+
+    const patch: Parameters<typeof updateTicket>[1] = {};
+    if (effect.patch.state) patch.state = effect.patch.state;
+    if (effect.patch.priority) patch.priority = effect.patch.priority;
+    if (effect.patch.queueId) {
+      const queue = (await listTicketQueues()).find((item) => item.id === effect.patch.queueId);
+      if (queue) {
+        patch.queueId = queue.id;
+        patch.queueName = queue.name;
+      }
+    }
+    if (effect.patch.addTags?.length) {
+      patch.tags = normaliseTags([...ticket.tags, ...effect.patch.addTags]);
+    }
+
+    if (Object.keys(patch).length > 0) await updateTicket(ticket.id, patch);
+    await recordTicketSystemEvent(ticket.id, `Automation: ${effect.lines.join(" ")}`);
+  } catch (cause) {
+    // A broken rule must never lose the ticket or the reply.
+    console.error("[tickets] triggers failed", cause);
+  }
 }
 
 export async function createTicketAction(
@@ -101,6 +155,7 @@ export async function createTicketAction(
       clientId: client?.id,
       clientName: client?.name,
     });
+    await runTicketTriggers(await getTicket(ticket.id), "ticket.created", body);
     refresh(ticket.id);
     redirect(`/modules/tickets/${ticket.id}?created=1`);
   } catch (cause) {
@@ -150,6 +205,12 @@ export async function replyTicketAction(
       kind,
       timeMinutes: isAgent ? timeMinutes : 0,
     });
+
+    // The first-response promise stops the clock on the first public agent
+    // reply — a note does not count, because the requester never saw it.
+    if (isAgent && kind === "web") await markTicketFirstResponse(ticketId);
+    await runTicketTriggers(ticket, "article.created", body);
+
     refresh(ticketId);
     revalidatePath(`/modules/tickets/${ticketId}`);
     return {

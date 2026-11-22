@@ -32,11 +32,11 @@ Every module in the Zammad admin docs, and where it lands here.
 | **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state, merge action | **2 — shipped** |
 | **Macros** | One-click bundle of changes | `ticket_macros`, Masters page, apply action | **2 — shipped** |
 | **Text Modules** | Snippets inserted into replies | Masters → Text modules + picker in the reply box | **2 — shipped** |
-| **Triggers** | If-this-then-that on ticket events | `ticket_triggers` evaluated in the write path | 3 |
-| **SLAs** | First-response / solution targets per queue+priority | `ticket_slas` + `due_at`/`first_response_at` | 3 |
-| **Calendars** | Business hours used by SLA maths | `ticket_calendars` (Mon–Fri 09:00–18:00 IST default) | 3 |
-| **Scheduler** | Time-based jobs (auto-close, reminders) | Next.js cron route | 3 |
-| **Report Profiles / Reporting** | Counts by queue, agent, state over time | `/modules/tickets/reports` | 3 |
+| **Triggers** | If-this-then-that on ticket events | `ticket_triggers` evaluated on create and reply | **3 — shipped** |
+| **SLAs** | First-response / solution targets per queue+priority | `ticket_slas` + `due_at`/`first_response_at` | **3 — shipped** |
+| **Calendars** | Business hours used by SLA maths | `ticket_calendars` (Mon–Fri 09:00–18:00 IST default) | **3 — shipped** |
+| **Scheduler** | Time-based jobs (auto-close, reminders) | `/api/tickets/sweep` + `vercel.json` cron | **3 — shipped** |
+| **Report Profiles / Reporting** | Counts by queue, agent, state over time | `/modules/tickets/reports` + CSV | **3 — shipped** |
 | **Knowledge Base** | Public + internal articles | `/modules/tickets/kb` | 4 |
 | **Channels: Web** | Agent-created ticket (already) | Phase 1 | **1 — shipped** |
 | **Channels: Form** | Public web form → ticket | `/support/new` (no sign-in, rate limited) | 4 |
@@ -128,15 +128,49 @@ Phase 2 is complete.
 
 ## 4. Phase 3 — promises and reporting
 
-- **Calendars + SLAs**: per queue and priority, first-response and
-  solution targets measured on business hours; the list shows a countdown and
-  an "at risk" flag; breaching writes a `system` article.
-- **Triggers**: an if/then table evaluated on ticket create and article create
-  (e.g. "subject contains 'outage' → priority urgent, queue Infrastructure").
-- **Scheduler**: auto-close after N days pending, reminder articles, SLA
-  breach sweep.
-- **Reports**: tickets by queue, agent and state per week; median first
-  response; reopen rate; exported as CSV.
+Shipped in migration `0027_ticket_sla.sql`.
+
+- **Calendars** — `ticket_calendars`: working days, opening and closing time,
+  and a fixed UTC offset (330 for IST; India has no daylight saving, so an
+  offset is exact and needs no timezone database). Seeded with **India business
+  hours** (Mon–Fri 09:00–18:00) and **India extended hours** (Mon–Sat
+  08:00–20:00). Masters → Service targets.
+- **SLAs** — `ticket_slas`: first-response and resolution targets in business
+  minutes, scoped to a queue, a priority, both, or neither. The most specific
+  rule wins, then sort order. Seeded urgent 30/240, security 60/480,
+  infrastructure 120/1440, everything else 480/2880 minutes.
+- **The promise is cut once** — at creation the matching rule is resolved and
+  `sla_id`, `first_response_due_at` and `due_at` are written onto the ticket.
+  Changing the rules later does not rewrite a promise already made; changing the
+  ticket's queue or priority does, because that is a new promise.
+- **Counting on the clock** — `lib/tickets/sla.ts` walks the calendar, so 17:00
+  on Friday plus four hours is 12:00 on Monday. The list has an SLA column with
+  the countdown ("2d 10h left", "At risk · 45m left", "1st reply late 2h"), the
+  detail sidebar has the panel, and a requester sees "Overdue" rather than the
+  internal SLA wording.
+- **First response** — the first public agent reply stamps
+  `first_response_at` once. An internal note does not stop the clock, because
+  the requester never saw it.
+- **Breaches** — recorded by the sweep (`first_response_breached_at`,
+  `resolve_breached_at`) and written into the thread as a `system` article, once
+  per promise.
+- **Triggers** — `ticket_triggers`: one condition (event × field × operator ×
+  value) and a bundle of changes (state, priority, queue, tag) plus a note.
+  Evaluated on `ticket.created` and `article.created`; the first rule to set a
+  field wins, tags add up, and every firing leaves one `system` line. Seeded
+  outage, phishing, leadership and "still not working".
+- **Scheduler** — `/api/tickets/sweep`, called daily by the cron in
+  `vercel.json`. Closes tickets pending for `TICKET_AUTO_CLOSE_DAYS` (7),
+  writes one reminder at `TICKET_REMINDER_DAYS` (2), and logs missed promises.
+  Guarded by `CRON_SECRET` / `TICKET_SWEEP_SECRET`; with no secret it answers
+  503 rather than running for whoever finds the URL. `planSweep` is pure, so
+  every rule is tested without a database.
+- **Reports** — `/modules/tickets/reports`: totals, median first reply, reopen
+  rate, SLA breaches and at-risk work, six Monday-to-Sunday weeks, by queue, by
+  owner and by state, with a CSV export at `/modules/tickets/reports/export`.
+  Everything is derived from the tickets, so there is no roll-up to drift.
+
+Phase 3 is complete.
 
 ## 5. Phase 4 — channels and self-service
 
@@ -175,6 +209,11 @@ tickets                                ticket_articles
 
 `queue_name` and the two `*_name` columns are snapshots on purpose: a ticket
 must still read correctly after a queue is renamed or a person leaves.
+
+Phase 3 adds `sla_id`, `first_response_at`, `first_response_due_at`,
+`first_response_breached_at`, `resolve_breached_at`, `reminder_sent_at` and
+`reopen_count` to the same table, plus `ticket_calendars`, `ticket_slas` and
+`ticket_triggers`.
 
 ---
 

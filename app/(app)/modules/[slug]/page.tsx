@@ -31,6 +31,8 @@ import {
   listRequestTypes,
   listTicketMacros,
   listTicketOverviews,
+  listTicketSlas,
+  listTicketTriggers,
   listTicketQueues,
   listTicketTaskCounts,
   listTicketTextModules,
@@ -176,14 +178,24 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
       return <RenewalsView user={user} renewals={await listRenewals()} />;
 
     case "masters": {
-      const [activityTypes, industries, requestTypes, textModules, ticketMacros, customFields] =
-        await Promise.all([
-          listActivityTypes(),
-          listIndustries(),
-          listRequestTypes(),
-          listTicketTextModules(true),
-          listTicketMacros(true),
-          listCustomFields(),
+      const [
+        activityTypes,
+        industries,
+        requestTypes,
+        textModules,
+        ticketMacros,
+        serviceTargets,
+        ticketTriggers,
+        customFields,
+      ] = await Promise.all([
+        listActivityTypes(),
+        listIndustries(),
+        listRequestTypes(),
+        listTicketTextModules(true),
+        listTicketMacros(true),
+        listTicketSlas(true),
+        listTicketTriggers(true),
+        listCustomFields(),
       ]);
       return (
         <MastersView
@@ -194,6 +206,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             requestTypes: requestTypes.length,
             textModules: textModules.length,
             ticketMacros: ticketMacros.length,
+            serviceTargets: serviceTargets.length,
+            ticketTriggers: ticketTriggers.length,
             customFields: customFields.length,
           }}
         />

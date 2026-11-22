@@ -10,6 +10,7 @@ import { TicketControls } from "@/components/modules/ticket-controls";
 import { TicketLinks } from "@/components/modules/ticket-links";
 import { TicketMacroForm } from "@/components/modules/ticket-macro-form";
 import { TicketReplyForm } from "@/components/modules/ticket-reply-form";
+import { TicketSlaPanel } from "@/components/modules/ticket-sla-panel";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
@@ -22,9 +23,11 @@ import {
   listTicketLinks,
   listTicketMacros,
   listTicketQueues,
+  listTicketSlas,
   listTicketTasks,
   listTicketTextModules,
   listTickets,
+  type SlaRule,
 } from "@/lib/records/repository";
 import {
   channelLabel,
@@ -129,9 +132,9 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
     isAgent ? listTickets() : Promise.resolve([]),
     isAgent ? listClients() : Promise.resolve([]),
   ]);
-  const [macros, textModules] = isAgent
-    ? await Promise.all([listTicketMacros(), listTicketTextModules()])
-    : [[], []];
+  const [macros, textModules, slaRules] = isAgent
+    ? await Promise.all([listTicketMacros(), listTicketTextModules(), listTicketSlas(true)])
+    : [[], [], []];
   const articles = isAgent ? allArticles : allArticles.filter((article) => !article.internal);
   const summary = threadSummary(allArticles);
   const state = stateMeta(ticket.state);
@@ -266,6 +269,8 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
         </div>
 
         <aside className="space-y-4">
+          <TicketSlaPanel ticket={ticket} rules={slaRules as SlaRule[]} />
+
           <dl className="space-y-3 border border-line bg-surface px-4 py-4">
             <Meta label="Requester">
               {ticket.requesterName}

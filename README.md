@@ -460,6 +460,18 @@ article, so the thread is the audit trail.
   reply snippets (Masters → Text modules) and related/parent/child/duplicate
   links with a merge that parks the source in the `merged` state. A ticket can
   also be filed against an organization (`client_id`).
+- Phase 3 adds the promises and the record: business shifts
+  (`ticket_calendars`), first-response and resolution targets per queue and
+  priority (`ticket_slas`, Masters → Service targets) measured in office
+  minutes, triggers (`ticket_triggers`, Masters → Ticket triggers) that change a
+  ticket as it is raised or replied to, a nightly sweep at
+  `/api/tickets/sweep` (cron in `vercel.json`) that closes quiet pending
+  tickets, reminds once and logs SLA breaches, and a report page at
+  `/modules/tickets/reports` with a CSV export.
+- The sweep needs a secret: set `CRON_SECRET` (Vercel sends it as a bearer
+  token) or `TICKET_SWEEP_SECRET`. Without one the route answers 503 rather
+  than closing tickets for anyone who finds the URL. Two optional windows,
+  `TICKET_AUTO_CLOSE_DAYS` (7) and `TICKET_REMINDER_DAYS` (2), tune it.
 - Internal notes and system entries never reach a non-agent — the query filters
   them in the page and RLS limits the rows to their own tickets.
 - The full module map and the remaining phases are in
