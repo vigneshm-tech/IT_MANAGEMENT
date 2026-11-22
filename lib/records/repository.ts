@@ -4462,19 +4462,20 @@ export type PublicTicketInput = {
  */
 export async function submitPublicTicket(input: PublicTicketInput): Promise<TicketRecord> {
   const now = new Date().toISOString();
-  const [queues, slaRules, calendars] = await Promise.all([
-    listPublicTicketQueues(),
-    listTicketSlas(),
-    listTicketCalendars(),
-  ]);
+  const queues = await listPublicTicketQueues();
   const queue = queues.find((item) => item.id === input.queueId) ?? queues[0];
   if (!queue) throw new Error("The public form has no queue to file into.");
 
-  const targets = computeSlaTargets(
-    { createdAt: now, priority: "normal", queueId: queue.id },
-    slaRules,
-    calendars,
-  );
+  // Live rules and calendars are agent-only rows: a visitor cannot read them and
+  // should not be able to. In Supabase mode the definer function cuts the
+  // promise itself (migration 0029); only the demo store computes it here.
+  const targets = isSupabaseConfigured
+    ? null
+    : computeSlaTargets(
+        { createdAt: now, priority: "normal", queueId: queue.id },
+        await listTicketSlas(),
+        await listTicketCalendars(),
+      );
   const subject = normaliseSubject(input.subject);
   const name = input.name.replace(/\s+/g, " ").trim().slice(0, 120);
   const email = input.email.trim().toLowerCase();
@@ -4491,9 +4492,9 @@ export async function submitPublicTicket(input: PublicTicketInput): Promise<Tick
       requesterName: name,
       requesterEmail: email,
       channel: input.channel ?? "web",
-      dueAt: targets.resolveDueAt,
-      slaId: targets.slaId,
-      firstResponseDueAt: targets.firstResponseDueAt,
+      dueAt: targets?.resolveDueAt ?? "",
+      slaId: targets?.slaId ?? null,
+      firstResponseDueAt: targets?.firstResponseDueAt ?? "",
       createdAt: now,
       updatedAt: now,
     });
@@ -4537,9 +4538,9 @@ export async function submitPublicTicket(input: PublicTicketInput): Promise<Tick
     p_channel: input.channel ?? "web",
     p_priority: "normal",
     p_state: "new",
-    p_sla_id: targets.slaId,
-    p_due_at: targets.resolveDueAt,
-    p_first_response_due_at: targets.firstResponseDueAt,
+    p_sla_id: targets?.slaId ?? null,
+    p_due_at: targets?.resolveDueAt ?? null,
+    p_first_response_due_at: targets?.firstResponseDueAt ?? null,
     p_tags: [],
     p_system_note: input.systemNote ?? "",
     p_external_id: input.externalId ?? null,
@@ -4562,9 +4563,9 @@ export async function submitPublicTicket(input: PublicTicketInput): Promise<Tick
       requesterName: name,
       requesterEmail: email,
       channel: input.channel ?? "web",
-      dueAt: targets.resolveDueAt,
-      slaId: targets.slaId,
-      firstResponseDueAt: targets.firstResponseDueAt,
+      dueAt: targets?.resolveDueAt ?? "",
+      slaId: targets?.slaId ?? null,
+      firstResponseDueAt: targets?.firstResponseDueAt ?? "",
       createdAt: now,
       updatedAt: now,
     }),
