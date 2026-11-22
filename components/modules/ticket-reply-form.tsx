@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Lock, Send } from "lucide-react";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { AlertCircle, BookOpen, CheckCircle2, ExternalLink, Link2, Loader2, Lock, Send } from "lucide-react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 import { replyTicketAction } from "@/app/(app)/modules/tickets/actions";
 import type { TicketTextModuleRecord } from "@/lib/records/repository";
+import { suggestKbArticles, type KbArticleLike } from "@/lib/tickets/kb";
 
 /**
  * Reply or note. The two share one box because agents flip between them
@@ -15,17 +16,37 @@ export function TicketReplyForm({
   ticketId,
   canNote,
   textModules = [],
+  kbArticles = [],
 }: {
   ticketId: string;
   /** Only agents may write internal notes or book time. */
   canNote: boolean;
   /** Masters → Text modules: reuse a reply instead of retyping it. */
   textModules?: TicketTextModuleRecord[];
+  /** Public articles, so the agent can link one instead of retyping it. */
+  kbArticles?: (KbArticleLike & { title: string })[];
 }) {
   const [state, formAction, pending] = useActionState(replyTicketAction, {} as FormState);
   const [kind, setKind] = useState<"web" | "note">("web");
   const [body, setBody] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Suggestions follow what is being typed; a note is internal, so it never
+  // offers the public shelf.
+  const suggestions = useMemo(
+    () =>
+      kind === "web" && kbArticles.length > 0 && body.trim().length >= 12
+        ? suggestKbArticles(kbArticles, body, { limit: 3 })
+        : [],
+    [body, kbArticles, kind],
+  );
+
+  /** Appends a readable link without dropping what is already written. */
+  function insertArticle(article: KbArticleLike) {
+    const link = `${article.title} — /support/kb/${article.id}`;
+    setBody((current) => (current.trim() ? `${current.trim()}\n\n${link}` : link));
+    formRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+  }
 
   useEffect(() => {
     if (state.ok) {
@@ -121,6 +142,41 @@ export function TicketReplyForm({
           className="field resize-none"
         />
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="mx-4 mb-3 border border-line bg-[#f7f9fd] px-3 py-2.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.09em] text-muted">
+            <BookOpen className="h-3 w-3" aria-hidden />
+            Knowledge base may already answer this
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {suggestions.map((article) => (
+              <li key={article.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="min-w-0 flex-1 truncate text-[12px] text-navy">{article.title}</span>
+                <button
+                  type="button"
+                  onClick={() => insertArticle(article)}
+                  className="inline-flex items-center gap-1 text-[11.5px] text-body hover:text-navy"
+                >
+                  <Link2 className="h-3 w-3" aria-hidden />
+                  Insert link
+                </button>
+                {article.visibility === "public" && (
+                  <a
+                    href={`/support/kb/${article.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+                  >
+                    Open
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {state.error && (
         <p

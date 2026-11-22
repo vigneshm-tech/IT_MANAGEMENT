@@ -172,13 +172,35 @@ Shipped in migration `0027_ticket_sla.sql`.
 
 Phase 3 is complete.
 
-## 5. Phase 4 — channels and self-service
+## 5. Phase 4 — channels and self-service — **complete**
 
-- **Web form** at `/support/new`: queues offered publicly, spam guard, no login.
-- **Knowledge base**: categories, public/internal articles, search, and a
-  "suggest an article" panel inside a ticket reply.
-- **Email channel**: an integration row for IMAP or Microsoft 365 Graph, an
-  inbound route that creates tickets and appends articles, and outbound replies.
+Shipped in migration `0028_ticket_channels.sql` and the build that follows it.
+
+- **Web form** at `/support/new`: the queues flagged `is_public` are offered, the
+  visitor needs no login, and the form is guarded by a five-an-hour throttle per
+  address, a honeypot field and a minimum fill time. Validation lives in
+  `lib/tickets/public-form.ts`; the visitor sees a ticket number immediately.
+- **Knowledge base**: `kb_categories` and `kb_articles` with `public` and
+  `internal` visibility, search across `/support/kb` (no account) and
+  `/modules/kb` (agents), categories in Masters, and a "suggest an article"
+  panel inside the reply box driven by `suggestKbArticles` — public articles
+  only, because the requester will read whatever is inserted.
+- **Email channel**: `ticket_email_settings` records the address, the way the
+  mailbox is read (IMAP poller, Microsoft 365 Graph or a generic relay), the
+  folder, the destination queue and the outbound relay. `POST
+  /api/tickets/inbound` creates tickets and appends replies (matched on
+  `[TT-1001]` plus the sender address, idempotent by `messageId`);
+  agent replies are written to `ticket_outbox` and delivered
+  immediately or by `POST /api/tickets/outbox` on retry.
+- **Session-less work needs the service role.** The inbound hook, the dispatcher
+  and the nightly sweep run without a session; under `anon`, RLS returns no
+  rows at all, so all three now run inside `runWithServiceRole`
+  (`lib/supabase/server.ts`) and require `SUPABASE_SERVICE_ROLE_KEY`.
+
+Known constraint, documented rather than worked around: Vercel rejects
+fourth-level subdomains, so a per-tenant host such as `tenant.tasktornado.app`
+is not possible — a per-organization public desk has to be a path
+(`tasktornado.app/<org>`) or a custom domain per tenant.
 
 ## 6. Phase 5 — AI (optional)
 
@@ -213,7 +235,10 @@ must still read correctly after a queue is renamed or a person leaves.
 Phase 3 adds `sla_id`, `first_response_at`, `first_response_due_at`,
 `first_response_breached_at`, `resolve_breached_at`, `reminder_sent_at` and
 `reopen_count` to the same table, plus `ticket_calendars`, `ticket_slas` and
-`ticket_triggers`.
+`ticket_triggers`. Phase 4 adds `ticket_queues.is_public`, `kb_categories`,
+`kb_articles`, `ticket_email_settings`, `ticket_outbox` and
+`ticket_articles.external_id` (unique where not null, so a mail retry cannot
+file the same message twice).
 
 ---
 

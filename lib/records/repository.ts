@@ -44,6 +44,21 @@ import {
   type SlaRule,
 } from "../tickets/sla";
 import { TRIGGER_SEED, type TicketTriggerRecord } from "../tickets/triggers";
+import {
+  KB_SEED_ARTICLES,
+  KB_SEED_CATEGORIES,
+  freeKbSlug,
+  normaliseKbTitle,
+  searchKbArticles,
+  suggestKbArticles,
+  type KbArticleLike,
+  type KbVisibility,
+} from "../tickets/kb";
+import {
+  EMAIL_SEED_SETTINGS,
+  OUTBOX_MAX_ATTEMPTS,
+  type EmailProvider,
+} from "../tickets/email";
 
 export type { BusinessCalendar, SlaRule } from "../tickets/sla";
 export type {
@@ -181,6 +196,8 @@ export type TicketQueueRecord = {
   description: string;
   status: ActivityTypeStatus;
   sortOrder: number;
+  /** Offered on the public web form at /support/new. */
+  isPublic: boolean;
 };
 
 export type TicketTaskRecord = {
@@ -233,6 +250,44 @@ export type TicketOverviewRecord = {
   createdAt: string;
 };
 
+export type KbCategoryRecord = {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  status: ActivityTypeStatus;
+};
+
+export type KbArticleRecord = KbArticleLike & {
+  categoryName: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TicketEmailSettingsRecord = {
+  enabled: boolean;
+  address: string;
+  provider: EmailProvider;
+  mailbox: string;
+  relayUrl: string;
+  defaultQueueId: string | null;
+  updatedAt: string;
+};
+
+export type TicketOutboxRecord = {
+  id: string;
+  ticketId: string;
+  toAddress: string;
+  subject: string;
+  body: string;
+  status: "queued" | "sent" | "failed";
+  attempts: number;
+  lastError: string;
+  createdAt: string;
+  sentAt: string | null;
+};
+
 export type TicketRecord = {
   id: string;
   subject: string;
@@ -243,7 +298,8 @@ export type TicketRecord = {
   queueName: string;
   ownerId: string | null;
   ownerName: string;
-  requesterId: string;
+  /** Null for a ticket raised through the public form or by email. */
+  requesterId: string | null;
   requesterName: string;
   requesterEmail: string;
   channel: TicketChannel;
@@ -323,6 +379,10 @@ type Store = {
   ticketCalendars: BusinessCalendar[];
   ticketSlas: SlaRule[];
   ticketTriggers: TicketTriggerRecord[];
+  kbCategories: KbCategoryRecord[];
+  kbArticles: KbArticleRecord[];
+  ticketEmailSettings: TicketEmailSettingsRecord;
+  ticketOutbox: TicketOutboxRecord[];
   /** Last number handed out in demo mode (the live table uses a sequence). */
   ticketSeq: number;
 };
@@ -366,10 +426,10 @@ function seededRequestTypes(): RequestTypeRecord[] {
 
 function seededTicketQueues(): TicketQueueRecord[] {
   return [
-    { id: "service-desk", name: "Service desk", description: "Everyday requests, access and how-to questions", status: "active", sortOrder: 10 },
-    { id: "infrastructure", name: "Infrastructure", description: "Servers, network, endpoints and patching", status: "active", sortOrder: 20 },
-    { id: "applications", name: "Applications", description: "Business applications and integrations", status: "active", sortOrder: 30 },
-    { id: "security", name: "Security", description: "Incidents, phishing reports and access reviews", status: "active", sortOrder: 40 },
+    { id: "service-desk", name: "Service desk", description: "Everyday requests, access and how-to questions", status: "active", sortOrder: 10, isPublic: true },
+    { id: "infrastructure", name: "Infrastructure", description: "Servers, network, endpoints and patching", status: "active", sortOrder: 20, isPublic: false },
+    { id: "applications", name: "Applications", description: "Business applications and integrations", status: "active", sortOrder: 30, isPublic: false },
+    { id: "security", name: "Security", description: "Incidents, phishing reports and access reviews", status: "active", sortOrder: 40, isPublic: true },
   ];
 }
 
@@ -1056,6 +1116,10 @@ function demoStore(): Store {
       ticketCalendars: seededTicketCalendars(),
       ticketSlas: seededTicketSlas(),
       ticketTriggers: seededTicketTriggers(),
+      kbCategories: seededKbCategories(),
+      kbArticles: seededKbArticles(),
+      ticketEmailSettings: seededTicketEmailSettings(),
+      ticketOutbox: [],
       ticketSeq: 1005,
     };
   }
@@ -1079,6 +1143,10 @@ function demoStore(): Store {
   if (!Array.isArray(store.ticketCalendars)) store.ticketCalendars = seededTicketCalendars();
   if (!Array.isArray(store.ticketSlas)) store.ticketSlas = seededTicketSlas();
   if (!Array.isArray(store.ticketTriggers)) store.ticketTriggers = seededTicketTriggers();
+  if (!Array.isArray(store.kbCategories)) store.kbCategories = seededKbCategories();
+  if (!Array.isArray(store.kbArticles)) store.kbArticles = seededKbArticles();
+  if (!store.ticketEmailSettings) store.ticketEmailSettings = seededTicketEmailSettings();
+  if (!Array.isArray(store.ticketOutbox)) store.ticketOutbox = [];
   if (typeof store.ticketSeq !== "number") store.ticketSeq = 1005;
   // Records seeded before the module column existed belong to the task form.
   for (const type of store.activityTypes) {
@@ -1564,6 +1632,7 @@ function mapTicketQueue(row: Record<string, unknown>): TicketQueueRecord {
     description: s(row.description),
     status: s(row.status, "active") === "inactive" ? "inactive" : "active",
     sortOrder: n(row.sort_order, 100),
+    isPublic: row.is_public === true,
   };
 }
 
@@ -4004,5 +4073,771 @@ export async function setPatchOutcome(input: {
     console.error("[records] patch outcome failed", error);
     return false;
   }
+  return (data?.length ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Knowledge base                                                            */
+/* -------------------------------------------------------------------------- */
+
+function seededKbCategories(): KbCategoryRecord[] {
+  return KB_SEED_CATEGORIES.map((category) => ({
+    id: category.id,
+    name: category.name,
+    description: category.description,
+    sortOrder: category.sortOrder,
+    status: "active" as ActivityTypeStatus,
+  }));
+}
+
+function seededKbArticles(): KbArticleRecord[] {
+  return KB_SEED_ARTICLES.map((article) => {
+    const category = KB_SEED_CATEGORIES.find((item) => item.id === article.categoryId);
+    return {
+      id: article.id,
+      categoryId: article.categoryId,
+      categoryName: category?.name ?? "",
+      title: article.title,
+      summary: article.summary,
+      body: article.body,
+      visibility: article.visibility,
+      status: "active",
+      tags: [...article.tags],
+      sortOrder: article.sortOrder,
+      createdAt: iso(-90, 9),
+      updatedAt: iso(-20, 11),
+    };
+  });
+}
+
+function mapKbCategory(row: Record<string, unknown>): KbCategoryRecord {
+  return {
+    id: s(row.id),
+    name: s(row.name),
+    description: s(row.description),
+    sortOrder: n(row.sort_order, 100),
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+  };
+}
+
+function mapKbArticle(row: Record<string, unknown>, categoryName = ""): KbArticleRecord {
+  return {
+    id: s(row.id),
+    categoryId: s(row.category_id),
+    categoryName,
+    title: s(row.title),
+    summary: s(row.summary),
+    body: s(row.body),
+    visibility: s(row.visibility, "public") === "internal" ? "internal" : "public",
+    status: s(row.status, "active") === "inactive" ? "inactive" : "active",
+    tags: Array.isArray(row.tags) ? (row.tags as unknown[]).map((tag) => s(tag)).filter(Boolean) : [],
+    sortOrder: n(row.sort_order, 100),
+    createdAt: s(row.created_at),
+    updatedAt: s(row.updated_at),
+  };
+}
+
+export async function listKbCategories(includeInactive = false): Promise<KbCategoryRecord[]> {
+  if (!isSupabaseConfigured) {
+    return [...demoStore().kbCategories]
+      .filter((category) => includeInactive || category.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("kb_categories").select("*");
+    if (!includeInactive) query = query.eq("status", "active");
+    const { data, error } = await query.order("sort_order", { ascending: true }).limit(100);
+    if (error) throw error;
+    return (data ?? []).map((row) => mapKbCategory(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[kb] falling back to the demo categories", error);
+    return [...demoStore().kbCategories].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+}
+
+export type KbCategoryInput = {
+  name: string;
+  description?: string;
+  status?: ActivityTypeStatus;
+};
+
+export async function createKbCategory(input: KbCategoryInput): Promise<KbCategoryRecord> {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const existing = await listKbCategories(true);
+  const id = freeKbSlug(name, existing);
+  const record: KbCategoryRecord = {
+    id,
+    name,
+    description: input.description?.trim() ?? "",
+    sortOrder: (existing.at(-1)?.sortOrder ?? 0) + 10,
+    status: input.status ?? "active",
+  };
+
+  if (!isSupabaseConfigured) {
+    demoStore().kbCategories.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "kb_categories",
+    {
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      sort_order: record.sortOrder,
+      status: record.status,
+    },
+    mapKbCategory,
+  );
+}
+
+export async function updateKbCategory(
+  id: string,
+  patch: Partial<KbCategoryInput>,
+): Promise<boolean> {
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name.replace(/\s+/g, " ").trim();
+  if (patch.description !== undefined) values.description = patch.description.trim();
+  if (patch.status !== undefined) values.status = patch.status;
+  if (Object.keys(values).length === 0) return true;
+
+  if (!isSupabaseConfigured) {
+    const category = demoStore().kbCategories.find((item) => item.id === id);
+    if (!category) return false;
+    if (typeof values.name === "string") category.name = values.name;
+    if (typeof values.description === "string") category.description = values.description;
+    if (values.status === "active" || values.status === "inactive") category.status = values.status;
+    return true;
+  }
+
+  return patchRow("kb_categories", id, values);
+}
+
+export type KbArticleQuery = {
+  includeInternal?: boolean;
+  includeInactive?: boolean;
+  categoryId?: string;
+};
+
+export async function listKbArticles(query: KbArticleQuery = {}): Promise<KbArticleRecord[]> {
+  const includeInternal = query.includeInternal ?? true;
+  const includeInactive = query.includeInactive ?? true;
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    return store.kbArticles
+      .filter((article) => includeInternal || article.visibility === "public")
+      .filter((article) => includeInactive || article.status === "active")
+      .filter((article) => !query.categoryId || article.categoryId === query.categoryId)
+      .map((article) => ({
+        ...article,
+        categoryName:
+          store.kbCategories.find((category) => category.id === article.categoryId)?.name ??
+          article.categoryName,
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let request = supabase.from("kb_articles").select("*");
+    if (!includeInternal) request = request.eq("visibility", "public");
+    if (!includeInactive) request = request.eq("status", "active");
+    if (query.categoryId) request = request.eq("category_id", query.categoryId);
+    const [{ data, error }, categories] = await Promise.all([
+      request.order("sort_order", { ascending: true }).limit(500),
+      listKbCategories(true),
+    ]);
+    if (error) throw error;
+    const names = new Map(categories.map((category) => [category.id, category.name]));
+    return (data ?? []).map((row) => {
+      const record = row as Record<string, unknown>;
+      return mapKbArticle(record, names.get(s(record.category_id)) ?? "");
+    });
+  } catch (error) {
+    console.error("[kb] falling back to the demo articles", error);
+    return [...demoStore().kbArticles].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+}
+
+/** The public shelf: active public articles in active categories. */
+export async function listPublicKbArticles(): Promise<KbArticleRecord[]> {
+  const [articles, categories] = await Promise.all([
+    listKbArticles({ includeInternal: false, includeInactive: false }),
+    listKbCategories(),
+  ]);
+  const open = new Set(categories.map((category) => category.id));
+  return articles.filter((article) => open.has(article.categoryId));
+}
+
+export async function getKbArticle(id: string): Promise<KbArticleRecord | null> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const article = store.kbArticles.find((item) => item.id === id);
+    if (!article) return null;
+    return {
+      ...article,
+      categoryName:
+        store.kbCategories.find((category) => category.id === article.categoryId)?.name ?? "",
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("kb_articles").select("*").eq("id", id).maybeSingle();
+  if (error) {
+    console.error("[kb] article read failed", error);
+    return null;
+  }
+  if (!data) return null;
+  const record = mapKbArticle(data as Record<string, unknown>);
+  const categories = await listKbCategories(true);
+  record.categoryName = categories.find((item) => item.id === record.categoryId)?.name ?? "";
+  return record;
+}
+
+export type NewKbArticleInput = {
+  title: string;
+  summary: string;
+  body: string;
+  categoryId: string;
+  visibility: KbVisibility;
+  tags: string[];
+};
+
+export async function createKbArticle(input: NewKbArticleInput): Promise<KbArticleRecord> {
+  const title = normaliseKbTitle(input.title);
+  const existing = await listKbArticles({ includeInactive: true });
+  const id = freeKbSlug(title, existing);
+  const category = (await listKbCategories(true)).find((item) => item.id === input.categoryId);
+  const now = new Date().toISOString();
+  const record: KbArticleRecord = {
+    id,
+    categoryId: input.categoryId,
+    categoryName: category?.name ?? "",
+    title,
+    summary: input.summary.trim(),
+    body: input.body.trim(),
+    visibility: input.visibility,
+    status: "active",
+    tags: input.tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean),
+    sortOrder: (existing.at(-1)?.sortOrder ?? 0) + 10,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (!isSupabaseConfigured) {
+    demoStore().kbArticles.push(record);
+    return record;
+  }
+
+  return insertRow(
+    "kb_articles",
+    {
+      id: record.id,
+      category_id: record.categoryId,
+      title: record.title,
+      summary: record.summary,
+      body: record.body,
+      visibility: record.visibility,
+      tags: record.tags,
+      sort_order: record.sortOrder,
+    },
+    (row) => mapKbArticle(row, record.categoryName),
+  );
+}
+
+export type KbArticlePatch = Partial<NewKbArticleInput> & { status?: ActivityTypeStatus };
+
+export async function updateKbArticle(id: string, patch: KbArticlePatch): Promise<boolean> {
+  const values: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.title !== undefined) values.title = normaliseKbTitle(patch.title);
+  if (patch.summary !== undefined) values.summary = patch.summary.trim();
+  if (patch.body !== undefined) values.body = patch.body.trim();
+  if (patch.categoryId !== undefined) values.category_id = patch.categoryId;
+  if (patch.visibility !== undefined) values.visibility = patch.visibility;
+  if (patch.status !== undefined) values.status = patch.status;
+  if (patch.tags !== undefined) {
+    values.tags = patch.tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean);
+  }
+
+  if (!isSupabaseConfigured) {
+    const article = demoStore().kbArticles.find((item) => item.id === id);
+    if (!article) return false;
+    Object.assign(article, {
+      ...(patch.title !== undefined ? { title: values.title } : {}),
+      ...(patch.summary !== undefined ? { summary: values.summary } : {}),
+      ...(patch.body !== undefined ? { body: values.body } : {}),
+      ...(patch.categoryId !== undefined ? { categoryId: patch.categoryId } : {}),
+      ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+      ...(patch.tags !== undefined ? { tags: values.tags } : {}),
+      updatedAt: values.updated_at as string,
+    });
+    return true;
+  }
+
+  return patchRow("kb_articles", id, values);
+}
+
+export async function deleteKbArticle(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    const index = store.kbArticles.findIndex((item) => item.id === id);
+    if (index < 0) return false;
+    store.kbArticles.splice(index, 1);
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("kb_articles").delete().eq("id", id).select("id");
+  if (error) {
+    console.error("[kb] delete failed", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/** Suggestions for the reply pane: scored, public-only, at most `limit`. */
+export function suggestKbForReply(
+  articles: KbArticleRecord[],
+  text: string,
+  limit = 3,
+): KbArticleRecord[] {
+  return suggestKbArticles(articles, text, { limit });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Public web form                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The queues a visitor may pick from. Anonymous readers are allowed to see the
+ * public rows by policy in 0028; in demo mode the flag lives on the record.
+ */
+export async function listPublicTicketQueues(): Promise<TicketQueueRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketQueues.filter((queue) => queue.isPublic && queue.status === "active")
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_queues")
+      .select("*")
+      .eq("is_public", true)
+      .eq("status", "active")
+      .order("sort_order", { ascending: true })
+      .limit(20);
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketQueue(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] falling back to the demo public queues", error);
+    return demoStore().ticketQueues.filter((queue) => queue.isPublic && queue.status === "active");
+  }
+}
+
+export type PublicTicketInput = {
+  subject: string;
+  body: string;
+  name: string;
+  email: string;
+  queueId: string;
+  channel?: "web" | "email";
+  /** Mail id, when the ticket came in over the email channel. */
+  externalId?: string | null;
+  /** Internal note appended by the caller (spam verdict, relay id…). */
+  systemNote?: string;
+};
+
+/**
+ * Files a ticket from the public form or the email channel.
+ *
+ * There is no session here, so this goes through the `submit_public_ticket`
+ * definer function. The promise is still cut here, in TypeScript, from the same
+ * rules the agent form uses — the database only stores what it is handed.
+ */
+export async function submitPublicTicket(input: PublicTicketInput): Promise<TicketRecord> {
+  const now = new Date().toISOString();
+  const [queues, slaRules, calendars] = await Promise.all([
+    listPublicTicketQueues(),
+    listTicketSlas(),
+    listTicketCalendars(),
+  ]);
+  const queue = queues.find((item) => item.id === input.queueId) ?? queues[0];
+  if (!queue) throw new Error("The public form has no queue to file into.");
+
+  const targets = computeSlaTargets(
+    { createdAt: now, priority: "normal", queueId: queue.id },
+    slaRules,
+    calendars,
+  );
+  const subject = normaliseSubject(input.subject);
+  const name = input.name.replace(/\s+/g, " ").trim().slice(0, 120);
+  const email = input.email.trim().toLowerCase();
+
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    store.ticketSeq += 1;
+    const record: TicketRecord = ticketRecord({
+      id: `TT-${store.ticketSeq}`,
+      subject,
+      queueId: queue.id,
+      queueName: queue.name,
+      requesterId: null,
+      requesterName: name,
+      requesterEmail: email,
+      channel: input.channel ?? "web",
+      dueAt: targets.resolveDueAt,
+      slaId: targets.slaId,
+      firstResponseDueAt: targets.firstResponseDueAt,
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.tickets.push(record);
+    store.ticketArticles.push({
+      id: `TA-${record.id}-1`,
+      ticketId: record.id,
+      kind: input.channel === "email" ? "email" : "web",
+      internal: false,
+      authorId: null,
+      authorName: name,
+      authorRole: "requester",
+      body: input.body,
+      timeMinutes: 0,
+      createdAt: now,
+    });
+    if (input.systemNote) {
+      store.ticketArticles.push({
+        id: `TA-${record.id}-2`,
+        ticketId: record.id,
+        kind: "system",
+        internal: true,
+        authorId: null,
+        authorName: "Automation",
+        authorRole: "system",
+        body: input.systemNote,
+        timeMinutes: 0,
+        createdAt: now,
+      });
+    }
+    return record;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("submit_public_ticket", {
+    p_subject: subject,
+    p_body: input.body,
+    p_name: name,
+    p_email: email,
+    p_queue_id: queue.id,
+    p_channel: input.channel ?? "web",
+    p_priority: "normal",
+    p_state: "new",
+    p_sla_id: targets.slaId,
+    p_due_at: targets.resolveDueAt,
+    p_first_response_due_at: targets.firstResponseDueAt,
+    p_tags: [],
+    p_system_note: input.systemNote ?? "",
+    p_external_id: input.externalId ?? null,
+  });
+  if (error) throw error;
+
+  const id = typeof data === "string" ? data : "";
+  if (!id) throw new Error("The ticket was filed but the database returned no number.");
+
+  // The caller has no session, so it cannot read the row back — RLS hides it.
+  // Everything the caller needs (the number) is in the function's return value,
+  // and everything else is assembled from what was just written.
+  return {
+    ...ticketRecord({
+      id,
+      subject,
+      queueId: queue.id,
+      queueName: queue.name,
+      requesterId: null,
+      requesterName: name,
+      requesterEmail: email,
+      channel: input.channel ?? "web",
+      dueAt: targets.resolveDueAt,
+      slaId: targets.slaId,
+      firstResponseDueAt: targets.firstResponseDueAt,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    channel: input.channel ?? "web",
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Email channel                                                             */
+/* -------------------------------------------------------------------------- */
+
+function seededTicketEmailSettings(): TicketEmailSettingsRecord {
+  return { ...EMAIL_SEED_SETTINGS, updatedAt: iso(-30, 9) };
+}
+
+function mapTicketEmailSettings(row: Record<string, unknown>): TicketEmailSettingsRecord {
+  const provider = s(row.provider, "imap");
+  return {
+    enabled: row.enabled === true,
+    address: s(row.address),
+    provider: provider === "graph" || provider === "relay" ? provider : "imap",
+    mailbox: s(row.mailbox, "INBOX"),
+    relayUrl: s(row.relay_url),
+    defaultQueueId: row.default_queue_id ? s(row.default_queue_id) : null,
+    updatedAt: s(row.updated_at),
+  };
+}
+
+export async function getTicketEmailSettings(): Promise<TicketEmailSettingsRecord> {
+  if (!isSupabaseConfigured) return { ...demoStore().ticketEmailSettings };
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("ticket_email_settings")
+      .select("*")
+      .eq("id", "default")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return seededTicketEmailSettings();
+    return mapTicketEmailSettings(data as Record<string, unknown>);
+  } catch (error) {
+    console.error("[tickets] falling back to the demo email settings", error);
+    return seededTicketEmailSettings();
+  }
+}
+
+export type TicketEmailSettingsPatch = Partial<Omit<TicketEmailSettingsRecord, "updatedAt">>;
+
+export async function saveTicketEmailSettings(
+  patch: TicketEmailSettingsPatch,
+): Promise<TicketEmailSettingsRecord> {
+  const now = new Date().toISOString();
+  const current = await getTicketEmailSettings();
+  const next: TicketEmailSettingsRecord = { ...current, ...patch, updatedAt: now };
+
+  if (!isSupabaseConfigured) {
+    demoStore().ticketEmailSettings = next;
+    return next;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("ticket_email_settings")
+    .upsert(
+      {
+        id: "default",
+        enabled: next.enabled,
+        address: next.address,
+        provider: next.provider,
+        mailbox: next.mailbox,
+        relay_url: next.relayUrl,
+        default_queue_id: next.defaultQueueId,
+        updated_at: now,
+      },
+      { onConflict: "id" },
+    )
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapTicketEmailSettings(data as Record<string, unknown>);
+}
+
+/**
+ * Appends an inbound message to the ticket its subject points at.
+ *
+ * The database checks that the sender is the address on that ticket — the
+ * reference is a hint, not a key. Returns null when nothing matched, so the
+ * caller can file it as a new ticket instead.
+ */
+export async function appendInboundTicketEmail(input: {
+  reference: string;
+  fromEmail: string;
+  fromName: string;
+  body: string;
+  externalId?: string | null;
+}): Promise<string | null> {
+  if (!isSupabaseConfigured) {
+    const store = demoStore();
+    if (input.externalId) {
+      const seen = store.ticketArticles.find((article) => article.id === input.externalId);
+      if (seen) return seen.ticketId;
+    }
+    const ticket = store.tickets.find(
+      (item) =>
+        item.id === input.reference.toUpperCase() &&
+        item.requesterEmail.toLowerCase() === input.fromEmail.trim().toLowerCase(),
+    );
+    if (!ticket) return null;
+    store.ticketArticles.push({
+      id: input.externalId ?? `TA-${ticket.id}-${store.ticketArticles.length + 1}`,
+      ticketId: ticket.id,
+      kind: "email",
+      internal: false,
+      authorId: null,
+      authorName: input.fromName,
+      authorRole: "requester",
+      body: input.body,
+      timeMinutes: 0,
+      createdAt: new Date().toISOString(),
+    });
+    const wasClosed = ticket.state === "closed";
+    if (wasClosed || ticket.state === "pending") {
+      ticket.state = "open";
+      ticket.closedAt = null;
+      if (wasClosed) ticket.reopenCount += 1;
+    }
+    ticket.updatedAt = new Date().toISOString();
+    return ticket.id;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("append_inbound_article", {
+    p_reference: input.reference.toUpperCase(),
+    p_from_email: input.fromEmail.trim().toLowerCase(),
+    p_from_name: input.fromName,
+    p_body: input.body,
+    p_external_id: input.externalId ?? null,
+  });
+  if (error) throw error;
+  return typeof data === "string" && data.length > 0 ? data : null;
+}
+
+function mapTicketOutbox(row: Record<string, unknown>): TicketOutboxRecord {
+  const status = s(row.status, "queued");
+  return {
+    id: s(row.id),
+    ticketId: s(row.ticket_id),
+    toAddress: s(row.to_address),
+    subject: s(row.subject),
+    body: s(row.body),
+    status: status === "sent" || status === "failed" ? status : "queued",
+    attempts: n(row.attempts, 0),
+    lastError: s(row.last_error),
+    createdAt: s(row.created_at),
+    sentAt: row.sent_at ? s(row.sent_at) : null,
+  };
+}
+
+/** Queues a reply for the dispatcher. The address must be the requester's own. */
+export async function queueTicketEmail(input: {
+  ticketId: string;
+  toAddress: string;
+  subject: string;
+  body: string;
+}): Promise<TicketOutboxRecord> {
+  const now = new Date().toISOString();
+  const record: TicketOutboxRecord = {
+    id: globalThis.crypto.randomUUID(),
+    ticketId: input.ticketId,
+    toAddress: input.toAddress.trim().toLowerCase(),
+    subject: input.subject,
+    body: input.body,
+    status: "queued",
+    attempts: 0,
+    lastError: "",
+    createdAt: now,
+    sentAt: null,
+  };
+
+  if (!isSupabaseConfigured) {
+    demoStore().ticketOutbox.unshift(record);
+    return record;
+  }
+
+  return insertRow(
+    "ticket_outbox",
+    {
+      ticket_id: record.ticketId,
+      to_address: record.toAddress,
+      subject: record.subject,
+      body: record.body,
+    },
+    mapTicketOutbox,
+  );
+}
+
+export async function listTicketOutbox(ticketId?: string, limit = 25): Promise<TicketOutboxRecord[]> {
+  if (!isSupabaseConfigured) {
+    return demoStore()
+      .ticketOutbox.filter((item) => !ticketId || item.ticketId === ticketId)
+      .slice(0, limit);
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    let query = supabase.from("ticket_outbox").select("*");
+    if (ticketId) query = query.eq("ticket_id", ticketId);
+    const { data, error } = await query.order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data ?? []).map((row) => mapTicketOutbox(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("[tickets] falling back to the demo outbox", error);
+    return demoStore().ticketOutbox.slice(0, limit);
+  }
+}
+
+/** The dispatcher's work list: queued and retryable, oldest first. */
+export async function listDueTicketOutbox(limit = 20): Promise<TicketOutboxRecord[]> {
+  const rows = await listTicketOutbox(undefined, 100);
+  return rows
+    .filter((item) => item.status === "queued" && item.attempts < OUTBOX_MAX_ATTEMPTS)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, limit);
+}
+
+export async function markTicketOutboxSent(id: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  if (!isSupabaseConfigured) {
+    const item = demoStore().ticketOutbox.find((row) => row.id === id);
+    if (!item) return false;
+    item.status = "sent";
+    item.sentAt = now;
+    item.attempts += 1;
+    item.lastError = "";
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("ticket_outbox")
+    .update({ status: "sent", sent_at: now, attempts: 1, last_error: "" })
+    .eq("id", id)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+/** A failed attempt: retried until the cap, then parked as `failed`. */
+export async function markTicketOutboxFailed(input: {
+  id: string;
+  error: string;
+}): Promise<boolean> {
+  const current = (await listTicketOutbox(undefined, 100)).find((row) => row.id === input.id);
+  const attempts = (current?.attempts ?? 0) + 1;
+  const status = attempts >= OUTBOX_MAX_ATTEMPTS ? "failed" : "queued";
+  const message = input.error.slice(0, 500);
+
+  if (!isSupabaseConfigured) {
+    const item = demoStore().ticketOutbox.find((row) => row.id === input.id);
+    if (!item) return false;
+    item.attempts = attempts;
+    item.lastError = message;
+    item.status = status;
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("ticket_outbox")
+    .update({ status, attempts, last_error: message })
+    .eq("id", input.id)
+    .select("id");
+  if (error) throw error;
   return (data?.length ?? 0) > 0;
 }

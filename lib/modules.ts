@@ -11,6 +11,7 @@ export type ModuleId =
   | "dashboard"
   | "tasks"
   | "tickets"
+  | "kb"
   | "servers"
   | "clients"
   | "patching"
@@ -109,6 +110,21 @@ export const MODULES: ModuleDefinition[] = [
     access: {
       view: "all",
       create: "all",
+      edit: SERVICE_DESK,
+      admin: [SUPER, IT],
+    },
+  },
+  {
+    id: "kb",
+    title: "Knowledge base",
+    href: "/modules/kb",
+    summary: "Answers the desk keeps — public ones are readable without an account",
+    icon: "BookOpen",
+    navGroup: "service",
+    access: {
+      // Everyone may read the public shelf; agents also see the internal one.
+      view: "all",
+      create: SERVICE_DESK,
       edit: SERVICE_DESK,
       admin: [SUPER, IT],
     },

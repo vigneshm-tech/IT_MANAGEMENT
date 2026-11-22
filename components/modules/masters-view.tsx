@@ -13,6 +13,8 @@ type CountKey =
   | "ticketMacros"
   | "serviceTargets"
   | "ticketTriggers"
+  | "kbCategories"
+  | "ticketEmail"
   | "customFields";
 
 /**
@@ -82,6 +84,22 @@ const REGISTERS: {
     summary: "If this, then that — automatic changes on new tickets and messages",
     href: "/modules/masters/ticket-triggers",
     noun: "triggers",
+    guard: "masters",
+  },
+  {
+    key: "kbCategories",
+    title: "KB categories",
+    summary: "The shelves behind the knowledge base",
+    href: "/modules/masters/kb",
+    noun: "categories",
+    guard: "masters",
+  },
+  {
+    key: "ticketEmail",
+    title: "Email channel",
+    summary: "The support address, its queue and the outbound relay",
+    href: "/modules/masters/ticket-email",
+    noun: "addresses",
     guard: "masters",
   },
   {

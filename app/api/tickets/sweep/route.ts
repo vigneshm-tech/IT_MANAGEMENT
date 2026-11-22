@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listTickets, recordTicketSystemEvent, updateTicket } from "@/lib/records/repository";
 import { planSweep, sweepArticle, sweepSettingsFromEnv } from "@/lib/tickets/scheduler";
+import { runWithServiceRole } from "@/lib/supabase/server";
 
 /**
  * `GET /api/tickets/sweep` — the nightly job.
@@ -27,6 +28,12 @@ function authorised(request: Request): boolean {
 }
 
 export async function GET(request: Request) {
+  // The job runs without a session, so it must run with the service role or it
+  // would see an empty board and quietly do nothing.
+  return runWithServiceRole(() => handle(request));
+}
+
+async function handle(request: Request) {
   const secret = process.env.CRON_SECRET ?? process.env.TICKET_SWEEP_SECRET;
   if (!secret) {
     return NextResponse.json(

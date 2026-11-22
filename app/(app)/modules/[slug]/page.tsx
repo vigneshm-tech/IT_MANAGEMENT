@@ -19,6 +19,7 @@ import { canManageAction1 } from "@/lib/integrations/access";
 import { loadServersInventory } from "@/lib/servers/inventory";
 import { getModule } from "@/lib/modules";
 import {
+  getTicketEmailSettings,
   listActivityTypes,
   listApprovals,
   listClients,
@@ -31,6 +32,7 @@ import {
   listRequestTypes,
   listTicketMacros,
   listTicketOverviews,
+  listKbCategories,
   listTicketSlas,
   listTicketTriggers,
   listTicketQueues,
@@ -186,6 +188,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
         ticketMacros,
         serviceTargets,
         ticketTriggers,
+        kbCategories,
+        ticketEmail,
         customFields,
       ] = await Promise.all([
         listActivityTypes(),
@@ -195,6 +199,8 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
         listTicketMacros(true),
         listTicketSlas(true),
         listTicketTriggers(true),
+        listKbCategories(true),
+        getTicketEmailSettings(),
         listCustomFields(),
       ]);
       return (
@@ -208,6 +214,10 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
             ticketMacros: ticketMacros.length,
             serviceTargets: serviceTargets.length,
             ticketTriggers: ticketTriggers.length,
+            kbCategories: kbCategories.length,
+            // One row exists whether or not it is configured, so the hub counts
+            // the addresses that are actually usable.
+            ticketEmail: ticketEmail.address ? 1 : 0,
             customFields: customFields.length,
           }}
         />

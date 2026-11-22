@@ -25,6 +25,7 @@ import {
   listTicketQueues,
   listTicketSlas,
   listTicketTasks,
+  listKbArticles,
   listTicketTextModules,
   listTickets,
   type SlaRule,
@@ -132,9 +133,16 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
     isAgent ? listTickets() : Promise.resolve([]),
     isAgent ? listClients() : Promise.resolve([]),
   ]);
-  const [macros, textModules, slaRules] = isAgent
-    ? await Promise.all([listTicketMacros(), listTicketTextModules(), listTicketSlas(true)])
-    : [[], [], []];
+  const [macros, textModules, slaRules, publicArticles] = isAgent
+    ? await Promise.all([
+        listTicketMacros(),
+        listTicketTextModules(),
+        listTicketSlas(true),
+        // Only the public shelf: an internal article must never be offered for
+        // insertion into a message the requester will read.
+        listKbArticles({ includeInternal: false, includeInactive: false }),
+      ])
+    : [[], [], [], []];
   const articles = isAgent ? allArticles : allArticles.filter((article) => !article.internal);
   const summary = threadSummary(allArticles);
   const state = stateMeta(ticket.state);
@@ -264,7 +272,12 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
               deleted; the history above stays for reference.
             </p>
           ) : (
-            <TicketReplyForm ticketId={ticket.id} canNote={isAgent} textModules={textModules} />
+            <TicketReplyForm
+              ticketId={ticket.id}
+              canNote={isAgent}
+              textModules={textModules}
+              kbArticles={isAgent ? publicArticles : []}
+            />
           )}
         </div>
 

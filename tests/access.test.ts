@@ -16,7 +16,7 @@ const NON_ENGINEERS = ALL_ROLES.filter((role) => ROLE_BY_ID[role].level !== "eng
 
 test("every role sees the shared modules", () => {
   for (const role of ALL_ROLES) {
-    for (const moduleId of ["dashboard", "tasks", "tickets", "clients", "renewals", "approvals", "settings"] as const) {
+    for (const moduleId of ["dashboard", "tasks", "tickets", "kb", "clients", "renewals", "approvals", "settings"] as const) {
       assert.equal(
         canAccessModule(role, moduleId),
         true,
@@ -74,6 +74,7 @@ test("engineers can still view every module they need", () => {
     "dashboard",
     "tasks",
     "tickets",
+    "kb",
     "clients",
     "renewals",
     "masters",
@@ -144,7 +145,7 @@ test("only the super admin can open the user directory", () => {
 });
 
 test("dashboard is available to all and every module declares a view rule", () => {
-  assert.equal(MODULES.length, 11);
+  assert.equal(MODULES.length, 12);
   for (const module of MODULES) {
     if (module.id === "users") continue; // super-admin only
     assert.equal(

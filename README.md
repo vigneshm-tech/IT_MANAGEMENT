@@ -477,6 +477,62 @@ article, so the thread is the audit trail.
 - The full module map and the remaining phases are in
   [`docs/ticketing-plan.md`](docs/ticketing-plan.md).
 
+### 4a-i. Channels and self-service (phase 4)
+
+Four surfaces that bring work in from outside the workspace. Migration
+`0028_ticket_channels.sql`.
+
+- **Public web form** — `/support/new`, no account, no session. A visitor picks
+  one of the queues marked public (`ticket_queues.is_public`), gives a name and
+  address, and gets a ticket number back on the spot. The form runs the same
+  field rules the agent form does (`lib/tickets/public-form.ts`) and is guarded
+  by a per-address throttle of five an hour, a honeypot field and a
+  minimum-fill-time check (`lib/tickets/spam.ts`). The throttle is in-process,
+  like the login throttle — a multi-instance deployment should back it with
+  Redis.
+- **Writing without a session** — a visitor cannot insert rows under RLS, so the
+  database exposes two narrow `security definer` functions:
+  `submit_public_ticket(...)` (queue must be public, lengths re-checked, idempotent
+  on `external_id`) and `append_inbound_article(...)` (the sender must be the
+  address already on the ticket). Both are granted to `anon`; nothing else is.
+- **Knowledge base** — `kb_categories` and `kb_articles`, seeded with five
+  categories and seven articles (five public, two internal). Public articles are
+  readable without an account at `/support/kb` (search, category filter), the
+  whole shelf is at `/modules/kb`, and categories are maintained in Masters →
+  KB categories. Search and ranking live in `lib/tickets/kb.ts`: a scored match
+  over title, tags, summary and body — not a database full-text index, because a
+  service desk has hundreds of articles and a score we control is a score we can
+  test. While an agent types a public reply, up to three public articles are
+  offered for insertion; an internal article is never offered, because the
+  requester would read it.
+- **Email channel** — one settings row (`ticket_email_settings`) records the
+  support address, how the mailbox is read (IMAP poller, Microsoft&nbsp;365
+  Graph, or a generic relay), the folder, the queue new mail lands in, and the
+  outbound relay URL. Masters → Email channel edits it and shows the last ten
+  outbox rows.
+  - Inbound: `POST /api/tickets/inbound` with
+    `Authorization: Bearer $TICKET_INBOUND_SECRET`. A `[TT-1001]` in the subject
+    **from the address on that ticket** appends to the thread (and reopens a
+    closed one); anything else opens a ticket in the configured queue. `messageId`
+    makes a retried delivery idempotent. The reference is a hint, never a
+    credential.
+  - Outbound: an agent's public reply writes a row to `ticket_outbox` with the
+    subject `[TT-1001] …`. The reply action hands it to the relay immediately
+    (five-second best effort); whatever fails stays queued and
+    `POST /api/tickets/outbox` retries it, three attempts before parking it as
+    `failed`. Neither half needs a mailbox password in the app.
+  - Environment: `TICKET_INBOUND_SECRET`, `TICKET_OUTBOX_SECRET` (falls back to
+    `CRON_SECRET`) and `SUPABASE_SERVICE_ROLE_KEY`. The last one is what lets the
+    session-less routes — the inbound hook, the dispatcher and the nightly sweep —
+    read and write rows at all; under `anon` RLS returns nothing rather than an
+    error, so without it those jobs would quietly do nothing.
+- **Secrets are environment, not rows.** The inbound secret is never stored in
+  the database, so a settings screen cannot show it and a dump cannot leak it.
+
+Tests: `tests/ticket-kb.test.ts`, `tests/ticket-public-form.test.ts`,
+`tests/ticket-email.test.ts` and `tests/ticket-channels.test.ts` (the demo-store
+integration pass over the public form, inbound replies, the outbox and KB CRUD).
+
 ## 4b. Redmine portal (kept from the first build)
 
 The old portal still reads live from Redmine using the per-user key saved in
@@ -665,7 +721,10 @@ can fill any role's credentials from a picker. Demo mode is inert as soon as
 ### Supabase mode (this is how the deployed build runs)
 
 1. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or
-   `..._PUBLISHABLE_KEY`) and a strong `AUTH_SECRET`.
+   `..._PUBLISHABLE_KEY`), a strong `AUTH_SECRET` and — for the session-less
+   routes — `SUPABASE_SERVICE_ROLE_KEY`. Add `TICKET_INBOUND_SECRET` and
+   `TICKET_OUTBOX_SECRET` (or reuse `CRON_SECRET`) when the email channel is
+   turned on.
 2. Apply the migrations in `supabase/migrations/` in order.
 3. Create employees in Supabase Auth with `raw_user_meta_data` containing
    `role` (one of the fifteen public ids) and `full_name`. A trigger creates the

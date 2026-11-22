@@ -17,6 +17,7 @@ import {
   deleteTicketLink,
   deleteTicketTask,
   getTicket,
+  getTicketEmailSettings,
   listAssignableUsers,
   listClients,
   listTicketMacros,
@@ -28,6 +29,7 @@ import {
   setTicketTaskDone,
   updateTicket,
 } from "@/lib/records/repository";
+import { enqueueReplyEmail, sendQueuedEmail } from "@/lib/tickets/outbox";
 import { evaluateTriggers, type TicketTriggerEvent } from "@/lib/tickets/triggers";
 import {
   TICKET_LINK_KINDS,
@@ -208,7 +210,24 @@ export async function replyTicketAction(
 
     // The first-response promise stops the clock on the first public agent
     // reply — a note does not count, because the requester never saw it.
-    if (isAgent && kind === "web") await markTicketFirstResponse(ticketId);
+    if (isAgent && kind === "web") {
+      await markTicketFirstResponse(ticketId);
+      // The reply is on the ticket either way; the email is a delivery detail, so
+      // a queue failure must not fail the reply the agent just wrote.
+      try {
+        const settings = await getTicketEmailSettings();
+        const queued = await enqueueReplyEmail(ticket, body, settings);
+        // Best effort: hand it to the relay now, so the requester hears back
+        // immediately. Anything that fails stays queued for the dispatcher.
+        if (queued && settings.relayUrl) {
+          await sendQueuedEmail(queued, settings, {
+            secret: process.env.TICKET_OUTBOX_SECRET ?? process.env.CRON_SECRET ?? "",
+          });
+        }
+      } catch (cause) {
+        console.error("[tickets] reply queued for email failed", cause);
+      }
+    }
     await runTicketTriggers(ticket, "article.created", body);
 
     refresh(ticketId);
