@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, RefreshCw, Server } from "lucide-react";
+import { AlertTriangle, Clock, RefreshCw, Server } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -21,7 +21,7 @@ import {
   summariseEndpoints,
   type ServersInventory,
 } from "@/lib/servers/inventory";
-import { refreshServersAction } from "@/app/(app)/modules/servers/actions";
+import { syncServersAction } from "@/app/(app)/modules/servers/actions";
 
 export type ServersFilter = "all" | "connected" | "disconnected";
 
@@ -69,13 +69,14 @@ export function ServersView({
   const settingsHref = "/modules/settings/integrations";
 
   const refresh = (
-    <form action={refreshServersAction}>
+    <form action={syncServersAction}>
       <button
         type="submit"
         className={buttonClass({ variant: "secondary", size: "sm" })}
+        title="Read Action1 now and store the result"
       >
         <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-        Refresh
+        Sync now
       </button>
     </form>
   );
@@ -199,7 +200,30 @@ export function ServersView({
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Servers" actions={refresh} />
+      <PageHeader title="Servers" actions={canConfigure ? refresh : undefined}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-4 text-[11.5px]">
+          <span className="inline-flex items-center gap-1.5 text-muted">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            Inventory captured {inventory.age ?? "just now"}
+          </span>
+          <span className="text-[#c2cbd9]">·</span>
+          <span className="text-muted">
+            Refreshed daily at 03:15 IST{inventory.syncedFrom === "live" ? " · read live just now" : ""}
+          </span>
+          {inventory.stale && (
+            <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">
+              <AlertTriangle className="h-3 w-3" aria-hidden />
+              Older than a day — Sync now to refresh
+            </span>
+          )}
+          {inventory.lastSyncError && (
+            <span className="inline-flex items-center gap-1.5 border border-[#f0dfb4] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">
+              <AlertTriangle className="h-3 w-3" aria-hidden />
+              Last sync failed: {inventory.lastSyncError}
+            </span>
+          )}
+        </div>
+      </PageHeader>
 
       <dl className="grid grid-cols-2 gap-x-8 gap-y-4 border-y border-line py-4 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Endpoints" value={String(summary.total)} />

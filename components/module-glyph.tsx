@@ -3,6 +3,8 @@ import {
   BookOpen,
   Building2,
   CalendarClock,
+  Database,
+  Globe,
   Layers,
   LayoutDashboard,
   ListChecks,
@@ -26,6 +28,8 @@ const GLYPHS: Record<string, LucideIcon> = {
   ShieldCheck,
   BadgeCheck,
   CalendarClock,
+  Database,
+  Globe,
   Settings,
   Users,
 };

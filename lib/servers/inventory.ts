@@ -13,7 +13,16 @@ import {
   type Action1MissingUpdate,
 } from "../integrations/action1";
 import { getIntegration } from "../integrations/store";
-import { readCache, writeCache } from "../cache/ttl";
+import { clearCache, readCache, writeCache } from "../cache/ttl";
+import {
+  describeAge,
+  isStale,
+  readSnapshot,
+  recordSyncFailure,
+  snapshotAgeMs,
+  writeSnapshot,
+  type SnapshotSource,
+} from "./snapshot";
 import { MAX_ENDPOINTS, missingAction1Settings, PAGE_SIZE } from "./endpoint";
 
 export {
@@ -52,6 +61,19 @@ export type ServersInventory =
       organizationId: string;
       apiHost: string;
       fetchedAt: string;
+      /**
+       * Where this answer came from: our stored snapshot (the normal case) or a
+       * live Action1 read (only when no snapshot exists yet).
+       */
+      syncedFrom?: "snapshot" | "live";
+      /** When the stored snapshot was captured; equal to fetchedAt for a live read. */
+      capturedAt?: string;
+      /** True once the snapshot is older than a day. */
+      stale?: boolean;
+      /** Human-readable age, e.g. "3 hours ago". */
+      age?: string;
+      /** Why the last sync attempt failed, if it did. */
+      lastSyncError?: string | null;
     };
 
 export function action1Config(record: {
@@ -339,11 +361,12 @@ function scheduleTopUp(
 }
 
 /**
- * Reads the whole managed endpoint list.
+ * Reads the inventory the workspace already has.
  *
- * A ready result is reused for a minute per connection (the inventory is
- * organization-wide, so this serves every signed-in person on the instance);
- * failures are always retried.
+ * The first read after a fresh install fetches from Action1 and stores the
+ * result; every read after that answers from the snapshot, which the nightly job
+ * and the Sync now button keep current. A page load must not be a reason to call
+ * somebody else's API.
  */
 export async function loadServersInventory(
   userId: string,
@@ -355,23 +378,156 @@ export async function loadServersInventory(
   const missing = missingAction1Settings(record);
   if (missing.length > 0) return { kind: "unconfigured", missing };
 
-  const config = action1Config(record);
   const limit = Math.min(options.limit ?? MAX_ENDPOINTS, MAX_ENDPOINTS);
-  const key = `action1-inventory:${cacheKey(record)}:${limit}`;
+  const snapshot = await readSnapshot();
 
-  const cached = readCache<ServersInventory>(key);
-  if (cached) return cached;
-
-  const { inventory, fields } = await readInventory(config, limit);
-  if (inventory.kind === "ready") {
-    writeCache(key, inventory, INVENTORY_TTL_MS);
-    // Out of budget with pages still missing: the page shows what it has and the
-    // rest lands in the cache in the background.
-    if (inventory.endpoints.length < Math.min(inventory.total, limit)) {
-      scheduleTopUp(config, limit, key, inventory, fields);
-    }
+  if (snapshot) {
+    const endpoints = snapshot.endpoints.slice(0, limit);
+    return {
+      kind: "ready",
+      endpoints,
+      total: snapshot.total,
+      truncated: snapshot.truncated || snapshot.endpoints.length > limit,
+      patchData: snapshot.patchData,
+      organizationId: snapshot.organizationId,
+      apiHost: snapshot.apiHost,
+      fetchedAt: snapshot.capturedAt,
+      syncedFrom: "snapshot",
+      capturedAt: snapshot.capturedAt,
+      stale: isStale(snapshot),
+      age: describeAge(snapshot),
+      lastSyncError: snapshot.lastError,
+    };
   }
-  return inventory;
+
+  // No snapshot at all: this is the first read, so pay for it once and store it.
+  const live = await syncServersInventory(userId, limit, "inline");
+  if (live.kind !== "ready") return live;
+  return {
+    ...live,
+    endpoints: live.endpoints.slice(0, limit),
+    truncated: live.truncated || live.endpoints.length > limit,
+    syncedFrom: "live",
+    age: "just now",
+  };
+}
+
+export type SyncResult =
+  | { ok: true; inventory: ServersInventory & { kind: "ready" }; durationMs: number; endpointCount: number }
+  | { ok: false; reason: "not_connected" | "unconfigured" | "failed"; message: string };
+
+/**
+ * Reads Action1 now and stores the result.
+ *
+ * Used by the nightly job, by Sync now, and by the first read after install.
+ * Everything else reads the snapshot (`loadServersInventory`), which is the
+ * difference between a page that opens and a page that waits.
+ */
+export async function syncServersInventory(
+  userId: string,
+  limit: number = MAX_ENDPOINTS,
+  source: SnapshotSource = "manual",
+): Promise<ServersInventory> {
+  const record = await getIntegration(userId, "action1");
+  if (!record) return { kind: "not_connected" };
+
+  const missing = missingAction1Settings(record);
+  if (missing.length > 0) return { kind: "unconfigured", missing };
+
+  const config = action1Config(record);
+  const started = Date.now();
+
+  try {
+    const { inventory } = await readInventory(config, Math.min(limit, MAX_ENDPOINTS));
+    const durationMs = Date.now() - started;
+
+    if (inventory.kind === "ready") {
+      await writeSnapshot({
+        endpoints: inventory.endpoints,
+        total: inventory.total,
+        truncated: inventory.truncated,
+        patchData: inventory.patchData,
+        organizationId: inventory.organizationId,
+        apiHost: inventory.apiHost,
+        durationMs,
+        source,
+      });
+      // The per-instance copies are now behind the snapshot; drop them so a
+      // warm instance does not keep serving the previous day's list.
+      clearCache("action1-inventory");
+      return {
+        ...inventory,
+        fetchedAt: new Date().toISOString(),
+        syncedFrom: "live",
+        capturedAt: new Date().toISOString(),
+        stale: false,
+        age: "just now",
+        lastSyncError: null,
+      };
+    }
+
+    if (inventory.kind === "error") await recordSyncFailure(inventory.message);
+    return inventory;
+  } catch (cause) {
+    const result = failure(cause);
+    if (result.kind === "error") await recordSyncFailure(result.message);
+    return result;
+  }
+}
+
+/** Sync now, for the button: a result a person can read, not a page state. */
+export async function runSync(
+  userId: string,
+  source: SnapshotSource = "manual",
+): Promise<SyncResult> {
+  const snapshot = await readSnapshot();
+  const started = Date.now();
+  const inventory = await syncServersInventory(userId, MAX_ENDPOINTS, source);
+  const durationMs = Date.now() - started;
+
+  if (inventory.kind === "ready") {
+    return {
+      ok: true,
+      inventory,
+      durationMs,
+      endpointCount: inventory.endpoints.length,
+    };
+  }
+  if (inventory.kind === "not_connected") {
+    return { ok: false, reason: "not_connected", message: "Action1 is not connected." };
+  }
+  if (inventory.kind === "unconfigured") {
+    return {
+      ok: false,
+      reason: "unconfigured",
+      message: `Action1 needs: ${inventory.missing.join(", ")}.`,
+    };
+  }
+  return {
+    ok: false,
+    reason: "failed",
+    message:
+      snapshot && snapshot.endpoints.length > 0
+        ? `${inventory.message} The last good snapshot is still in use.`
+        : inventory.message,
+  };
+}
+
+/** Age of the stored snapshot, for pages that are not the Servers module. */
+export async function snapshotSummary(): Promise<{
+  capturedAt: string;
+  age: string;
+  stale: boolean;
+  ageMs: number;
+} | null> {
+  const snapshot = await readSnapshot();
+  if (!snapshot) return null;
+  return {
+    capturedAt: snapshot.capturedAt,
+    age: describeAge(snapshot),
+    stale: isStale(snapshot),
+    ageMs: snapshotAgeMs(snapshot),
+  };
 }
 
 export type EndpointDetail =

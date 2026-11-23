@@ -4,6 +4,10 @@
     {
       "path": "/api/tickets/sweep",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/servers/sync",
+      "schedule": "15 3 * * *"
     }
   ]
 }

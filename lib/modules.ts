@@ -13,6 +13,7 @@ export type ModuleId =
   | "tickets"
   | "kb"
   | "servers"
+  | "iis"
   | "clients"
   | "patching"
   | "approvals"
@@ -153,6 +154,25 @@ export const MODULES: ModuleDefinition[] = [
       view: [IT, IT_ENG, ...LEADERSHIP],
       edit: [IT, IT_ENG],
       approve: LEADERSHIP,
+    },
+  },
+  {
+    /**
+     * Two registers, one module: the web applications and the databases behind
+     * them are the same question — what is running, where, and who owns it.
+     * Action1 knows whether a host is up; only a person knows which app pool
+     * serves the portal and when ORDERS_DB last backed up.
+     */
+    id: "iis",
+    title: "IIS & Database",
+    href: "/modules/iis",
+    summary: "Web applications and the databases behind them",
+    icon: "Database",
+    navGroup: "infrastructure",
+    access: {
+      view: [IT, IT_ENG, ...LEADERSHIP],
+      edit: [IT, IT_ENG],
+      admin: [IT],
     },
   },
   {
