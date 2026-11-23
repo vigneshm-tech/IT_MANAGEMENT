@@ -6,7 +6,8 @@ import { dismissIntroAction } from "@/app/(app)/intro/actions";
 import { IntroRevealContext } from "@/components/intro/intro-context";
 
 const CANVAS = "#ffffff";
-const GOLD_SOFT = "#e9ddc3";
+/* Bright red — the launch overlay's accent, matching --color-launch-accent. */
+const LAUNCH_ACCENT = "#ff0000";
 const EASE = [0.22, 1, 0.36, 1] as const;
 const LOGO_RATIO = "14965.96 / 1619.92";
 
@@ -152,7 +153,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0.25 : 0.65, ease: "easeInOut" }}
           >
-            {/* logo lockup — nothing but the mark */}
+            {/* logo lockup — nothing but the mark, with a red sweep across it */}
             <motion.div
               className="relative z-10 flex flex-col items-center"
               initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.75, filter: "blur(14px)" }}
@@ -182,7 +183,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
                     aria-hidden
                     className="pointer-events-none absolute inset-0"
                     style={{
-                      background: `linear-gradient(100deg, transparent 34%, ${GOLD_SOFT} 50%, transparent 66%)`,
+                      background: `linear-gradient(100deg, transparent 34%, ${LAUNCH_ACCENT} 50%, transparent 66%)`,
                       backgroundSize: "55% 100%",
                       backgroundRepeat: "no-repeat",
                       WebkitMaskImage: "url(/brand/wordmark.svg)",
@@ -200,7 +201,7 @@ function IntroExperience({ children }: { children: ReactNode }) {
               </div>
             </motion.div>
 
-            {/* three-plane orbit loader — gold on white, no glow, no shadow */}
+            {/* three-plane orbit loader — bright red on white, no glow, no shadow */}
             <motion.div
               className="relative z-10 mt-14"
               initial={{ opacity: 0 }}
