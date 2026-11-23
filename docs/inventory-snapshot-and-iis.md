@@ -31,19 +31,25 @@ otherwise rather than spending API quota for anyone who finds the URL.
 
 ## IIS & Database
 
-A new module (`iis`, under Infrastructure) with exactly two registers:
+A new module (`iis`, under Infrastructure) with three registers:
 
 | Register | Route | Columns |
 | --- | --- | --- |
 | IIS Application | `/modules/iis/applications` | name, server, environment, app pool, binding, runtime, owner, state, notes |
 | Database | `/modules/iis/databases` | name, instance, engine, environment, size, recovery model, last backup, owner, state, notes |
+| MySQL | `/modules/iis/mysql` | instance, host, port, version, environment, size, charset/collation, last backup, owner, state, notes |
 
-- Overview (`/modules/iis`) summarises both and lists what needs attention:
-  stopped or degraded applications, databases that are not online, and backups
-  older than seven days.
+MySQL is its own register because a MySQL server is administered as a machine —
+host, port, version and charset belong to the instance — while the `Database`
+register tracks the schemas inside it.
+
+- Overview (`/modules/iis`) summarises all three and lists what needs attention:
+  stopped or degraded applications, databases that are not online, MySQL
+  instances that are not running, and backups older than seven days.
 - Rows are retired rather than deleted by default; delete is behind a
   confirmation panel.
 - Access mirrors Servers: `view` for IT, IT engineering and leadership; `edit`
   for IT and IT engineering. The actions re-check the role, so a hidden button is
   not the only guard.
-- Migrations: `0033_action1_inventory.sql`, `0034_iis_registers.sql`.
+- Migrations: `0033_action1_inventory.sql`, `0034_iis_registers.sql`,
+  `0035_iis_mysql.sql`.

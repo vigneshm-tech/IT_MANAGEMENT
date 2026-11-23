@@ -11,14 +11,18 @@ import {
   DB_STATUSES,
   ENGINES,
   ENGINE_LABELS,
+  DEFAULT_MYSQL_PORT,
   ENVIRONMENTS,
   ENVIRONMENT_LABELS,
+  MYSQL_STATUSES,
   type AppStatus,
   type DbStatus,
   type Engine,
   type Environment,
   type IisApplication,
   type IisDatabase,
+  type IisMysqlInstance,
+  type MysqlStatus,
 } from "@/lib/iis/constants";
 
 const APP_STATUS_LABEL: Record<AppStatus, string> = {
@@ -31,6 +35,13 @@ const APP_STATUS_LABEL: Record<AppStatus, string> = {
 const DB_STATUS_LABEL: Record<DbStatus, string> = {
   online: "Online",
   offline: "Offline",
+  maintenance: "Maintenance",
+};
+
+const MYSQL_STATUS_LABEL: Record<MysqlStatus, string> = {
+  running: "Running",
+  stopped: "Stopped",
+  degraded: "Degraded",
   maintenance: "Maintenance",
 };
 
@@ -422,6 +433,207 @@ export function IisDatabaseForm({
             <Plus className="h-3.5 w-3.5" aria-hidden />
           )}
           {record ? "Save changes" : "Add database"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The add/edit panel for one MySQL instance. */
+export function IisMysqlForm({
+  action,
+  record,
+  canEdit,
+  cancelHref = "/modules/iis/mysql",
+}: {
+  action: Action;
+  record?: IisMysqlInstance;
+  canEdit: boolean;
+  cancelHref?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+  const prefix = record ? `mysql-${record.id}` : "mysql-new";
+
+  if (!canEdit) {
+    return (
+      <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
+        Your role can read the MySQL register but not change it.
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="border border-line bg-surface">
+      {record && <input type="hidden" name="id" value={record.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {record ? `Editing “${record.name}”` : "New MySQL instance"}
+        </p>
+        {record && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
+
+      <div className={GRID}>
+        <Field prefix={prefix} name="name" label="Instance" required hint="How the team refers to it, e.g. orders-mysql-01.">
+          <input
+            id={`${prefix}-name`}
+            name="name"
+            required
+            minLength={2}
+            maxLength={80}
+            defaultValue={record?.name ?? ""}
+            placeholder="e.g. orders-mysql-01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="host" label="Host">
+          <input
+            id={`${prefix}-host`}
+            name="host"
+            maxLength={80}
+            defaultValue={record?.host ?? ""}
+            placeholder="e.g. DB-MY01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="port" label="Port">
+          <input
+            id={`${prefix}-port`}
+            name="port"
+            type="number"
+            min={1}
+            max={65535}
+            defaultValue={record?.port ?? DEFAULT_MYSQL_PORT}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="version" label="Version">
+          <input
+            id={`${prefix}-version`}
+            name="version"
+            maxLength={40}
+            defaultValue={record?.version ?? ""}
+            placeholder="e.g. 8.0.36"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="environment" label="Environment">
+          <select
+            id={`${prefix}-environment`}
+            name="environment"
+            defaultValue={record?.environment ?? "production"}
+            className="field"
+          >
+            {ENVIRONMENTS.map((value) => (
+              <option key={value} value={value}>
+                {ENVIRONMENT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="sizeGb" label="Size (GB)">
+          <input
+            id={`${prefix}-sizeGb`}
+            name="sizeGb"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={record?.sizeGb ?? ""}
+            placeholder="e.g. 96.4"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="charset" label="Charset / collation">
+          <input
+            id={`${prefix}-charset`}
+            name="charset"
+            maxLength={80}
+            defaultValue={record?.charset ?? ""}
+            placeholder="e.g. utf8mb4 / utf8mb4_0900_ai_ci"
+            className="field"
+          />
+        </Field>
+        <Field
+          prefix={prefix}
+          name="lastBackupAt"
+          label="Last backup"
+          hint="Leave blank if it has never been backed up."
+        >
+          <input
+            id={`${prefix}-lastBackupAt`}
+            name="lastBackupAt"
+            type="date"
+            defaultValue={record?.lastBackupAt ?? ""}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="owner" label="Owner">
+          <input
+            id={`${prefix}-owner`}
+            name="owner"
+            maxLength={80}
+            defaultValue={record?.owner ?? ""}
+            placeholder="Who answers for it"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="status" label="State">
+          <select
+            id={`${prefix}-status`}
+            name="status"
+            defaultValue={record?.status ?? "running"}
+            className="field"
+          >
+            {MYSQL_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {MYSQL_STATUS_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="notes" label="Notes">
+          <input
+            id={`${prefix}-notes`}
+            name="notes"
+            maxLength={500}
+            defaultValue={record?.notes ?? ""}
+            placeholder="Replication, upgrade plans, anything the next person should know"
+            className="field"
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
+        <div aria-live="polite" className="min-h-[18px]">
+          {state.error && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-danger">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+              {state.error}
+            </p>
+          )}
+          {state.ok && state.message && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+              {state.message}
+            </p>
+          )}
+        </div>
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : record ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {record ? "Save changes" : "Add instance"}
         </Button>
       </div>
     </form>

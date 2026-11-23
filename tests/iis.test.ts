@@ -5,18 +5,25 @@ import {
   backupOverdue,
   createApplication,
   createDatabase,
+  createMysqlInstance,
   databaseError,
   deleteApplication,
+  deleteMysqlInstance,
   describeBackup,
   listApplications,
   listDatabases,
+  listMysqlInstances,
+  mysqlError,
   setApplicationActive,
   summariseApplications,
   summariseDatabases,
+  summariseMysql,
   updateDatabase,
   type ApplicationInput,
   type DatabaseInput,
   type IisDatabase,
+  type IisMysqlInstance,
+  type MysqlInput,
 } from "../lib/iis/repository";
 import {
   SNAPSHOT_MAX_AGE_MS,
@@ -189,4 +196,91 @@ test("a snapshot is stale only after a day, and says how old it is", () => {
   assert.equal(describeAge(snapshot("2026-11-19T10:00:00Z"), now), "2 hours ago");
   assert.equal(describeAge(snapshot("2026-11-17T12:00:00Z"), now), "2 days ago");
   assert.equal(SNAPSHOT_MAX_AGE_MS, 86_400_000);
+});
+
+/* --------------------------------- MySQL --------------------------------- */
+
+const mysqlInput = (overrides: Partial<MysqlInput> = {}): MysqlInput => ({
+  name: "orders-mysql-09",
+  host: "DB-MY09",
+  port: 3306,
+  version: "8.0.36",
+  environment: "production",
+  sizeGb: 40,
+  charset: "utf8mb4 / utf8mb4_0900_ai_ci",
+  lastBackupAt: "2026-11-18",
+  owner: "Karthik Raman",
+  status: "running",
+  notes: "",
+  ...overrides,
+});
+
+test("a MySQL instance needs a real port and a unique name on its host", () => {
+  const existing = [{ id: "m1", name: "orders-mysql-01", host: "DB-MY01" }];
+
+  assert.match(mysqlError(mysqlInput({ port: 0 }), existing) ?? "", /Port must be/);
+  assert.match(mysqlError(mysqlInput({ port: 70000 }), existing) ?? "", /Port must be/);
+  assert.match(mysqlError(mysqlInput({ port: 3306.5 }), existing) ?? "", /Port must be/);
+  assert.match(
+    mysqlError(mysqlInput({ name: " orders-mysql-01 ", host: "db-my01" }), existing) ?? "",
+    /already registered/,
+  );
+  // The same label on a different host is a different server.
+  assert.equal(
+    mysqlError(mysqlInput({ name: "orders-mysql-01", host: "DB-MY02" }), existing),
+    null,
+  );
+  assert.equal(
+    mysqlError(mysqlInput({ name: "orders-mysql-01", host: "DB-MY01" }), existing, "m1"),
+    null,
+  );
+  assert.match(mysqlError(mysqlInput({ lastBackupAt: "18-11-2026" }), []) ?? "", /must be a date/);
+});
+
+test("MySQL attention counts stopped instances and overdue backups, once", () => {
+  const now = new Date("2026-11-19T00:00:00Z");
+  const row = (overrides: Partial<IisMysqlInstance> = {}): IisMysqlInstance => ({
+    id: "m1",
+    name: "orders-mysql-01",
+    host: "DB-MY01",
+    port: 3306,
+    version: "8.0.36",
+    environment: "production",
+    sizeGb: 40,
+    charset: "",
+    lastBackupAt: "2026-11-18",
+    owner: "",
+    status: "running",
+    notes: "",
+    active: true,
+    createdAt: "2026-11-01T00:00:00.000Z",
+    updatedAt: "2026-11-01T00:00:00.000Z",
+    ...overrides,
+  });
+
+  const summary = summariseMysql(
+    [
+      row({ id: "1" }),                                  // healthy
+      row({ id: "2", lastBackupAt: "2026-10-01" }),      // backup overdue
+      row({ id: "3", status: "stopped", lastBackupAt: null }), // stopped, counted once
+      row({ id: "4", active: false, status: "stopped" }),      // retired, ignored
+    ],
+    now,
+  );
+
+  assert.equal(summary.total, 4);
+  assert.equal(summary.active, 3);
+  assert.equal(summary.attention, 2);
+});
+
+test("the demo MySQL register adds, edits, retires and deletes", async () => {
+  const created = await createMysqlInstance(mysqlInput());
+  assert.equal(created.port, 3306);
+  assert.ok((await listMysqlInstances(true)).some((row) => row.id === created.id));
+
+  await deleteMysqlInstance(created.id);
+  assert.equal(
+    (await listMysqlInstances(true)).some((row) => row.id === created.id),
+    false,
+  );
 });

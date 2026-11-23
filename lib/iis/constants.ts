@@ -16,6 +16,9 @@ export type AppStatus = (typeof APP_STATUSES)[number];
 export const DB_STATUSES = ["online", "offline", "maintenance"] as const;
 export type DbStatus = (typeof DB_STATUSES)[number];
 
+export const MYSQL_STATUSES = ["running", "stopped", "degraded", "maintenance"] as const;
+export type MysqlStatus = (typeof MYSQL_STATUSES)[number];
+
 export const ENGINES = ["sql_server", "postgresql", "mysql", "oracle", "other"] as const;
 export type Engine = (typeof ENGINES)[number];
 
@@ -107,4 +110,49 @@ export function isDbStatus(value: string): value is DbStatus {
 
 export function isEngine(value: string): value is Engine {
   return (ENGINES as readonly string[]).includes(value);
+}
+
+/**
+ * A MySQL instance is its own register because it is administered as a server,
+ * not as one schema: the host, the port, the version and the charset are
+ * properties of the instance, while the `Database` register tracks the schemas
+ * that live inside it.
+ */
+export type IisMysqlInstance = {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  version: string;
+  environment: Environment;
+  sizeGb: number | null;
+  charset: string;
+  /** ISO date (`YYYY-MM-DD`) or null. */
+  lastBackupAt: string | null;
+  owner: string;
+  status: MysqlStatus;
+  notes: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MysqlInput = {
+  name: string;
+  host: string;
+  port: number;
+  version: string;
+  environment: Environment;
+  sizeGb: number | null;
+  charset: string;
+  lastBackupAt: string | null;
+  owner: string;
+  status: MysqlStatus;
+  notes: string;
+};
+
+export const DEFAULT_MYSQL_PORT = 3306;
+
+export function isMysqlStatus(value: string): value is MysqlStatus {
+  return (MYSQL_STATUSES as readonly string[]).includes(value);
 }

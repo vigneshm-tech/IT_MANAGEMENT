@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-export type IisTab = "hub" | "applications" | "databases";
+export type IisTab = "hub" | "applications" | "databases" | "mysql";
 
 const TABS: { id: IisTab; label: string; href: string }[] = [
   { id: "hub", label: "Overview", href: "/modules/iis" },
   { id: "applications", label: "Applications", href: "/modules/iis/applications" },
   { id: "databases", label: "Databases", href: "/modules/iis/databases" },
+  { id: "mysql", label: "MySQL", href: "/modules/iis/mysql" },
 ];
 
 /** The same strip the ticket configuration and Settings use. */

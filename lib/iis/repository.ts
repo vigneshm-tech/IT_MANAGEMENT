@@ -7,6 +7,7 @@ import {
   isDbStatus,
   isEngine,
   isEnvironment,
+  isMysqlStatus,
   type AppStatus,
   type ApplicationInput,
   type DatabaseInput,
@@ -15,6 +16,9 @@ import {
   type Environment,
   type IisApplication,
   type IisDatabase,
+  type IisMysqlInstance,
+  type MysqlInput,
+  type MysqlStatus,
 } from "./constants";
 
 export * from "./constants";
@@ -73,6 +77,46 @@ export function databaseError(
   return null;
 }
 
+export function mysqlError(
+  input: MysqlInput,
+  existing: { id: string; name: string; host: string }[],
+  ignoreId?: string,
+): string | null {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  if (name.length < NAME_MIN) return "Give the instance a name of at least 2 characters.";
+  if (name.length > NAME_MAX) return `Keep the instance name under ${NAME_MAX} characters.`;
+  if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) {
+    return "Port must be a whole number between 1 and 65535.";
+  }
+  if (input.sizeGb !== null && (!Number.isFinite(input.sizeGb) || input.sizeGb < 0)) {
+    return "Size must be a number of gigabytes, or blank.";
+  }
+  if (input.sizeGb !== null && input.sizeGb > 1_000_000) return "That size is not credible.";
+  if (input.lastBackupAt && !/^\d{4}-\d{2}-\d{2}$/.test(input.lastBackupAt)) {
+    return "Last backup must be a date.";
+  }
+  if (input.notes.length > 500) return "Keep the notes under 500 characters.";
+
+  const clash = existing.find(
+    (row) =>
+      row.id !== ignoreId &&
+      row.name.trim().toLowerCase() === name.toLowerCase() &&
+      (row.host ?? "").trim().toLowerCase() === input.host.trim().toLowerCase(),
+  );
+  if (clash) return `"${name}" is already registered on ${input.host || "that host"}.`;
+  return null;
+}
+
+/** MySQL rows carry `host` where the other registers carry `server`. */
+function cleanMysql(input: MysqlInput) {
+  return {
+    name: input.name.replace(/\s+/g, " ").trim(),
+    host: input.host.replace(/\s+/g, " ").trim(),
+    owner: input.owner.replace(/\s+/g, " ").trim(),
+    notes: input.notes.trim(),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Reading a register, in one shape                                          */
 /* -------------------------------------------------------------------------- */
@@ -114,23 +158,51 @@ export function summariseDatabases(
   };
 }
 
+export function summariseMysql(
+  rows: IisMysqlInstance[],
+  now = new Date(),
+): RegisterSummary {
+  const live = rows.filter((row) => row.active);
+  return {
+    total: rows.length,
+    active: live.length,
+    attention: live.filter(
+      (row) => row.status !== "running" || backupOverdue(row, now),
+    ).length,
+    byEnvironment: ENVIRONMENTS.map((environment) => ({
+      environment,
+      count: live.filter((row) => row.environment === environment).length,
+    })),
+  };
+}
+
 /** A backup older than seven days is a fact the page should say out loud. */
 export const BACKUP_GRACE_DAYS = 7;
 
-export function backupAgeDays(row: IisDatabase, now = new Date()): number | null {
+export function backupAgeDays(
+  row: { lastBackupAt: string | null },
+  now = new Date(),
+): number | null {
   if (!row.lastBackupAt) return null;
   const at = new Date(`${row.lastBackupAt}T00:00:00Z`);
   if (Number.isNaN(at.getTime())) return null;
   return Math.floor((now.getTime() - at.getTime()) / 86_400_000);
 }
 
-export function backupOverdue(row: IisDatabase, now = new Date()): boolean {
-  if (row.status === "offline") return false;
+export function backupOverdue(
+  row: { lastBackupAt: string | null; status: string },
+  now = new Date(),
+): boolean {
+  // An instance that is already reported as down is counted once, as down.
+  if (row.status === "offline" || row.status === "stopped") return false;
   const days = backupAgeDays(row, now);
   return days === null || days > BACKUP_GRACE_DAYS;
 }
 
-export function describeBackup(row: IisDatabase, now = new Date()): string {
+export function describeBackup(
+  row: { lastBackupAt: string | null },
+  now = new Date(),
+): string {
   const days = backupAgeDays(row, now);
   if (days === null) return "Never backed up";
   if (days <= 0) return "Backed up today";
@@ -141,7 +213,11 @@ export function describeBackup(row: IisDatabase, now = new Date()): string {
 /*  Demo store                                                                */
 /* -------------------------------------------------------------------------- */
 
-type DemoStore = { applications: IisApplication[]; databases: IisDatabase[] };
+type DemoStore = {
+  applications: IisApplication[];
+  databases: IisDatabase[];
+  mysql: IisMysqlInstance[];
+};
 
 const globalForIis = globalThis as unknown as { __taskTornadoIis?: DemoStore };
 
@@ -214,6 +290,59 @@ function seed(): DemoStore {
       db("REPORTING", "SQL02", "sql_server", "staging", 76.2, new Date(Date.now() - 11 * 86_400_000).toISOString().slice(0, 10), "Meera Raghavan", "online"),
       db("audit", "PG01", "postgresql", "production", 12.4, new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), "Karthik Raman", "online"),
     ],
+    mysql: [
+      {
+        id: newId(),
+        name: "orders-mysql-01",
+        host: "DB-MY01",
+        port: 3306,
+        version: "8.0.36",
+        environment: "production",
+        sizeGb: 96.4,
+        charset: "utf8mb4 / utf8mb4_0900_ai_ci",
+        lastBackupAt: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+        owner: "Karthik Raman",
+        status: "running",
+        notes: "",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: newId(),
+        name: "billing-mysql-01",
+        host: "DB-MY02",
+        port: 3307,
+        version: "5.7.44",
+        environment: "production",
+        sizeGb: 18.2,
+        charset: "utf8mb4 / utf8mb4_general_ci",
+        lastBackupAt: new Date(Date.now() - 9 * 86_400_000).toISOString().slice(0, 10),
+        owner: "Priya Nair",
+        status: "running",
+        notes: "",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: newId(),
+        name: "analytics-mysql",
+        host: "DB-MY03",
+        port: 3306,
+        version: "8.4.2",
+        environment: "staging",
+        sizeGb: 7.8,
+        charset: "utf8mb4 / utf8mb4_0900_ai_ci",
+        lastBackupAt: null,
+        owner: "Meera Raghavan",
+        status: "stopped",
+        notes: "",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
@@ -230,6 +359,27 @@ const APP_COLUMNS =
   "id, name, server, environment, app_pool, binding, framework, owner, status, notes, active, created_at, updated_at";
 const DB_COLUMNS =
   "id, name, server, engine, environment, size_gb, recovery_model, last_backup_at, owner, status, notes, active, created_at, updated_at";
+
+const MYSQL_COLUMNS =
+  "id, name, host, port, version, environment, size_gb, charset, last_backup_at, owner, status, notes, active, created_at, updated_at";
+
+type MysqlRow = {
+  id: string;
+  name: string;
+  host: string | null;
+  port: number | null;
+  version: string | null;
+  environment: string;
+  size_gb: number | string | null;
+  charset: string | null;
+  last_backup_at: string | null;
+  owner: string | null;
+  status: string;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string | null;
+};
 
 type AppRow = {
   id: string;
@@ -295,6 +445,27 @@ function mapDb(row: DbRow): IisDatabase {
     lastBackupAt: row.last_backup_at ? row.last_backup_at.slice(0, 10) : null,
     owner: row.owner ?? "",
     status: isDbStatus(row.status) ? row.status : "online",
+    notes: row.notes ?? "",
+    active: row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
+  };
+}
+
+function mapMysql(row: MysqlRow): IisMysqlInstance {
+  const size = row.size_gb === null ? null : Number(row.size_gb);
+  return {
+    id: row.id,
+    name: row.name,
+    host: row.host ?? "",
+    port: row.port ?? 3306,
+    version: row.version ?? "",
+    environment: isEnvironment(row.environment) ? row.environment : "production",
+    sizeGb: size === null || Number.isNaN(size) ? null : size,
+    charset: row.charset ?? "",
+    lastBackupAt: row.last_backup_at ? row.last_backup_at.slice(0, 10) : null,
+    owner: row.owner ?? "",
+    status: isMysqlStatus(row.status) ? row.status : "running",
     notes: row.notes ?? "",
     active: row.active,
     createdAt: row.created_at,
@@ -561,5 +732,138 @@ export async function deleteDatabase(id: string): Promise<boolean> {
   }
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("iis_databases").delete().eq("id", id);
+  return !error;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  MySQL instances                                                           */
+/* -------------------------------------------------------------------------- */
+
+export async function listMysqlInstances(
+  includeInactive = true,
+): Promise<IisMysqlInstance[]> {
+  if (!isSupabaseConfigured) {
+    return demo()
+      .mysql.filter((row) => includeInactive || row.active)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const supabase = await createSupabaseServerClient();
+  let query = supabase.from("iis_mysql_instances").select(MYSQL_COLUMNS).order("name");
+  if (!includeInactive) query = query.eq("active", true);
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return (data as MysqlRow[]).map(mapMysql);
+}
+
+export async function createMysqlInstance(input: MysqlInput): Promise<IisMysqlInstance> {
+  const now = new Date().toISOString();
+  const base = cleanMysql(input);
+
+  if (!isSupabaseConfigured) {
+    const row: IisMysqlInstance = {
+      id: newId(),
+      ...base,
+      port: input.port,
+      version: input.version.trim(),
+      environment: input.environment,
+      sizeGb: input.sizeGb,
+      charset: input.charset.trim(),
+      lastBackupAt: input.lastBackupAt,
+      status: input.status,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    demo().mysql.push(row);
+    return row;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("iis_mysql_instances")
+    .insert({
+      ...base,
+      port: input.port,
+      version: input.version.trim(),
+      environment: input.environment,
+      size_gb: input.sizeGb,
+      charset: input.charset.trim(),
+      last_backup_at: input.lastBackupAt,
+      status: input.status,
+    })
+    .select(MYSQL_COLUMNS)
+    .single();
+
+  if (error || !data) throw new Error(error?.message ?? "The instance could not be saved.");
+  return mapMysql(data as MysqlRow);
+}
+
+export async function updateMysqlInstance(id: string, input: MysqlInput): Promise<boolean> {
+  const base = cleanMysql(input);
+  const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    const row = demo().mysql.find((item) => item.id === id);
+    if (!row) return false;
+    Object.assign(row, base, {
+      port: input.port,
+      version: input.version.trim(),
+      environment: input.environment,
+      sizeGb: input.sizeGb,
+      charset: input.charset.trim(),
+      lastBackupAt: input.lastBackupAt,
+      status: input.status,
+      updatedAt: now,
+    });
+    return true;
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("iis_mysql_instances")
+    .update({
+      ...base,
+      port: input.port,
+      version: input.version.trim(),
+      environment: input.environment,
+      size_gb: input.sizeGb,
+      charset: input.charset.trim(),
+      last_backup_at: input.lastBackupAt,
+      status: input.status,
+      updated_at: now,
+    })
+    .eq("id", id);
+  if (error) console.error("[iis] mysql update failed", error.message);
+  return !error;
+}
+
+export async function setMysqlActive(id: string, active: boolean): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const row = demo().mysql.find((item) => item.id === id);
+    if (!row) return false;
+    row.active = active;
+    row.updatedAt = new Date().toISOString();
+    return true;
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("iis_mysql_instances")
+    .update({ active, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  return !error;
+}
+
+export async function deleteMysqlInstance(id: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const store = demo();
+    const index = store.mysql.findIndex((item) => item.id === id);
+    if (index < 0) return false;
+    store.mysql.splice(index, 1);
+    return true;
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("iis_mysql_instances").delete().eq("id", id);
   return !error;
 }
