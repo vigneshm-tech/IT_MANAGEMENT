@@ -208,7 +208,7 @@ export function ServersView({
           </span>
           <span className="text-[#c2cbd9]">·</span>
           <span className="text-muted">
-            Refreshed daily at 03:15 IST{inventory.syncedFrom === "live" ? " · read live just now" : ""}
+            Refreshed daily by the nightly job{inventory.syncedFrom === "live" ? " · read live just now" : ""}
           </span>
           {inventory.stale && (
             <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">

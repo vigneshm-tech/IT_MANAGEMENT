@@ -12,7 +12,7 @@ its capture time, and the outcome of the last attempt.
 - **Readers** (`loadServersInventory`) answer from the snapshot. Servers,
   Patching, the dashboard and the task form's server picker all go through it, so
   none of them waits on Action1.
-- **Writers** are the nightly job (`GET /api/servers/sync`, 03:15 IST, called by
+- **Writers** are the nightly job (`GET /api/servers/sync`, 03:15 UTC, called by
   Vercel Cron with `Authorization: Bearer $CRON_SECRET`) and the **Sync now**
   button on the Servers page (`syncServersAction`, role-gated to
   `can(role, "servers", "edit")`).
