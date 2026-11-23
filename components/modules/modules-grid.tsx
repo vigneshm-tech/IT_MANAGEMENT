@@ -60,14 +60,17 @@ export function ModulesGrid({ modules }: { modules: ModuleCard[] }) {
             href={module.href}
             className="group relative flex h-full min-h-[196px] flex-col justify-between overflow-hidden bg-surface p-6 transition-colors duration-300 hover:bg-[#f4f7fc] focus-visible:bg-[#f4f7fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/70 active:bg-[#eef3fb] sm:min-h-[224px] sm:p-7"
           >
+            {/* Hover washes the disc red and paints the glyph in the same bright
+                red as the launch overlay, so "this is the one I am pointing at"
+                reads at a glance instead of as a slightly darker navy. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute -bottom-12 -right-12 flex h-[188px] w-[188px] items-center justify-center rounded-full bg-[#eef2f9] transition-all duration-500 ease-out group-hover:scale-110 group-hover:bg-[#e5ecf7]"
+              className="pointer-events-none absolute -bottom-12 -right-12 flex h-[188px] w-[188px] items-center justify-center rounded-full bg-[#eef2f9] transition-all duration-500 ease-out group-hover:scale-110 group-hover:bg-[#ffe9e9] group-focus-visible:bg-[#ffe9e9]"
             >
               <ModuleGlyph
                 name={module.icon}
                 strokeWidth={1.1}
-                className="h-[92px] w-[92px] -translate-x-1.5 -translate-y-1.5 text-navy/[0.17] transition-transform duration-500 ease-out group-hover:-translate-y-4 group-hover:scale-105 group-hover:text-navy/[0.22]"
+                className="h-[92px] w-[92px] -translate-x-1.5 -translate-y-1.5 text-navy/[0.17] transition-all duration-500 ease-out group-hover:-translate-y-4 group-hover:scale-105 group-hover:text-[#ff0000] group-focus-visible:text-[#ff0000]"
               />
             </span>
 
