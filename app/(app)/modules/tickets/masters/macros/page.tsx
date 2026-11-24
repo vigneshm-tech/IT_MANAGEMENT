@@ -32,16 +32,12 @@ export default async function TicketMacrosPage({
   const [macros, queues] = await Promise.all([listTicketMacros(true), listTicketQueues()]);
   const canEdit = canConfigureTickets(user.role);
   const editing = edit ? macros.find((macro) => macro.id === edit) : undefined;
-  const active = macros.filter((macro) => macro.status === "active").length;
 
   return (
     <div className="space-y-5">
       <PageHeader title="Macros">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="macros" />
-          <p className="text-[12px] text-muted">
-            {active} active of {macros.length} · an agent picks one and the whole bundle is applied
-          </p>
         </div>
       </PageHeader>
 

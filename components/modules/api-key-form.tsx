@@ -89,9 +89,11 @@ export function ApiKeyForm({
                 />
                 <span className="min-w-0">
                   <span className="block text-[12px] font-medium text-navy">{scope.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-muted">
-                    {scope.summary}
-                  </span>
+                  {scope.summary !== scope.label && (
+                    <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                      {scope.summary}
+                    </span>
+                  )}
                 </span>
               </label>
             ))}

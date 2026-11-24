@@ -57,7 +57,7 @@ export function MasterRegister({
   backLabel = "Masters",
 }: {
   title: string;
-  description: ReactNode;
+  description?: ReactNode;
   items: MasterRow[];
   canEdit: boolean;
   deleteId?: string;
@@ -149,7 +149,9 @@ export function MasterRegister({
           </Link>
         }
       >
-        <div className="text-[12.5px] leading-relaxed text-muted">{description}</div>
+        {description && (
+          <div className="text-[12.5px] leading-relaxed text-muted">{description}</div>
+        )}
       </PageHeader>
 
       {notice && (

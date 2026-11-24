@@ -72,15 +72,6 @@ export default async function DevelopersSettingsPage({
       <PageHeader title="Developers">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="developers" />
-          <p className="text-[12px] text-muted">
-            {activeKeys.length === 0
-              ? "No active keys"
-              : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"}`}{" "}
-            · {granting.length} scopes available ·{" "}
-            {liveApps.length === 0
-              ? "no connected apps"
-              : `${liveApps.length} connected ${liveApps.length === 1 ? "app" : "apps"}`}
-          </p>
         </div>
       </PageHeader>
 
@@ -114,9 +105,6 @@ export default async function DevelopersSettingsPage({
             <h2 id="keys-heading" className="text-[13px] font-semibold text-navy">
               Your keys
             </h2>
-            <p className="mt-0.5 text-[11.5px] text-muted">
-              Keys act as you, within the scopes you grant.
-            </p>
           </div>
         </div>
 

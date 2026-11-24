@@ -163,9 +163,6 @@ export function TicketsPortalView({
           </div>
         }
       >
-        <p className="text-[12px] text-muted">
-          {data.baseUrl} · key {data.masked} · {data.totalCount} open in Redmine
-        </p>
       </PageHeader>
 
       {createdId && (

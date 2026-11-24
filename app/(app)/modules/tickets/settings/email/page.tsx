@@ -54,7 +54,6 @@ export default async function TicketEmailPage() {
             <Inbox className="h-3 w-3" aria-hidden />
             {queueName}
           </span>
-          <span>Updated {formatDateTime(settings.updatedAt)}</span>
         </div>
       </PageHeader>
 

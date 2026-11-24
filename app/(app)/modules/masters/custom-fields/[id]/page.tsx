@@ -70,8 +70,6 @@ export default async function EditCustomFieldPage({ params }: PageProps) {
         }
       >
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
-          <span className="font-mono text-[11.5px]">{field.id}</span>
-          <span aria-hidden>·</span>
           <span>{activityModuleLabel(field.module)}</span>
           <span aria-hidden>·</span>
           <StatusPill

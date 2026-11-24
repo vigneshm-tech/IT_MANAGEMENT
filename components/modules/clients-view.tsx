@@ -116,11 +116,7 @@ export function ClientsView({
             </>
           ) : undefined
         }
-      >
-        <p className="text-[12.5px] text-muted">
-          {clients.length} {clients.length === 1 ? "account" : "accounts"}
-        </p>
-      </PageHeader>
+      />
 
       {created && (
         <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">

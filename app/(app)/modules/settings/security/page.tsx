@@ -32,7 +32,6 @@ export default async function SecuritySettingsPage() {
       <PageHeader title="Security & sessions">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="security" />
-          <p className="text-[12px] text-muted">Session, password and API keys</p>
         </div>
       </PageHeader>
 

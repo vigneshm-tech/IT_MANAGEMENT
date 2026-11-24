@@ -106,7 +106,6 @@ export default async function EndpointPage({ params }: PageProps) {
           <StatusPill status={endpoint.status} />
           <span className="text-[12.5px] text-muted">
             Last seen {describeLastSeen(endpoint.lastSeen).toLowerCase()}
-            {endpoint.lastSeen ? ` · ${formatDateTime(endpoint.lastSeen)} IST` : ""}
           </span>
           <span className="text-[12.5px] text-muted">{describePatchHeadline(endpoint)}</span>
           <span

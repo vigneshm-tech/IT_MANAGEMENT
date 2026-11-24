@@ -54,7 +54,6 @@ export default async function IisApplicationsPage({
   const updatedTo = typeof params.updated === "string" ? params.updated : "";
 
   const servers = serverOptions(applications);
-  const liveCount = applications.filter((row) => row.active).length;
   const filteredOut = hasApplicationFilters(filters);
 
   return (
@@ -69,12 +68,6 @@ export default async function IisApplicationsPage({
               New application
             </Link>
           )}
-          <p className="text-[12px] text-muted">
-            {liveCount} live {liveCount === 1 ? "application" : "applications"}
-            {applications.length - liveCount > 0
-              ? ` · ${applications.length - liveCount} retired`
-              : ""}
-          </p>
         </div>
       </PageHeader>
 

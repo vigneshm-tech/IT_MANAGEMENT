@@ -17,7 +17,6 @@ import type {
 } from "@/lib/records/repository";
 import {
   approvalView,
-  approvalViewMeta,
   approvalsForView,
   approvalViewsFor,
   type ApprovalView,
@@ -130,7 +129,6 @@ export function ApprovalsView({
   // sensible landing spot, and `?view=received` should not dead-end them.
   const requested = approvalView(view);
   const active: ApprovalView = views.some((tab) => tab.id === requested) ? requested : views[0].id;
-  const meta = approvalViewMeta(active);
   // Requests and patch sign-offs are one ledger: the tabs count and list both,
   // so a plan signed off here is findable under Approved afterwards.
   const labels = requestTypeLabels(requestTypes);
@@ -245,7 +243,6 @@ export function ApprovalsView({
           );
         })}
 
-        <span className="ml-auto text-[11.5px] text-muted">{meta.blurb}</span>
       </div>
 
       {active === "received" && patchApprovals.length > 0 && (

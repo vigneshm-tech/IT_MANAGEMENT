@@ -37,9 +37,6 @@ export default async function IntegrationsSettingsPage() {
       <PageHeader title="Integrations">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="integrations" />
-          <p className="text-[12px] text-muted">
-            {[redmine.connected, action1.connected].filter(Boolean).length} of 2 connected
-          </p>
         </div>
       </PageHeader>
 

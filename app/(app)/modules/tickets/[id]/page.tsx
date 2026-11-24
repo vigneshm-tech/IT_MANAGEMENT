@@ -188,8 +188,6 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
             {priority.label} priority
             {overdue && " · overdue"}
           </span>
-          <span aria-hidden>·</span>
-          <span>opened {formatDateTime(ticket.createdAt)}</span>
         </p>
       </PageHeader>
 

@@ -69,9 +69,6 @@ export default async function RolesSettingsPage({
               New role
             </Link>
           )}
-          <p className="text-[12px] text-muted">
-            {roles.length} roles · {roles.filter((role) => !role.hidden).length} assignable
-          </p>
         </div>
       </PageHeader>
 

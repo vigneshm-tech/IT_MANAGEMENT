@@ -72,8 +72,6 @@ export default async function EditTextModulePage({ params }: PageProps) {
         }
       >
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
-          <span className="font-mono text-[11.5px]">{module.id}</span>
-          <span aria-hidden>·</span>
           <StatusPill
             status={module.status}
             label={module.status === "active" ? "Active" : "Inactive"}

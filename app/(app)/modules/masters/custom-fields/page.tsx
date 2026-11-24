@@ -32,8 +32,6 @@ export default async function CustomFieldsPage({
   const { delete: deleteId, updated, deleted } = await searchParams;
   const items = await listCustomFields();
 
-  const active = items.filter((item) => item.status === "active").length;
-  const modulesUsed = new Set(items.map((item) => item.module)).size;
 
   const updatedItem = updated ? items.find((item) => item.id === updated) : undefined;
   const notice = updatedItem
@@ -45,12 +43,6 @@ export default async function CustomFieldsPage({
   return (
     <MasterRegister
       title="Custom fields"
-      description={
-        <>
-          {active} active {active === 1 ? "field" : "fields"} of {items.length} · {modulesUsed}{" "}
-          {modulesUsed === 1 ? "module" : "modules"}
-        </>
-      }
       items={items}
       canEdit={can(user.role, "masters", "edit")}
       deleteId={deleteId}

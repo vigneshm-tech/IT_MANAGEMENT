@@ -13,7 +13,7 @@ import {
   kbFileKind,
   matchesKbFile,
 } from "@/lib/tickets/kb-files";
-import { describeLibrary, listKbFiles } from "@/lib/tickets/kb-files-store";
+import { listKbFiles } from "@/lib/tickets/kb-files-store";
 import { deleteKbFileAction } from "./actions";
 
 export const metadata: Metadata = { title: "Ticket knowledge base" };
@@ -43,11 +43,7 @@ export default async function TicketKbPage({
   return (
     <div className="space-y-5">
       <PageHeader title="Knowledge base">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
-          <p className="text-[12.5px] text-muted">
-            {describeLibrary(files)} · the desk&apos;s own files, readable by anyone who can open
-            Tickets.
-          </p>
+        <div className="flex flex-wrap items-center justify-end gap-3 pb-4">
           <div className="flex items-center gap-2">
             <Link
               href="/modules/tickets"

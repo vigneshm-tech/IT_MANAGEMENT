@@ -26,7 +26,6 @@ export default async function IndustriesPage({
   const { delete: deleteId, updated, deleted } = await searchParams;
   const items = await listIndustries();
 
-  const active = items.filter((item) => item.status === "active").length;
   const updatedItem = updated ? items.find((item) => item.id === updated) : undefined;
   const notice = updatedItem
     ? { tone: "success" as const, text: `"${updatedItem.name}" was updated.` }
@@ -37,11 +36,6 @@ export default async function IndustriesPage({
   return (
     <MasterRegister
       title="Industries"
-      description={
-        <>
-          {active} active {active === 1 ? "industry" : "industries"} of {items.length}
-        </>
-      }
       items={items}
       canEdit={can(user.role, "masters", "edit")}
       deleteId={deleteId}

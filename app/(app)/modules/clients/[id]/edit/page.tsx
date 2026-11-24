@@ -95,8 +95,7 @@ export default async function EditClientPage({ params }: PageProps) {
         }
       >
         <p className="text-[12px] text-muted">
-          <span className="font-mono text-[11.5px]">{client.id}</span> · created{" "}
-          {stamps.created} · last update {stamps.touched ? stamps.updated : "never"}
+          Created {stamps.created} · updated {stamps.touched ? stamps.updated : "never"}
         </p>
       </PageHeader>
 

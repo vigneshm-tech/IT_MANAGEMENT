@@ -35,10 +35,6 @@ export default async function ActivityTypesPage({
   const { delete: deleteId, updated, deleted } = await searchParams;
   const items = await listActivityTypes();
 
-  const active = items.filter((item) => item.status === "active").length;
-  const taskTypes = items.filter(
-    (item) => item.status === "active" && item.module === TASK_ACTIVITY_MODULE,
-  ).length;
 
   const updatedItem = updated ? items.find((item) => item.id === updated) : undefined;
   const notice = updatedItem
@@ -50,12 +46,6 @@ export default async function ActivityTypesPage({
   return (
     <MasterRegister
       title="Activity types"
-      description={
-        <>
-          {active} active {active === 1 ? "type" : "types"} of {items.length} · {taskTypes} offered in
-          tasks
-        </>
-      }
       items={items}
       canEdit={can(user.role, "masters", "edit")}
       deleteId={deleteId}

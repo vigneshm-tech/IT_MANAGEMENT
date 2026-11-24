@@ -50,11 +50,12 @@ export default async function IisDatabasesPage({
       <PageHeader title="Database">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <IisTabs active="databases" />
-          <p className="text-[12px] text-muted">
-            {live.length} {live.length === 1 ? "instance" : "instances"}
-            {overdue.length > 0 ? ` · ${overdue.length} backup${overdue.length === 1 ? "" : "s"} overdue` : ""}
-            {retired.length > 0 ? ` · ${retired.length} retired` : ""}
-          </p>
+          {overdue.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">
+              <AlertTriangle className="h-3 w-3" aria-hidden />
+              {overdue.length} backup{overdue.length === 1 ? "" : "s"} overdue
+            </span>
+          )}
         </div>
       </PageHeader>
 

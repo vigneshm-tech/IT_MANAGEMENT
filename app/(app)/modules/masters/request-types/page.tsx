@@ -4,7 +4,7 @@ import { MasterRegister } from "@/components/modules/master-register";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listApprovals, listRequestTypes } from "@/lib/records/repository";
+import { listRequestTypes } from "@/lib/records/repository";
 import {
   addRequestTypeAction,
   requestTypeRowAction,
@@ -24,11 +24,8 @@ export default async function RequestTypesPage({
   }
 
   const { delete: deleteId, updated, deleted } = await searchParams;
-  const [items, approvals] = await Promise.all([listRequestTypes(), listApprovals()]);
+  const items = await listRequestTypes();
 
-  const active = items.filter((item) => item.status === "active").length;
-  const used = approvals.filter((approval) => items.some((type) => type.id === approval.category))
-    .length;
 
   const updatedItem = updated ? items.find((item) => item.id === updated) : undefined;
   const notice = updatedItem
@@ -40,14 +37,6 @@ export default async function RequestTypesPage({
   return (
     <MasterRegister
       title="Request types"
-      description={
-        <>
-          {active} active {active === 1 ? "type" : "types"} of {items.length}. The approval form offers
-          this register for its Request type list, and {used} {used === 1 ? "approval" : "approvals"}{" "}
-          already carry one of these. Renaming a type relabels the approvals filed under it without
-          touching them; deactivate one to retire it without losing its history.
-        </>
-      }
       items={items}
       canEdit={can(user.role, "masters", "edit")}
       deleteId={deleteId}

@@ -204,11 +204,7 @@ export function ServersView({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-4 text-[11.5px]">
           <span className="inline-flex items-center gap-1.5 text-muted">
             <Clock className="h-3.5 w-3.5" aria-hidden />
-            Inventory captured {inventory.age ?? "just now"}
-          </span>
-          <span className="text-[#c2cbd9]">·</span>
-          <span className="text-muted">
-            Updated daily
+            Updated {inventory.age ?? "just now"}
           </span>
           {inventory.stale && (
             <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">

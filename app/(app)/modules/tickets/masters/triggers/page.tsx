@@ -37,16 +37,12 @@ export default async function TicketTriggersPage({
   const [triggers, queues] = await Promise.all([listTicketTriggers(true), listTicketQueues()]);
   const canEdit = canConfigureTickets(user.role);
   const editing = edit ? triggers.find((trigger) => trigger.id === edit) : undefined;
-  const active = triggers.filter((trigger) => trigger.status === "active").length;
 
   return (
     <div className="space-y-5">
       <PageHeader title="Triggers">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="triggers" />
-          <p className="text-[12px] text-muted">
-            {active} active of {triggers.length} · evaluated when a ticket or an article is created
-          </p>
         </div>
       </PageHeader>
 

@@ -31,17 +31,12 @@ export default async function TicketQueuesPage({
   const queues = await listTicketQueues(true);
   const canEdit = canConfigureTickets(user.role);
   const editing = edit ? queues.find((queue) => queue.id === edit) : undefined;
-  const publicCount = queues.filter((queue) => queue.isPublic).length;
 
   return (
     <div className="space-y-5">
       <PageHeader title="Queues">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="queues" />
-          <p className="text-[12px] text-muted">
-            {queues.length} {queues.length === 1 ? "queue" : "queues"} · {publicCount} on the public
-            form
-          </p>
         </div>
       </PageHeader>
 

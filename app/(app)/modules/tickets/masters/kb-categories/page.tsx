@@ -51,13 +51,6 @@ export default async function TicketKbCategoriesPage({
       <PageHeader title="KB categories">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="kb-categories" />
-          <p className="text-[12px] text-muted">
-            {categories.length} {categories.length === 1 ? "category" : "categories"} · {articles.length}{" "}
-            {articles.length === 1 ? "article" : "articles"} across them ·{" "}
-            <Link href="/modules/kb" className="text-navy underline-offset-2 hover:underline">
-              open the knowledge base
-            </Link>
-          </p>
         </div>
       </PageHeader>
 

@@ -373,9 +373,6 @@ export default async function OverviewPage() {
           <h2 id="workspace-heading" className="text-[14px] font-semibold text-navy">
             Workspace
           </h2>
-          <p className="mt-0.5 text-[12px] text-muted">
-            {modules.length} pages available to your team
-          </p>
 
           <ul className="mt-4 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
             {modules

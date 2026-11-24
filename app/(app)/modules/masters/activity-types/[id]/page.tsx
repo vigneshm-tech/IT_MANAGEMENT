@@ -69,8 +69,6 @@ export default async function EditActivityTypePage({ params }: PageProps) {
         }
       >
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
-          <span className="font-mono text-[11.5px]">{type.id}</span>
-          <span aria-hidden>·</span>
           <span>{activityModuleLabel(type.module)}</span>
           <span aria-hidden>·</span>
           <StatusPill

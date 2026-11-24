@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Trash2, Users } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Trash2 } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { RoleMetaForm } from "@/components/modules/role-meta-form";
 import { RolePermissionsGrid } from "@/components/modules/role-permissions-grid";
@@ -9,9 +9,8 @@ import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { buildGridGroups, summariseLevels } from "@/lib/roles/grid";
+import { buildGridGroups } from "@/lib/roles/grid";
 import { findRoleDefinition } from "@/lib/roles/registry";
-import { ROLE_GROUPS } from "@/lib/roles";
 import { deleteRoleAction, saveRoleLevelsAction, saveRoleMetaAction } from "../actions";
 
 export const metadata: Metadata = { title: "Role permissions" };
@@ -47,15 +46,6 @@ export default async function RoleDetailPage({
             <ArrowLeft className="h-3 w-3" aria-hidden />
             All roles
           </Link>
-          <p className="text-[12px] text-muted">
-            {ROLE_GROUPS[role.group].label} · {summariseLevels(role.counts)}
-            {role.members > 0 && (
-              <span className="ml-1 inline-flex items-center gap-1">
-                <Users className="h-3 w-3" aria-hidden />
-                {role.members} {role.members === 1 ? "account" : "accounts"}
-              </span>
-            )}
-          </p>
         </div>
       </PageHeader>
 

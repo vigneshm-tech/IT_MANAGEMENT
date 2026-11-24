@@ -107,7 +107,6 @@ export default async function ServiceTargetsPage({
     listTicketQueues(),
   ]);
   const canEdit = canConfigureTickets(user.role);
-  const activeSlas = slas.filter((rule) => rule.status === "active").length;
   const editingSla = editSla ? slas.find((rule) => rule.id === editSla) : undefined;
   const editingShift = editShift ? calendars.find((item) => item.id === editShift) : undefined;
 
@@ -116,11 +115,6 @@ export default async function ServiceTargetsPage({
       <PageHeader title="Targets & shifts">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="targets" />
-          <p className="text-[12px] text-muted">
-            {activeSlas} active of {slas.length} · measured on{" "}
-            {calendars.filter((calendar) => calendar.status === "active").length} active of{" "}
-            {calendars.length} shifts
-          </p>
         </div>
       </PageHeader>
 

@@ -34,18 +34,16 @@ export default async function KbPage({
 
   const scoped = category ? articles.filter((article) => article.categoryId === category) : articles;
   const results = scoreArticlesForList(scoped, q);
-  const publicCount = articles.filter((article) => article.visibility === "public").length;
 
   return (
     <div className="space-y-5">
       <PageHeader title="Knowledge base">
         <p className="pb-4 text-[12.5px] text-muted">
-          {articles.length} {articles.length === 1 ? "article" : "articles"}, {publicCount} public. Public
-          articles are readable at{" "}
+          Public articles appear at{" "}
           <Link href="/support/kb" className="text-navy underline-offset-2 hover:underline">
             /support/kb
-          </Link>{" "}
-          without an account.
+          </Link>
+          .
         </p>
       </PageHeader>
 

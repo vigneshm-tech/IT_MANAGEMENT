@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { formatDateTime } from "@/lib/format";
 import {
   getTicketEmailSettings,
   listKbArticles,
@@ -67,27 +66,12 @@ export default async function TicketSettingsPage() {
   const recentOutbox = outbox.slice(0, 5);
 
   const registers = [
-    { href: "/modules/tickets/masters/queues", label: "Queues", count: queues.length, noun: "queues" },
-    {
-      href: "/modules/tickets/masters/service-targets",
-      label: "Targets & shifts",
-      count: slas.length + calendars.length,
-      noun: "targets and shifts",
-    },
-    { href: "/modules/tickets/masters/triggers", label: "Triggers", count: triggers.length, noun: "rules" },
-    { href: "/modules/tickets/masters/macros", label: "Macros", count: macros.length, noun: "macros" },
-    {
-      href: "/modules/tickets/masters/text-modules",
-      label: "Text modules",
-      count: snippets.length,
-      noun: "snippets",
-    },
-    {
-      href: "/modules/tickets/masters/kb-categories",
-      label: "KB categories",
-      count: categories.length,
-      noun: "categories",
-    },
+    { href: "/modules/tickets/masters/queues", label: "Queues" },
+    { href: "/modules/tickets/masters/service-targets", label: "Targets & shifts" },
+    { href: "/modules/tickets/masters/triggers", label: "Triggers" },
+    { href: "/modules/tickets/masters/macros", label: "Macros" },
+    { href: "/modules/tickets/masters/text-modules", label: "Text modules" },
+    { href: "/modules/tickets/masters/kb-categories", label: "KB categories" },
   ];
 
   return (
@@ -95,7 +79,6 @@ export default async function TicketSettingsPage() {
       <PageHeader title="Settings">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="settings" />
-          <p className="text-[12px] text-muted">Public form, email channel and queues</p>
         </div>
       </PageHeader>
 
@@ -121,8 +104,8 @@ export default async function TicketSettingsPage() {
             </p>
             <p className="mt-2">
               {publicQueues.length === 0
-                ? "No queue offered yet — visitors are asked to email instead."
-                : `Offered into ${publicQueues.map((queue) => queue.name).join(", ")}.`}
+                ? "No queue offered yet."
+                : publicQueues.map((queue) => queue.name).join(", ")}
             </p>
             <Link
               href="/modules/tickets/masters/queues"
@@ -161,7 +144,7 @@ export default async function TicketSettingsPage() {
               </span>
             </p>
             <p className="mt-1">
-              Replies: {queued} queued, {failed} failed · updated {formatDateTime(mail.updatedAt)}
+              Replies: {queued} queued, {failed} failed
             </p>
             <Link
               href="/modules/tickets/settings/email"
@@ -184,10 +167,6 @@ export default async function TicketSettingsPage() {
             />
           </div>
           <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
-            <p>
-              {articles.length} articles in {categories.length} categories · {publicArticles.length}{" "}
-              public, {articles.length - publicArticles.length} internal.
-            </p>
             <Link
               href="/support/kb"
               className="text-navy underline-offset-2 hover:underline"
@@ -249,9 +228,6 @@ export default async function TicketSettingsPage() {
                 className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[#f4f7fc] focus-visible:bg-[#f4f7fc] focus-visible:outline-none sm:px-5"
               >
                 <span className="flex-1 text-[12.5px] text-navy">{register.label}</span>
-                <span className="text-[11.5px] tabular-nums text-muted">
-                  {register.count} {register.noun}
-                </span>
                 <Inbox className="h-3.5 w-3.5 text-[#b9c4d6]" aria-hidden />
               </Link>
             </li>

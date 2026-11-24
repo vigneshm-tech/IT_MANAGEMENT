@@ -31,7 +31,6 @@ export default async function TextModulesPage({
   const { updated, delete: deleteId } = await searchParams;
   const modules = await listTicketTextModules(true);
   const canEdit = canConfigureTickets(user.role);
-  const active = modules.filter((module) => module.status === "active").length;
   const updatedModule = updated ? modules.find((module) => module.id === updated) : undefined;
 
   return (
@@ -39,9 +38,6 @@ export default async function TextModulesPage({
       <PageHeader title="Text modules">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="text-modules" />
-          <p className="text-[12px] text-muted">
-            {active} active of {modules.length} · agents insert these into a reply with one click
-          </p>
         </div>
       </PageHeader>
 
