@@ -4,13 +4,13 @@
  * Every employee account is assigned exactly one role. A role decides which
  * modules are visible and which of them can be written to; the per-module
  * matrix lives in the database (`access_roles` / `access_role_modules`, edited
- * from Settings → Roles) and these entries are the starting point a workspace
+ * from Users & Groups → Roles) and these entries are the starting point a workspace
  * inherits.
  *
  * Two kinds of role exist:
  *  - the built-in set below, shipped with the product and present in every
  *    install, with access rules in `lib/modules.ts`;
- *  - workspace-defined roles, created in Settings → Roles, whose access comes
+ *  - workspace-defined roles, created in Users & Groups → Roles, whose access comes
  *    only from what an administrator ticked. Their ids are slugs, so a role
  *    typed as "Warehouse Supervisor" is `warehouse_supervisor`.
  */

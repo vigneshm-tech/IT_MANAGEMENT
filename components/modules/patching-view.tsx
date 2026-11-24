@@ -75,7 +75,7 @@ export function PatchingView({
   /**
    * Decided on the server, from the role catalogue. A browser cannot be the one
    * to answer this: it holds only the built-in rules, and a role edited in
-   * Settings → Roles would disagree with it.
+   * Users & Groups → Roles would disagree with it.
    */
   canEdit: boolean;
 }) {

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Fingerprint, KeyRound, Plug, ShieldCheck, UserCog } from "lucide-react";
+import { ChevronRight, Fingerprint, KeyRound, Plug, ShieldCheck } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { listRoleDefinitions } from "@/lib/roles/registry";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -16,8 +15,6 @@ export default async function SettingsPage() {
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
-
-  const roles = listRoleDefinitions();
 
   const sections = [
     {
@@ -48,14 +45,7 @@ export default async function SettingsPage() {
       title: "Developers",
       summary: "API keys and connected apps",
     },
-    {
-      id: "roles",
-      href: "/modules/settings/roles",
-      icon: UserCog,
-      title: "Roles & access",
-      summary: "Module access for every role",
-    },
-  ].filter((section) => section.id !== "roles" || can(user.role, "settings", "admin"));
+  ];
 
   return (
     <div className="space-y-5">

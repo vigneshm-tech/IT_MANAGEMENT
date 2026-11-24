@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { can } from "@/lib/access";
+import { canEditRoles } from "@/lib/roles/access";
 import { requireUser } from "@/lib/auth";
 import type { FormState } from "@/lib/forms";
 import { MODULES } from "@/lib/modules";
@@ -17,7 +17,7 @@ import {
 import { extendRoleEnum } from "@/lib/roles/repository";
 import { validateRoleDescription, validateRoleLabel } from "@/lib/roles/types";
 
-const LIST_PATH = "/modules/settings/roles";
+const LIST_PATH = "/modules/users/roles";
 
 const GROUPS: RoleGroup[] = [
   "it",
@@ -34,12 +34,13 @@ const LEVELS: RoleLevel[] = ["manager", "lead", "engineer", "executive"];
 /**
  * Who may change what a role can do.
  *
- * Deliberately narrower than "can open Settings": reading your own profile is
- * every role's right, handing yourself the IIS register is not.
+ * Deliberately narrower than "can open Users & Groups" and than "can open
+ * Settings": reading your own profile is every role's right, handing yourself
+ * the IIS register is not.
  */
 async function editor(): Promise<{ allowed: boolean }> {
   const user = await requireUser();
-  return { allowed: can(user.role, "settings", "admin") };
+  return { allowed: canEditRoles(user.role) };
 }
 
 function text(formData: FormData, field: string): string {
@@ -68,6 +69,7 @@ function refresh(roleId?: string): void {
   revalidatePath(LIST_PATH);
   if (roleId) revalidatePath(`${LIST_PATH}/${roleId}`);
   // The navigation is built from the catalogue, so the shell is rebuilt too.
+  revalidatePath("/modules/users");
   revalidatePath("/", "layout");
 }
 

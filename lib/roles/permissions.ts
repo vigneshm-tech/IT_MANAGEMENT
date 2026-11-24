@@ -52,7 +52,7 @@ export function levelAllows(level: AccessLevel, capability: Capability): boolean
 
 /**
  * What each module looks like for a role that has never been saved through
- * Settings → Roles: the rules in `lib/modules.ts`, reduced to three levels.
+ * Users & Groups → Roles: the rules in `lib/modules.ts`, reduced to three levels.
  *
  * A role that could add or change anything counts as write; a role that could
  * only look counts as read. A module rule that grants nothing visible is `none`.

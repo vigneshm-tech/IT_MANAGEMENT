@@ -341,11 +341,11 @@ and on the edit page.
 
 The module registry lives in [`lib/modules.ts`](lib/modules.ts); the roles that
 every install starts with are in [`lib/roles.ts`](lib/roles.ts). Since migration
-`0039` a role is data, not code: **Settings → Roles & access** lists every role,
+`0039` a role is data, not code: **Users & Groups → Roles & access** lists every role,
 and each module is answered three ways — *Not allowed* (the module disappears
 from that role's navigation and its page refuses to open), *Read only* (it opens,
 nothing can be changed) and *Write* (add, edit and approve). A new role can be
-defined there and assigned in Users & Groups.
+defined there and assigned in the directory beside it.
 
 `lib/access.ts` exposes `can()`, `canAccessModule()`, `visibleModules()` and
 `accessMap()`; `can()` reads the saved levels, and a role nobody has edited

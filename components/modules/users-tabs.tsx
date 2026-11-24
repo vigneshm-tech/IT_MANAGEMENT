@@ -1,17 +1,36 @@
 import Link from "next/link";
 
 const TABS = [
-  { id: "users", label: "Manage Users", href: "/modules/users" },
-  { id: "groups", label: "Manage Groups", href: "/modules/users/groups" },
+  { id: "users", label: "Manage Users", href: "/modules/users", audience: "directory" },
+  { id: "groups", label: "Manage Groups", href: "/modules/users/groups", audience: "directory" },
+  { id: "roles", label: "Roles & access", href: "/modules/users/roles", audience: "roles" },
 ] as const;
 
 export type UsersTabId = (typeof TABS)[number]["id"];
 
-/** Sub-module tabs; the underline sits on the header's bottom rule. */
-export function UsersTabs({ active }: { active: UsersTabId }) {
+/**
+ * Sub-module tabs; the underline sits on the header's bottom rule.
+ *
+ * The audience flags exist because a Settings administrator may reach Roles
+ * without holding the directory itself — offering them "Manage Users" would be
+ * a tab that only answers Access denied.
+ */
+export function UsersTabs({
+  active,
+  canViewDirectory = true,
+  canViewRoles = true,
+}: {
+  active: UsersTabId;
+  canViewDirectory?: boolean;
+  canViewRoles?: boolean;
+}) {
+  const tabs = TABS.filter((tab) =>
+    tab.audience === "directory" ? canViewDirectory : canViewRoles,
+  );
+
   return (
     <nav aria-label="Users & Groups" className="-mb-px flex flex-wrap items-center gap-1">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const current = tab.id === active;
         return (
           <Link

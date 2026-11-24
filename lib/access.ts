@@ -6,7 +6,7 @@ import { roleAccessFor } from "./roles/snapshot";
 /**
  * Whether a role may do something inside a module.
  *
- * Three levels decide it now (Settings → Roles): a module set to *Not allowed*
+ * Three levels decide it now (Users & Groups → Roles): a module set to *Not allowed*
  * answers no to everything, *Read only* answers yes to looking and no to
  * changing, *Write* answers yes throughout. A role an administrator has never
  * saved keeps the rules compiled into `lib/modules.ts`, so an untouched install

@@ -5,7 +5,7 @@ import type { StoredRole } from "./types";
  * Workspace-defined roles for previews and local runs, where there is no
  * Supabase to write to.
  *
- * The built-ins are seeded from the catalogue so the Settings → Roles screen
+ * The built-ins are seeded from the catalogue so the Roles & access screen
  * looks the same with or without a database; only the module levels a person
  * changes live here, which mirrors the `access_role_modules` table exactly.
  */

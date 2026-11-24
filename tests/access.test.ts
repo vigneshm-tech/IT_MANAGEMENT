@@ -9,6 +9,7 @@ import {
 } from "../lib/roles";
 import { can, canAccessModule, visibleModules } from "../lib/access";
 import { canSyncRedmineClients } from "../lib/integrations/access";
+import { canEditRoles, canReadRoles } from "../lib/roles/access";
 import { MODULES } from "../lib/modules";
 
 const ALL_ROLES = [...ROLE_IDS] as RoleId[];
@@ -173,4 +174,22 @@ test("the Redmine client scan follows either the tickets or the clients right", 
     true,
     "at least one role must be refused",
   );
+});
+
+test("roles moved to Users & Groups without changing who may change them", () => {
+  for (const role of ALL_ROLES) {
+    // Editing is the same set as before the move: a Settings administrator.
+    assert.equal(
+      canEditRoles(role),
+      can(role, "settings", "admin"),
+      `${role} should keep the role-editing right it had`,
+    );
+    // Reading follows the directory now, with the same Settings administrator.
+    assert.equal(canReadRoles(role), canAccessModule(role, "users") || can(role, "settings", "admin"));
+    // Nothing widened: whoever may edit may also read.
+    if (canEditRoles(role)) assert.equal(canReadRoles(role), true);
+  }
+
+  assert.equal(canReadRoles("super_admin"), true);
+  assert.equal(canEditRoles("super_admin"), true);
 });
