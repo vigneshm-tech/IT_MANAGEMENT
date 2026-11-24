@@ -190,6 +190,12 @@ export function TicketsView({
         title="Tickets"
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/modules/tickets/kb"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
+            >
+              Knowledge base
+            </Link>
             {agent && (
               <Link
                 href="/modules/tickets/reports"
