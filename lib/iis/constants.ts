@@ -66,6 +66,16 @@ export type IisApplication = {
   bindingPort: number | null;
   /** SSL Mapped — the binding speaks https. */
   sslMapped: boolean;
+  /**
+   * Which certificate is mapped: its common name as the server reports it
+   * (`*.eshopaid.com`), the thumbprint that pins it, and the day it expires.
+   * "Mapped: true" says a TLS binding exists; this says what is on it, which is
+   * the thing a person renewing it needs.
+   */
+  sslCertificate: string;
+  sslThumbprint: string;
+  /** ISO date (`YYYY-MM-DD`) or null. */
+  sslExpiresAt: string | null;
   /** Application Pool. */
   appPool: string;
   directoryBrowsing: DirectoryBrowsing;
@@ -104,6 +114,9 @@ export type ApplicationInput = {
   bindingHost: string;
   bindingPort: number | null;
   sslMapped: boolean;
+  sslCertificate: string;
+  sslThumbprint: string;
+  sslExpiresAt: string | null;
   appPool: string;
   directoryBrowsing: DirectoryBrowsing;
   appRoot: string;
@@ -121,6 +134,17 @@ export function describeBinding(row: {
   const host = row.bindingHost.trim() || "(any host)";
   const port = row.bindingPort ?? (row.sslMapped ? 443 : 80);
   return `${host}:${port}${row.sslMapped ? " · https" : ""}`;
+}
+
+/** "*.eshopaid.com · to 2027-03-14" — the one-line form of a certificate. */
+export function describeCertificate(row: {
+  sslCertificate: string;
+  sslExpiresAt: string | null;
+}): string {
+  const name = row.sslCertificate.trim();
+  const expiry = row.sslExpiresAt ? `to ${row.sslExpiresAt}` : "";
+  if (name && expiry) return `${name} · ${expiry}`;
+  return name || expiry;
 }
 
 export type DatabaseInput = {

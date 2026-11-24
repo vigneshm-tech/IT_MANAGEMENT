@@ -22,6 +22,15 @@ import { applicationRowAction, saveApplicationAction } from "../actions";
 
 export const metadata: Metadata = { title: "IIS Application" };
 
+/** A certificate close to expiry is the reason this column exists. */
+function expiryTone(date: string | null): string {
+  if (!date) return "text-muted";
+  const days = Math.floor((new Date(`${date}T00:00:00Z`).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return "font-medium text-danger";
+  if (days <= 30) return "font-medium text-[#8a5a1c]";
+  return "text-muted";
+}
+
 const ROW_BUTTON =
   "inline-flex h-7 items-center rounded-md border border-line px-2 text-[11.5px] text-body transition-colors hover:border-navy hover:text-navy";
 const ROW_BUTTON_DANGER =
@@ -135,7 +144,19 @@ export default async function IisApplicationsPage({
                   </td>
                   <td className="px-3 py-3 text-[12px]">
                     {row.sslMapped ? (
-                      <span className="text-navy">Mapped</span>
+                      <div className="min-w-0">
+                        <span className="text-navy">Mapped</span>
+                        {row.sslCertificate ? (
+                          <p className="break-all text-[11px] text-body">{row.sslCertificate}</p>
+                        ) : (
+                          <p className="text-[11px] text-muted">No certificate name</p>
+                        )}
+                        {row.sslExpiresAt && (
+                          <p className={`text-[11px] ${expiryTone(row.sslExpiresAt)}`}>
+                            to {row.sslExpiresAt}
+                          </p>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-muted">Not mapped</span>
                     )}

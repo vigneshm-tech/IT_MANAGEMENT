@@ -73,7 +73,7 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
         onClose={() => setOpen(false)}
         size="lg"
         title="Collect IIS applications from Windows"
-        description="Run this PowerShell script on the server. It reads the eight fields, shows what it found and posts them to this register."
+        description="Run this PowerShell script on the server. It reports one row per IIS site — the binding, the pool, directory browsing, the root path and the certificate actually mapped — then posts them here in batches."
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] text-muted">
@@ -179,8 +179,16 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <p className="field-label mb-0">Script</p>
-              <p className="text-[11px] text-muted">{script.split("\n").length} lines · PowerShell 5.1+</p>
+              <p className="text-[11px] text-muted">
+                {script.split("\n").length} lines · PowerShell 5.1+ · sites only by default
+              </p>
             </div>
+            <p className="text-[11px] leading-relaxed text-muted">
+              <span className="font-mono">-ListOnly</span> shows the table without sending ·{" "}
+              <span className="font-mono">-IncludeApplications</span> adds virtual directories as
+              their own rows · <span className="font-mono">-AllBindings</span> one row per binding ·{" "}
+              <span className="font-mono">-DumpPath</span> writes the JSON it sends.
+            </p>
             <pre className="max-h-64 overflow-auto rounded-md border border-line bg-[#0f2142] px-3 py-2.5 text-[11px] leading-[1.55] text-[#dbe6f5]">
               <code>{script}</code>
             </pre>

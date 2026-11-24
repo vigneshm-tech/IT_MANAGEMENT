@@ -45,6 +45,9 @@ export async function GET(request: Request) {
         bindingHost: row.bindingHost,
         bindingPort: row.bindingPort,
         sslMapped: row.sslMapped,
+        sslCertificate: row.sslCertificate,
+        sslThumbprint: row.sslThumbprint,
+        sslExpiresAt: row.sslExpiresAt,
         appPool: row.appPool,
         directoryBrowsing: row.directoryBrowsing,
         appRoot: row.appRoot,
@@ -74,7 +77,12 @@ export async function POST(request: Request) {
         parsed.payload.environment,
         parsed.payload.applications,
       );
-      return ok(result, { count: result.created + result.updated });
+      return ok(result, {
+        count: result.created + result.updated + result.unchanged,
+        created: result.created,
+        updated: result.updated,
+        unchanged: result.unchanged,
+      });
     } catch (cause) {
       console.error("[iis] ingest failed", cause);
       return fail(

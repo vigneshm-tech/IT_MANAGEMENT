@@ -250,6 +250,8 @@ function seed(): DemoStore {
     bindingHost: string,
     bindingPort: number,
     sslMapped: boolean,
+    sslCertificate: string,
+    sslExpiresAt: string | null,
     directoryBrowsing: DirectoryBrowsing,
     appRoot: string,
     owner: string,
@@ -263,6 +265,9 @@ function seed(): DemoStore {
     bindingHost,
     bindingPort,
     sslMapped,
+    sslCertificate,
+    sslThumbprint: "",
+    sslExpiresAt,
     directoryBrowsing,
     appRoot,
     owner,
@@ -300,10 +305,10 @@ function seed(): DemoStore {
 
   return {
     applications: [
-      app("Portal", "WEB01", "production", "PortalPool", "portal.example.com", 443, true, "disabled", "C:\\inetpub\\portal", "Arun Prakash", "running"),
-      app("Intranet", "WEB01", "production", "IntranetPool", "intranet.example.com", 443, true, "enabled", "C:\\inetpub\\intranet", "Arun Prakash", "running"),
-      app("Orders API", "APP02", "staging", "OrdersPool", "orders-staging.example.com", 8443, true, "disabled", "D:\\sites\\orders", "Priya Nair", "degraded"),
-      app("Legacy Reports", "WEB02", "production", "ReportsPool", "", 8080, false, "enabled", "C:\\inetpub\\reports", "Meera Raghavan", "stopped"),
+      app("Portal", "WEB01", "production", "PortalPool", "portal.example.com", 443, true, "*.example.com", "2027-03-14", "disabled", "C:\\inetpub\\portal", "Arun Prakash", "running"),
+      app("Intranet", "WEB01", "production", "IntranetPool", "intranet.example.com", 443, true, "*.example.com", "2027-03-14", "enabled", "C:\\inetpub\\intranet", "Arun Prakash", "running"),
+      app("Orders API", "APP02", "staging", "OrdersPool", "orders-staging.example.com", 8443, true, "orders-staging.example.com", "2026-12-02", "disabled", "D:\\sites\\orders", "Priya Nair", "degraded"),
+      app("Legacy Reports", "WEB02", "production", "ReportsPool", "", 8080, false, "", null, "enabled", "C:\\inetpub\\reports", "Meera Raghavan", "stopped"),
     ],
     databases: [
       db("PORTAL_DB", "SQL01", "sql_server", "production", 42.5, null, "Arun Prakash", "online"),
@@ -377,7 +382,7 @@ function demo(): DemoStore {
 /* -------------------------------------------------------------------------- */
 
 const APP_COLUMNS =
-  "id, name, server, environment, app_pool, owner, status, notes, active, created_at, updated_at, binding_host, binding_port, ssl_mapped, directory_browsing, app_root";
+  "id, name, server, environment, app_pool, owner, status, notes, active, created_at, updated_at, binding_host, binding_port, ssl_mapped, ssl_certificate, ssl_thumbprint, ssl_expires_at, directory_browsing, app_root";
 const DB_COLUMNS =
   "id, name, server, engine, environment, size_gb, recovery_model, last_backup_at, owner, status, notes, active, created_at, updated_at";
 
@@ -417,6 +422,9 @@ type AppRow = {
   binding_host: string | null;
   binding_port: number | null;
   ssl_mapped: boolean | null;
+  ssl_certificate: string | null;
+  ssl_thumbprint: string | null;
+  ssl_expires_at: string | null;
   directory_browsing: string | null;
   app_root: string | null;
 };
@@ -448,6 +456,9 @@ function mapApp(row: AppRow): IisApplication {
     bindingHost: row.binding_host ?? "",
     bindingPort: row.binding_port ?? null,
     sslMapped: row.ssl_mapped ?? false,
+    sslCertificate: row.ssl_certificate ?? "",
+    sslThumbprint: row.ssl_thumbprint ?? "",
+    sslExpiresAt: row.ssl_expires_at ?? null,
     directoryBrowsing: isDirectoryBrowsing(row.directory_browsing ?? "")
       ? (row.directory_browsing as DirectoryBrowsing)
       : "disabled",
@@ -510,6 +521,9 @@ function appColumns(input: ApplicationInput) {
     binding_host: input.bindingHost.trim(),
     binding_port: input.bindingPort,
     ssl_mapped: input.sslMapped,
+    ssl_certificate: input.sslCertificate.trim(),
+    ssl_thumbprint: input.sslThumbprint.trim(),
+    ssl_expires_at: input.sslExpiresAt,
     directory_browsing: input.directoryBrowsing,
     app_root: input.appRoot.trim(),
     status: input.status,
@@ -558,6 +572,9 @@ export async function createApplication(input: ApplicationInput): Promise<IisApp
       bindingHost: input.bindingHost.trim(),
       bindingPort: input.bindingPort,
       sslMapped: input.sslMapped,
+      sslCertificate: input.sslCertificate.trim(),
+      sslThumbprint: input.sslThumbprint.trim(),
+      sslExpiresAt: input.sslExpiresAt,
       directoryBrowsing: input.directoryBrowsing,
       appRoot: input.appRoot.trim(),
       status: input.status,
@@ -596,6 +613,9 @@ export async function updateApplication(
       bindingHost: input.bindingHost.trim(),
       bindingPort: input.bindingPort,
       sslMapped: input.sslMapped,
+      sslCertificate: input.sslCertificate.trim(),
+      sslThumbprint: input.sslThumbprint.trim(),
+      sslExpiresAt: input.sslExpiresAt,
       directoryBrowsing: input.directoryBrowsing,
       appRoot: input.appRoot.trim(),
       status: input.status,
@@ -618,8 +638,35 @@ export type IngestResult = {
   server: string;
   created: number;
   updated: number;
+  /** Rows the server reported that the register already held, word for word. */
+  unchanged: number;
+  /** The first few changes, for a person reading the response — not all of them. */
   applications: { id: string; name: string; action: "created" | "updated" }[];
 };
+
+/** A 400-site run changes 400 rows; the response lists the first few and counts. */
+const INGEST_DETAIL_LIMIT = 50;
+
+/** Same eight fields, same certificate, same state — nothing to write. */
+function unchanged(
+  row: IisApplication,
+  app: AutomationApplication,
+  environment: Environment,
+): boolean {
+  return (
+    row.environment === environment &&
+    row.bindingHost === app.bindingHost &&
+    row.bindingPort === app.bindingPort &&
+    row.sslMapped === app.sslMapped &&
+    row.sslCertificate === app.sslCertificate &&
+    row.sslThumbprint === app.sslThumbprint &&
+    row.sslExpiresAt === app.sslExpiresAt &&
+    row.appPool === app.appPool &&
+    row.directoryBrowsing === app.directoryBrowsing &&
+    row.appRoot === app.appRoot &&
+    row.status === app.status
+  );
+}
 
 /**
  * Upserts what a Windows server reported.
@@ -641,7 +688,13 @@ export async function ingestApplications(
   const host = server.replace(/\s+/g, " ").trim();
   const now = new Date().toISOString();
   const existing = await listApplications(true);
-  const result: IngestResult = { server: host, created: 0, updated: 0, applications: [] };
+  const result: IngestResult = {
+    server: host,
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    applications: [],
+  };
 
   for (const app of applications) {
     const match = existing.find(
@@ -657,6 +710,9 @@ export async function ingestApplications(
       bindingHost: app.bindingHost,
       bindingPort: app.bindingPort,
       sslMapped: app.sslMapped,
+      sslCertificate: app.sslCertificate,
+      sslThumbprint: app.sslThumbprint,
+      sslExpiresAt: app.sslExpiresAt,
       appPool: app.appPool,
       directoryBrowsing: app.directoryBrowsing,
       appRoot: app.appRoot,
@@ -666,17 +722,27 @@ export async function ingestApplications(
     };
 
     if (match) {
+      // A nightly run over four hundred sites must not rewrite four hundred rows
+      // to say nothing changed — and it must still bring a retired row back.
+      if (match.active && unchanged(match, app, environment)) {
+        result.unchanged += 1;
+        continue;
+      }
       const written = await updateApplication(match.id, input);
       if (!written) throw new Error(`"${app.name}" could not be updated.`);
       if (!match.active) await setApplicationActive(match.id, true);
       result.updated += 1;
-      result.applications.push({ id: match.id, name: match.name, action: "updated" });
+      if (result.applications.length < INGEST_DETAIL_LIMIT) {
+        result.applications.push({ id: match.id, name: match.name, action: "updated" });
+      }
       continue;
     }
 
     const row = await createApplication(input);
     result.created += 1;
-    result.applications.push({ id: row.id, name: row.name, action: "created" });
+    if (result.applications.length < INGEST_DETAIL_LIMIT) {
+      result.applications.push({ id: row.id, name: row.name, action: "created" });
+    }
   }
 
   return result;

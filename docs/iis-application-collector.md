@@ -9,10 +9,10 @@ so the register can be filled by a script instead of by memory.
 | # | Field | Column | Notes |
 |---|-------|--------|-------|
 | 1 | Server Host Name | `server` | The Windows machine, e.g. `WEB01` |
-| 2 | Application Name | `name` | The IIS site, plus the path for a nested application |
+| 2 | Application Name | `name` | The **IIS site name** — virtual directories are opt-in |
 | 3 | Binding Host Name | `binding_host` | The host header; blank when the binding serves any host |
 | 4 | Binding Port | `binding_port` | 1–65535, or empty when the server did not report one |
-| 5 | SSL Mapped | `ssl_mapped` | The binding's protocol is `https` |
+| 5 | SSL Mapped | `ssl_mapped` + `ssl_certificate`, `ssl_thumbprint`, `ssl_expires_at` | Not just "true": which certificate, its thumbprint and the day it lapses |
 | 6 | Application Pool | `app_pool` | |
 | 7 | Directory Browsing | `directory_browsing` | `disabled` or `enabled` — nothing else |
 | 8 | Application Root Path | `app_root` | `physicalPath` on the server |
@@ -21,9 +21,45 @@ Around them the register keeps what a person owns: environment, owner, run state
 and notes. The script never touches those — it has no opinion about who answers
 for an application.
 
-The old `binding` and `framework` columns were retired by migration
-`0037_iis_application_fields.sql`, which backfilled host, port and SSL out of the
-free-text binding before dropping it.
+Migrations `0037_iis_application_fields.sql` and `0038_iis_ssl_certificates.sql`
+created this shape; `0037` backfilled host, port and SSL out of the old free-text
+binding before dropping it, and `0038` added the certificate detail.
+
+## One row per site
+
+A real UAT host in this estate reports **421 applications across a few dozen
+sites** — the extra three hundred and eighty are virtual directories and service
+endpoints inside nine or ten sites. A register like that is not a register.
+
+So the collector reports **sites** by default: one row per site, named after the
+site (`JockeyPOC.eshopaid.com`), with the site's root path, pool, primary binding
+and directory-browsing setting. When somebody wants the detailed view, they ask:
+
+```powershell
+.\tasktornado-iis-collector.ps1 -ApiKey 'tt_…' -IncludeApplications
+```
+
+That adds each application and virtual directory as its own row, named
+`Site/Sub/Path`.
+
+## Which certificate is mapped
+
+`SSL Mapped: true` never renewed anything. The collector resolves the certificate
+behind every https binding and reports:
+
+- **`ssl_certificate`** — the common name (`*.eshopaid.com`, `portal.example.com`)
+- **`ssl_thumbprint`** — the exact certificate, normalised to uppercase hex
+- **`ssl_expires_at`** — the day it lapses
+
+It looks in two places, because IIS binds certificates two ways:
+
+1. the site binding's own `certificateHash` (plain https bindings), and
+2. `netsh http show sslcert`, keyed by `hostname:port` (SNI bindings live in
+   HTTP.sys, not in the site's configuration).
+
+The hash is then read out of `Cert:\LocalMachine\<store>` for the subject and
+expiry. When a host reports https but no certificate, the row still says "Mapped"
+and the script tells you how many rows that happened to.
 
 ## Who may write
 
@@ -42,17 +78,20 @@ only a key owned by the **IT manager** or the **super admin** is accepted:
 
 ```json
 {
-  "server": "WEB01",
+  "server": "JKYUATSRV",
   "environment": "production",
   "applications": [
     {
-      "name": "Portal",
-      "bindingHost": "portal.example.com",
+      "name": "JockeyPOC.eshopaid.com",
+      "bindingHost": "jockeypoc.eshopaid.com",
       "bindingPort": 443,
       "sslMapped": true,
-      "appPool": "PortalPool",
+      "sslCertificate": "*.eshopaid.com",
+      "sslThumbprint": "0123456789ABCDEF0123456789ABCDEF01234567",
+      "sslExpiresAt": "2027-03-14",
+      "appPool": "JockeyPOC.eshopaid.com",
       "directoryBrowsing": "disabled",
-      "appRoot": "C:\\inetpub\\portal"
+      "appRoot": "D:\\Sites\\JockeyPOC"
     }
   ]
 }
@@ -63,21 +102,26 @@ Response:
 ```json
 {
   "data": {
-    "server": "WEB01",
-    "created": 1,
-    "updated": 0,
-    "applications": [{ "id": "…", "name": "Portal", "action": "created" }]
+    "server": "JKYUATSRV",
+    "created": 0,
+    "updated": 1,
+    "unchanged": 348,
+    "applications": [{ "id": "…", "name": "JockeyPOC.eshopaid.com", "action": "updated" }]
   },
-  "meta": { "count": 1 }
+  "meta": { "count": 349, "created": 0, "updated": 1, "unchanged": 348 }
 }
 ```
 
-A second run with the same body updates instead of duplicating. A retired row
-that the server still reports comes back to life — the machine just proved the
-application is there. `owner` and `notes` are never overwritten.
+- **Idempotent by name.** A second run updates instead of duplicating.
+- **`unchanged`** counts rows that were already correct — they are not rewritten,
+  so a nightly run over 400 sites costs a handful of writes.
+- **Retired rows come back** when the server still reports them.
+- **`owner` and `notes` are never overwritten** by a script.
+- Up to **1000 applications** per request; the script still posts in batches.
+- The response lists the first 50 changes and counts the rest.
 
-`GET /api/v1/iis/applications?server=WEB01` returns the same shape, for checking
-what the register holds before or after a run.
+`GET /api/v1/iis/applications?server=JKYUATSRV` returns the same shape, for
+checking what the register holds before or after a run.
 
 Both are listed in `GET /api/v1` and on Settings › Developers.
 
@@ -90,23 +134,43 @@ script — copyable and downloadable as `tasktornado-iis-collector.ps1`.
 Run it on the server, in an elevated PowerShell window:
 
 ```powershell
-.\tasktornado-iis-collector.ps1 -ApiKey 'tt_…'
+.\tasktornado-iis-collector.ps1 -ApiKey 'tt_…' -ListOnly   # see what it finds
+.\tasktornado-iis-collector.ps1 -ApiKey 'tt_…'             # then post
 ```
 
-- `-ListOnly` prints the table and sends nothing.
-- `-AllBindings` reports one row per binding (named `Site (host:port)`) instead
-  of one row per application, which is the default and uses the https binding
-  when the site has one.
-- `-Environment staging|development|dr` files the rows in that environment.
-- `-ServerHostName` overrides `$env:COMPUTERNAME`.
+| Switch | What it does |
+|--------|--------------|
+| `-ListOnly` | prints the table and sends nothing |
+| `-IncludeApplications` | one row per application/virtual directory as well |
+| `-AllBindings` | one row per binding instead of one per site |
+| `-Environment` | `production`, `staging`, `development`, `dr` |
+| `-BatchSize` | rows per request (default 100) |
+| `-DumpPath` | also writes the JSON it sends to that file |
+| `-ServerHostName` | overrides `$env:COMPUTERNAME` |
 
 The key typed into the dialog is written into the script as the parameter
 default, so the file contains a secret: delete it after the run, or leave the
 field empty and pass `-ApiKey` each time.
 
+## When the upload fails
+
+The script prints a line per stage — `Collecting`, `Batch 1 of 4: 100
+application(s)`, `12 created, 3 updated, 85 unchanged` — so a failure names the
+stage instead of raising a bare .NET error.
+
+- `401` — the key was not accepted (revoked, expired, or mistyped).
+- `403` — the key's owner is not the IT manager or the super admin.
+- `400` — the payload was refused; the message names the field, e.g.
+  ``application 1: `bindingPort` must be a whole number 1–65535.``
+- A .NET exception *before* the first batch line means collection failed, not the
+  network. Re-run with `-ListOnly` to see the table.
+
+`-DumpPath C:\temp\iis.json` writes exactly what was sent, so a failed batch can
+be replayed with `curl` while the script is being fixed.
+
 ## Files
 
-- `lib/iis/constants.ts` — the record shape, `DIRECTORY_BROWSING`, `describeBinding`
+- `lib/iis/constants.ts` — the record shape, `DIRECTORY_BROWSING`, `describeBinding`, `describeCertificate`
 - `lib/iis/automation.ts` — payload parsing and the role allow-list
 - `lib/iis/collector.ts` — the PowerShell script generator
 - `lib/iis/repository.ts` — `ingestApplications`, the upsert

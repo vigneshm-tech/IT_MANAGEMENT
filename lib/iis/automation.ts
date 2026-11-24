@@ -29,14 +29,21 @@ export function canIngestIis(role: RoleId): boolean {
   return IIS_AUTOMATION_ROLES.includes(role);
 }
 
-/** A server reports the sites it knows about; 300 covers a busy Windows host. */
-export const MAX_AUTOMATION_APPLICATIONS = 300;
+/**
+ * A server reports the sites it knows about. One UAT host in this estate runs
+ * past three hundred, so the ceiling is generous — the collector still posts in
+ * batches, because a request body has its own limits.
+ */
+export const MAX_AUTOMATION_APPLICATIONS = 1000;
 
 export type AutomationApplication = {
   name: string;
   bindingHost: string;
   bindingPort: number | null;
   sslMapped: boolean;
+  sslCertificate: string;
+  sslThumbprint: string;
+  sslExpiresAt: string | null;
   appPool: string;
   directoryBrowsing: DirectoryBrowsing;
   appRoot: string;
@@ -153,6 +160,28 @@ export function parseAutomationPayload(body: unknown): ParseResult {
       return { ok: false, error: `${where}: \`bindingPort\` must be a whole number 1–65535.` };
     }
 
+    const sslCertificate = string(
+      field(row, "sslCertificate", "certificate", "certificateName", "certificateSubject"),
+    );
+    if (sslCertificate.length > 200) {
+      return { ok: false, error: `${where}: keep \`sslCertificate\` under 200 characters.` };
+    }
+
+    // Thumbprints arrive with colons, spaces and lowercase hex; one form is stored.
+    const sslThumbprint = string(
+      field(row, "sslThumbprint", "thumbprint", "certificateHash", "certHash"),
+    )
+      .replace(/[^0-9A-Fa-f]/g, "")
+      .toUpperCase();
+    if (sslThumbprint.length > 0 && (sslThumbprint.length < 32 || sslThumbprint.length > 64)) {
+      return { ok: false, error: `${where}: \`sslThumbprint\` is not a certificate thumbprint.` };
+    }
+
+    const sslExpiresRaw = string(field(row, "sslExpiresAt", "certificateExpiry", "sslExpiry"));
+    if (sslExpiresRaw && !/^\d{4}-\d{2}-\d{2}$/.test(sslExpiresRaw)) {
+      return { ok: false, error: `${where}: \`sslExpiresAt\` must be a date, YYYY-MM-DD.` };
+    }
+
     const appPool = string(field(row, "appPool", "applicationPool"));
     if (appPool.length > 80) {
       return { ok: false, error: `${where}: keep \`appPool\` under 80 characters.` };
@@ -178,6 +207,9 @@ export function parseAutomationPayload(body: unknown): ParseResult {
       bindingHost,
       bindingPort,
       sslMapped: bool(field(row, "sslMapped", "ssl", "https")),
+      sslCertificate,
+      sslThumbprint,
+      sslExpiresAt: sslExpiresRaw || null,
       appPool,
       directoryBrowsing: browsingRaw.toLowerCase() as DirectoryBrowsing,
       appRoot,

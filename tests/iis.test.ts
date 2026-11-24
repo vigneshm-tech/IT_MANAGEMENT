@@ -28,6 +28,7 @@ import {
   type MysqlInput,
 } from "../lib/iis/repository";
 import {
+  MAX_AUTOMATION_APPLICATIONS,
   canIngestIis,
   parseAutomationPayload,
 } from "../lib/iis/automation";
@@ -46,6 +47,9 @@ const appInput = (overrides: Partial<ApplicationInput> = {}): ApplicationInput =
   bindingHost: "billing.example.com",
   bindingPort: 8443,
   sslMapped: true,
+  sslCertificate: "*.example.com",
+  sslThumbprint: "",
+  sslExpiresAt: null,
   appPool: "BillingPool",
   directoryBrowsing: "disabled",
   appRoot: "D:\\sites\\billing",
@@ -113,9 +117,9 @@ const databaseRow = (overrides: Partial<IisDatabase> = {}): IisDatabase => ({
 
 test("attention counts stopped applications, not retired ones", () => {
   const summary = summariseApplications([
-    { id: "1", name: "A", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: true, createdAt: "", updatedAt: "" },
-    { id: "2", name: "B", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: false, createdAt: "", updatedAt: "" },
-    { id: "3", name: "C", server: "", environment: "staging", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "running", notes: "", active: true, createdAt: "", updatedAt: "" },
+    { id: "1", name: "A", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, sslCertificate: "", sslThumbprint: "", sslExpiresAt: null, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: true, createdAt: "", updatedAt: "" },
+    { id: "2", name: "B", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, sslCertificate: "", sslThumbprint: "", sslExpiresAt: null, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: false, createdAt: "", updatedAt: "" },
+    { id: "3", name: "C", server: "", environment: "staging", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, sslCertificate: "", sslThumbprint: "", sslExpiresAt: null, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "running", notes: "", active: true, createdAt: "", updatedAt: "" },
   ]);
   assert.equal(summary.total, 3);
   assert.equal(summary.active, 2);
@@ -342,6 +346,9 @@ const payload = () => ({
       appPool: "PortalPool",
       directoryBrowsing: "disabled",
       appRoot: "C:\\inetpub\\portal",
+      sslCertificate: "*.example.com",
+      sslThumbprint: "01:23:45:67:89:ab:cd:ef:01:23:45:67:89:ab:cd:ef:01:23:45:67",
+      sslExpiresAt: "2027-03-14",
     },
   ],
 });
@@ -424,6 +431,28 @@ test("the collector script carries the URL, the key and the eight reads", () => 
   assert.ok(quoted.includes("$ServerHostName = 'WEB''01'"));
 });
 
+test("the collector reports sites, resolves certificates and posts in batches", () => {
+  const script = collectorScript({});
+
+  // Virtual directories are opt-in: a register of 421 rows for nine sites is not one.
+  assert.ok(script.includes("if ($IncludeApplications)"));
+  // The switch reaches the loop rather than only the help text.
+  assert.ok(script.split("if ($IncludeApplications)").length - 1 === 1);
+
+  // SSL means the certificate, read from IIS and HTTP.sys.
+  assert.ok(script.includes("netsh http show sslcert"));
+  assert.ok(script.includes("Certificate Hash"));
+  assert.ok(script.includes("sslCertificate"));
+  assert.ok(script.includes("sslExpiresAt"));
+
+  // A big server posts in slices, and can write the JSON out for a manual send.
+  assert.ok(script.includes("$BatchSize"));
+  assert.ok(script.includes("$DumpPath"));
+  assert.ok(script.includes("Invoke-RestMethod"));
+  // The old client made TLS 1.0 the default on some hosts.
+  assert.ok(script.includes("Tls12"));
+});
+
 test("ingesting twice updates instead of duplicating, and keeps the owner", async () => {
   const created = await ingestApplications("WEB-INGEST", "production", [
     {
@@ -434,6 +463,9 @@ test("ingesting twice updates instead of duplicating, and keeps the owner", asyn
       appPool: "IngestPool",
       directoryBrowsing: "disabled",
       appRoot: "C:\\inetpub\\ingest",
+      sslCertificate: "*.example.com",
+      sslThumbprint: "AABBCC",
+      sslExpiresAt: "2027-03-14",
       status: "running",
     },
   ]);
@@ -455,6 +487,9 @@ test("ingesting twice updates instead of duplicating, and keeps the owner", asyn
       appPool: "IngestPool",
       directoryBrowsing: "enabled",
       appRoot: "C:\\inetpub\\ingest",
+      sslCertificate: "ingest.example.com",
+      sslThumbprint: "AABBCC",
+      sslExpiresAt: "2027-06-01",
       status: "running",
     },
   ]);
@@ -467,5 +502,72 @@ test("ingesting twice updates instead of duplicating, and keeps the owner", asyn
   assert.equal(rows.length, 1, "the name is the key, so a second run does not duplicate");
   assert.equal(rows[0].bindingPort, 8443);
   assert.equal(rows[0].directoryBrowsing, "enabled");
+  assert.equal(rows[0].sslCertificate, "ingest.example.com");
+  assert.equal(rows[0].sslExpiresAt, "2027-06-01");
   assert.equal(rows[0].active, true, "a server that still reports an application brings it back");
+});
+
+/* ------------------------- the certificate on the binding ----------------- */
+
+test("the payload carries the certificate, in one normalised form", () => {
+  const parsed = parseAutomationPayload(payload());
+  assert.ok(parsed.ok);
+  if (!parsed.ok) return;
+  const [row] = parsed.payload.applications;
+  assert.equal(row.sslCertificate, "*.example.com");
+  // Colons and lowercase are how Windows prints a thumbprint; the register keeps hex.
+  assert.equal(row.sslThumbprint, "0123456789ABCDEF0123456789ABCDEF01234567");
+  assert.equal(row.sslExpiresAt, "2027-03-14");
+
+  const noCert = parseAutomationPayload({
+    ...payload(),
+    applications: [{ ...payload().applications[0], sslCertificate: "", sslThumbprint: "", sslExpiresAt: null }],
+  });
+  assert.ok(noCert.ok);
+  if (noCert.ok) assert.equal(noCert.payload.applications[0].sslCertificate, "");
+});
+
+test("a malformed certificate detail is refused, not stored", () => {
+  const badDate = parseAutomationPayload({
+    ...payload(),
+    applications: [{ ...payload().applications[0], sslExpiresAt: "14/03/2027" }],
+  });
+  assert.match(badDate.ok ? "" : badDate.error, /must be a date/);
+
+  const badThumb = parseAutomationPayload({
+    ...payload(),
+    applications: [{ ...payload().applications[0], sslThumbprint: "not-a-thumbprint" }],
+  });
+  assert.match(badThumb.ok ? "" : badThumb.error, /thumbprint/);
+});
+
+test("a second identical run writes nothing at all", async () => {
+  const row = {
+    name: "Steady Portal",
+    bindingHost: "steady.example.com",
+    bindingPort: 443,
+    sslMapped: true,
+    sslCertificate: "*.example.com",
+    sslThumbprint: "DEADBEEF",
+    sslExpiresAt: "2027-03-14",
+    appPool: "SteadyPool",
+    directoryBrowsing: "disabled" as const,
+    appRoot: "C:\\inetpub\\steady",
+    status: "running" as const,
+  };
+
+  const first = await ingestApplications("WEB-STEADY", "production", [row]);
+  assert.equal(first.created, 1);
+  assert.equal(first.unchanged, 0);
+
+  const second = await ingestApplications("WEB-STEADY", "production", [row]);
+  assert.equal(second.created, 0);
+  assert.equal(second.updated, 0);
+  assert.equal(second.unchanged, 1, "an unchanged row is not rewritten every night");
+  assert.equal(second.applications.length, 0);
+});
+
+test("the register holds a whole server's worth of sites", () => {
+  // One UAT host in this estate runs past three hundred applications.
+  assert.ok(MAX_AUTOMATION_APPLICATIONS >= 500);
 });

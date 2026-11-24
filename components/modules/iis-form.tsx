@@ -187,6 +187,45 @@ export function IisApplicationForm({
             <span className="text-[12px] text-ink">This binding serves https</span>
           </label>
         </Field>
+        <Field
+          prefix={prefix}
+          name="sslCertificate"
+          label="SSL certificate"
+          hint="The name on the certificate, e.g. *.eshopaid.com"
+        >
+          <input
+            id={`${prefix}-sslCertificate`}
+            name="sslCertificate"
+            maxLength={200}
+            defaultValue={record?.sslCertificate ?? ""}
+            placeholder="*.example.com"
+            className="field"
+          />
+        </Field>
+        <Field
+          prefix={prefix}
+          name="sslThumbprint"
+          label="Certificate thumbprint"
+          hint="Pins the exact certificate"
+        >
+          <input
+            id={`${prefix}-sslThumbprint`}
+            name="sslThumbprint"
+            maxLength={64}
+            defaultValue={record?.sslThumbprint ?? ""}
+            placeholder="A1B2C3…"
+            className="field font-mono text-[11.5px]"
+          />
+        </Field>
+        <Field prefix={prefix} name="sslExpiresAt" label="Certificate expiry" hint="YYYY-MM-DD">
+          <input
+            id={`${prefix}-sslExpiresAt`}
+            name="sslExpiresAt"
+            type="date"
+            defaultValue={record?.sslExpiresAt ?? ""}
+            className="field"
+          />
+        </Field>
         <Field prefix={prefix} name="directoryBrowsing" label="Directory browsing">
           <select
             id={`${prefix}-directoryBrowsing`}
