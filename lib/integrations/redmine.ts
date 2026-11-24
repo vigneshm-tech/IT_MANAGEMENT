@@ -358,6 +358,21 @@ async function request<T>(
   }
 }
 
+/**
+ * A raw JSON GET.
+ *
+ * The mapped shapes above deliberately drop what the portal does not render;
+ * callers that need the whole payload — the client scan reads `custom_fields` —
+ * use this instead of re-implementing the headers, timeout and error mapping.
+ */
+export async function fetchJson<T = unknown>(
+  config: RedmineConfig,
+  path: string,
+  options: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+): Promise<T> {
+  return request<T>(config, path, options);
+}
+
 export async function fetchIssues(
   config: RedmineConfig,
   filters: IssueFilters = {},

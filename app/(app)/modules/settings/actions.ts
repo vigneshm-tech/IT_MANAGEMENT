@@ -34,6 +34,9 @@ export async function saveIntegrationAction(
   const baseUrl = String(formData.get("baseUrl") ?? "").trim();
   const clientId = String(formData.get("clientId") ?? "").trim();
   const orgId = String(formData.get("orgId") ?? "").trim();
+  // Redmine: which project and which custom field the client scan reads.
+  const projectId = String(formData.get("projectId") ?? "").trim();
+  const clientFieldId = String(formData.get("clientFieldId") ?? "").trim();
 
   if (!provider) {
     return { error: "Unknown integration." };
@@ -44,6 +47,12 @@ export async function saveIntegrationAction(
   if (provider === "redmine") {
     if (!/^https?:\/\/.+/i.test(baseUrl)) {
       return { error: "Enter your Redmine URL, including https://." };
+    }
+    if (projectId && !/^\d+$/.test(projectId)) {
+      return { error: "The Redmine project id must be a number." };
+    }
+    if (clientFieldId && !/^\d+$/.test(clientFieldId)) {
+      return { error: "The client field id must be a number." };
     }
   }
   if (provider === "action1") {
@@ -66,7 +75,7 @@ export async function saveIntegrationAction(
       // non-secret client/organization ids alongside the encrypted secret.
       baseUrl:
         provider === "redmine" ? baseUrl : normaliseAction1BaseUrl(baseUrl),
-      config: provider === "action1" ? { clientId, orgId } : undefined,
+      config: provider === "action1" ? { clientId, orgId } : { projectId, clientFieldId },
     });
   } catch (error) {
     return {

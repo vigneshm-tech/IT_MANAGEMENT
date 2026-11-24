@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   AlertTriangle,
+  Building2,
   CircleDot,
   CloudOff,
   ExternalLink,
@@ -147,6 +148,13 @@ export function TicketsPortalView({
         title="Redmine portal"
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/modules/tickets/redmine/clients"
+              className={buttonClass({ variant: "secondary", size: "sm" })}
+            >
+              <Building2 className="h-3.5 w-3.5" aria-hidden />
+              Clients
+            </Link>
             <Link
               href="/modules/settings/integrations"
               className={buttonClass({ variant: "secondary", size: "sm" })}

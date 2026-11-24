@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { canManageAction1 } from "@/lib/integrations/access";
+import { CLIENT_FIELD_ID, CLIENT_PROJECT_ID } from "@/lib/integrations/redmine-clients";
 import { integrationStatus } from "@/lib/integrations/store";
 
 export const metadata: Metadata = { title: "Integrations" };
@@ -53,6 +54,22 @@ export default async function IntegrationsSettingsPage() {
             needsUrl
             secretPlaceholder="Paste your Redmine API key"
             hint="Find the key under My account → API access in Redmine."
+            extraFields={[
+              {
+                name: "projectId",
+                label: "Portal project id",
+                placeholder: String(CLIENT_PROJECT_ID),
+                defaultValue: String(CLIENT_PROJECT_ID),
+                hint: "The project whose tickets carry the client field.",
+              },
+              {
+                name: "clientFieldId",
+                label: "Client field id",
+                placeholder: String(CLIENT_FIELD_ID),
+                defaultValue: String(CLIENT_FIELD_ID),
+                hint: "The custom field that holds the client.",
+              },
+            ]}
           />
         </div>
 
