@@ -89,6 +89,21 @@ clients *edit* right, since the list is client data read out of Tickets. The sca
 still only returns what the caller's own Redmine key can see, and the action
 re-checks the role rather than trusting the hidden button.
 
+## The task form's client picker
+
+*Client name* on the task form (create and edit) is now a search dropdown over
+both lists, not a free-text box with browser autocomplete: register accounts
+first (hinted `Client register · ACME · Manufacturing`), then captured Redmine
+clients the register does not have (`Redmine · SK`). One row per name, register
+wins a tie, inactive accounts are left out, and the client's display name is what
+the task stores. `clientChoices` in `lib/clients.ts` builds that list and is
+unit tested. With no clients anywhere the field falls back to plain text, so a
+task can still be raised.
+
+The server action stays permissive about the name — an old task may hold a
+client that has since been retired, and the picker keeps that stored value
+selectable rather than dropping it silently.
+
 ## Matching our own clients
 
 The page shows, per Redmine value, whether the client register already has a

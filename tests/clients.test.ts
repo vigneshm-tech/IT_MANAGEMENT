@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   CLIENT_TABS,
+  clientChoices,
   clientCodeError,
   clientFormError,
   clientNameError,
@@ -243,4 +244,65 @@ test("the client tabs are exactly the two lists, with their addresses", () => {
       ["redmine", "/modules/clients?view=redmine"],
     ],
   );
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The client picker on the task form                                        */
+/* -------------------------------------------------------------------------- */
+
+test("the task client picker offers the register first, then the Redmine capture", () => {
+  const choices = clientChoices(
+    [
+      { name: "Zeta Industries", code: "ZT", industry: "Manufacturing" },
+      { name: "Acme Manufacturing", code: "ACME", industry: "Manufacturing" },
+    ],
+    [
+      { name: "Skin", codes: ["SK"] },
+      { name: "Delta", codes: [] },
+    ],
+  );
+
+  assert.deepEqual(
+    choices.map((choice) => [choice.label, choice.hint]),
+    [
+      ["Acme Manufacturing", "Client register · ACME · Manufacturing"],
+      ["Delta", "Redmine"],
+      ["Skin", "Redmine · SK"],
+      ["Zeta Industries", "Client register · ZT · Manufacturing"],
+    ],
+  );
+  // The submitted value is the name, because that is what a task stores.
+  assert.equal(choices[0].value, "Acme Manufacturing");
+});
+
+test("the picker keeps one row per name and drops what cannot be chosen", () => {
+  const choices = clientChoices(
+    [
+      { name: "Acme Manufacturing", code: "ACME" },
+      // Same name, different case and spacing — the register row already covers it.
+      { name: "  acme   manufacturing ", code: "ACM" },
+      // Retired accounts are not offered.
+      { name: "Old Co", code: "OLD", status: "inactive" },
+      { name: "   ", code: "" },
+    ],
+    [
+      { name: "ACME Manufacturing", codes: ["ACME"] },
+      { name: "  ", codes: [] },
+      { name: "Skin", codes: ["SK"] },
+    ],
+  );
+
+  assert.deepEqual(
+    choices.map((choice) => choice.label),
+    ["Acme Manufacturing", "Skin"],
+  );
+  assert.match(choices[0].hint, /Client register/);
+});
+
+test("a register client with no code or industry still reads as the register", () => {
+  assert.deepEqual(clientChoices([{ name: "Acme" }]), [
+    { value: "Acme", label: "Acme", hint: "Client register" },
+  ]);
+  // Nothing anywhere is an empty picker, not a crash.
+  assert.deepEqual(clientChoices([], []), []);
 });

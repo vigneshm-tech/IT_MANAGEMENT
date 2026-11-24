@@ -11,9 +11,11 @@ import {
   listCustomFieldValues,
   listModuleCustomFields,
 } from "@/lib/records/repository";
+import { clientChoices } from "@/lib/clients";
 import { peopleOptions } from "@/lib/tasks/options";
 import { listServerOptions } from "@/lib/servers/inventory";
 import { getTask } from "@/lib/tasks/repository";
+import { readClientCatalogue } from "@/lib/tickets/redmine-clients";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -32,16 +34,16 @@ export default async function EditTaskPage({ params }: PageProps) {
   const task = await getTask(id);
   if (!task) notFound();
 
-  const [clients, activityTypes, people, servers, customFields, customValues] = await Promise.all([
-    listClients().then((items) =>
-      items.filter((client) => client.status === "active").map((client) => client.name),
-    ),
-    listActiveActivityTypes("tasks"),
-    listAssignableUsers(),
-    listServerOptions(user.id),
-    listModuleCustomFields("tasks"),
-    listCustomFieldValues(task.id),
-  ]);
+  const [clients, catalogue, activityTypes, people, servers, customFields, customValues] =
+    await Promise.all([
+      listClients(),
+      readClientCatalogue(),
+      listActiveActivityTypes("tasks"),
+      listAssignableUsers(),
+      listServerOptions(user.id),
+      listModuleCustomFields("tasks"),
+      listCustomFieldValues(task.id),
+    ]);
 
   return (
     <div className="space-y-4">
@@ -50,7 +52,7 @@ export default async function EditTaskPage({ params }: PageProps) {
         mode="edit"
         task={task}
         requester={{ name: user.name, email: user.email }}
-        clients={clients}
+        clientOptions={clientChoices(clients, catalogue.clients)}
         activityTypes={activityTypes}
         people={peopleOptions(people)}
         servers={servers}

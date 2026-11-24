@@ -8,6 +8,7 @@ import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-se
 import { CustomFields } from "@/components/ui/custom-fields";
 import { TASK_STATUS_OPTIONS, NEXT_TASK_ID_HINT, PLAN_STATUS_OPTIONS } from "@/lib/tasks/options";
 import type { TaskStatus } from "@/lib/tasks/store";
+import type { ClientChoice } from "@/lib/clients";
 import type { FormState } from "@/lib/forms";
 import type { TaskRecord } from "@/lib/tasks/repository";
 import type { CustomFieldRecord } from "@/lib/records/repository";
@@ -67,7 +68,7 @@ function Feedback({ state }: { state: FormState }) {
 export function TaskForm({
   mode,
   requester,
-  clients,
+  clientOptions,
   activityTypes,
   people,
   servers,
@@ -77,7 +78,8 @@ export function TaskForm({
 }: {
   mode: "create" | "edit";
   requester: { name: string; email: string };
-  clients: string[];
+  /** Clients module names — the register, plus what Redmine captured. */
+  clientOptions: ClientChoice[];
   /** Masters → Activity types; the form offers nothing else. */
   activityTypes: string[];
   /** Active staff from the Users & Groups directory. */
@@ -162,19 +164,30 @@ export function TaskForm({
           <label htmlFor="clientName" className="field-label">
             Client name
           </label>
-          <input
-            id="clientName"
-            name="clientName"
-            list="task-clients"
-            defaultValue={task?.clientName ?? ""}
-            placeholder={clients.length ? "Start typing a client" : "Client name"}
-            className="field"
-          />
-          <datalist id="task-clients">
-            {clients.map((client) => (
-              <option key={client} value={client} />
-            ))}
-          </datalist>
+          {clientOptions.length > 0 ? (
+            <SearchSelect
+              name="clientName"
+              options={clientOptions}
+              placeholder="Select a client"
+              emptyLabel="Select a client"
+              ariaLabel="Client name"
+              defaultValue={task?.clientName ?? ""}
+              searchPlaceholder="Search clients"
+            />
+          ) : (
+            <>
+              <input
+                id="clientName"
+                name="clientName"
+                defaultValue={task?.clientName ?? ""}
+                placeholder="Client name"
+                className="field"
+              />
+              <p className="mt-1 text-[11.5px] text-muted">
+                No clients yet — add them under Clients, or sync them from Redmine.
+              </p>
+            </>
+          )}
         </div>
 
         <div>

@@ -12,9 +12,11 @@ import {
   listCustomFieldValues,
   listModuleCustomFields,
 } from "@/lib/records/repository";
+import { clientChoices } from "@/lib/clients";
 import { peopleOptions } from "@/lib/tasks/options";
 import { listServerOptions } from "@/lib/servers/inventory";
 import { taskWindowFor } from "@/lib/task-window";
+import { readClientCatalogue } from "@/lib/tickets/redmine-clients";
 
 export const metadata: Metadata = { title: "New task" };
 
@@ -39,10 +41,9 @@ export default async function NewTaskPage() {
     );
   }
 
-  const [clients, activityTypes, people, servers, customFields] = await Promise.all([
-    listClients().then((items) =>
-      items.filter((client) => client.status === "active").map((client) => client.name),
-    ),
+  const [clients, catalogue, activityTypes, people, servers, customFields] = await Promise.all([
+    listClients(),
+    readClientCatalogue(),
     listActiveActivityTypes("tasks"),
     listAssignableUsers(),
     listServerOptions(user.id),
@@ -55,7 +56,7 @@ export default async function NewTaskPage() {
       <TaskForm
         mode="create"
         requester={{ name: user.name, email: user.email }}
-        clients={clients}
+        clientOptions={clientChoices(clients, catalogue.clients)}
         activityTypes={activityTypes}
         people={peopleOptions(people)}
         servers={servers}

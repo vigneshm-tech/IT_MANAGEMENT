@@ -184,3 +184,87 @@ export const CLIENT_TABS: { id: ClientTab; label: string; href: string }[] = [
   { id: "register", label: "Client register", href: "/modules/clients" },
   { id: "redmine", label: "From Redmine", href: "/modules/clients?view=redmine" },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Client choices for other forms                                            */
+/* -------------------------------------------------------------------------- */
+
+/** One row of a client picker, shaped for `SearchSelect`. */
+export type ClientChoice = {
+  /** What the form submits — the client's display name. */
+  value: string;
+  label: string;
+  /** Where the name came from, and what identifies it. */
+  hint: string;
+};
+
+type ChoiceSource = {
+  name: string;
+  code?: string;
+  industry?: string;
+  status?: string;
+};
+
+type CapturedSource = {
+  name: string;
+  codes?: string[];
+};
+
+/** Names are compared the way a person reads them, not byte for byte. */
+function choiceKey(name: string): string {
+  return name.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * The list a task's *Client name* picker offers.
+ *
+ * Two sources, because a workspace can have either first: the **register**
+ * (accounts we maintain, with their code and industry) and the **captured
+ * Redmine list** (clients that only exist on a ticket). The register wins a
+ * tie — the same name with an account behind it is the better record.
+ *
+ * Inactive register rows are dropped: a task should not start against an
+ * account we have retired. A captured client that is not in the register is
+ * still offered, because for most teams that is the whole client list.
+ */
+export function clientChoices(
+  register: ChoiceSource[],
+  captured: CapturedSource[] = [],
+): ClientChoice[] {
+  const seen = new Set<string>();
+  const choices: ClientChoice[] = [];
+
+  for (const client of register) {
+    const name = client.name.replace(/\s+/g, " ").trim();
+    const key = choiceKey(name);
+    if (!key || seen.has(key) || client.status === "inactive") continue;
+    seen.add(key);
+
+    const detail = [client.code?.trim(), client.industry?.trim()].filter(Boolean).join(" · ");
+    choices.push({
+      value: name,
+      label: name,
+      hint: detail ? `Client register · ${detail}` : "Client register",
+    });
+  }
+
+  for (const client of captured) {
+    const name = client.name.replace(/\s+/g, " ").trim();
+    const key = choiceKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    const codes = (client.codes ?? []).map((code) => code.trim()).filter(Boolean);
+    choices.push({
+      value: name,
+      label: name,
+      hint: codes.length > 0 ? `Redmine · ${codes.join(", ")}` : "Redmine",
+    });
+  }
+
+  return choices.sort(
+    (left, right) =>
+      left.label.localeCompare(right.label, undefined, { sensitivity: "base" }) ||
+      left.hint.localeCompare(right.hint),
+  );
+}
