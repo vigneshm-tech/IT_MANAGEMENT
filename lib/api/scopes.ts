@@ -18,7 +18,9 @@ export type ApiScope =
   | "tasks:read"
   | "clients:read"
   | "servers:read"
-  | "approvals:read";
+  | "approvals:read"
+  | "iis:read"
+  | "iis:write";
 
 export type ApiScopeDefinition = {
   id: ApiScope;
@@ -71,6 +73,26 @@ export const API_SCOPES: ApiScopeDefinition[] = [
     summary: "List endpoints from the server inventory",
     module: "servers",
     capability: "view",
+  },
+  {
+    /**
+     * The IIS scope pair is narrower than the module: reading and editing the
+     * register in the browser is open to IT engineering, but a key that can
+     * rewrite the whole register from a script is held by the IT manager and the
+     * platform owner only. `admin` on the module expresses that ceiling.
+     */
+    id: "iis:read",
+    label: "Read IIS applications",
+    summary: "List the IIS application register — IT manager and super admin keys only",
+    module: "iis",
+    capability: "admin",
+  },
+  {
+    id: "iis:write",
+    label: "Ingest IIS applications",
+    summary: "Upsert the register from the Windows collector — IT manager and super admin keys only",
+    module: "iis",
+    capability: "admin",
   },
   {
     id: "approvals:read",

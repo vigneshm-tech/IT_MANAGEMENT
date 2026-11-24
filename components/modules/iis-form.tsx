@@ -12,11 +12,13 @@ import {
   ENGINES,
   ENGINE_LABELS,
   DEFAULT_MYSQL_PORT,
+  DIRECTORY_BROWSING,
   ENVIRONMENTS,
   ENVIRONMENT_LABELS,
   MYSQL_STATUSES,
   type AppStatus,
   type DbStatus,
+  type DirectoryBrowsing,
   type Engine,
   type Environment,
   type IisApplication,
@@ -118,7 +120,7 @@ export function IisApplicationForm({
       </div>
 
       <div className={GRID}>
-        <Field prefix={prefix} name="name" label="Application" required>
+        <Field prefix={prefix} name="name" label="Application name" required>
           <input
             id={`${prefix}-name`}
             name="name"
@@ -130,13 +132,82 @@ export function IisApplicationForm({
             className="field"
           />
         </Field>
-        <Field prefix={prefix} name="server" label="Server">
+        <Field prefix={prefix} name="server" label="Server host name">
           <input
             id={`${prefix}-server`}
             name="server"
-            maxLength={60}
+            maxLength={80}
             defaultValue={record?.server ?? ""}
             placeholder="e.g. WEB01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="appPool" label="Application pool">
+          <input
+            id={`${prefix}-appPool`}
+            name="appPool"
+            maxLength={80}
+            defaultValue={record?.appPool ?? ""}
+            placeholder="e.g. PortalPool"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="bindingHost" label="Binding host name">
+          <input
+            id={`${prefix}-bindingHost`}
+            name="bindingHost"
+            maxLength={200}
+            defaultValue={record?.bindingHost ?? ""}
+            placeholder="e.g. portal.example.com"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="bindingPort" label="Binding port" hint="80, 443, 8080…">
+          <input
+            id={`${prefix}-bindingPort`}
+            name="bindingPort"
+            type="number"
+            min={1}
+            max={65535}
+            step={1}
+            defaultValue={record?.bindingPort ?? 443}
+            placeholder="443"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="sslMapped" label="SSL mapped">
+          <label className="flex h-9 items-center gap-2 border border-line bg-surface px-2.5">
+            <input
+              id={`${prefix}-sslMapped`}
+              name="sslMapped"
+              type="checkbox"
+              defaultChecked={record?.sslMapped ?? false}
+              className="h-3.5 w-3.5 accent-navy"
+            />
+            <span className="text-[12px] text-ink">This binding serves https</span>
+          </label>
+        </Field>
+        <Field prefix={prefix} name="directoryBrowsing" label="Directory browsing">
+          <select
+            id={`${prefix}-directoryBrowsing`}
+            name="directoryBrowsing"
+            defaultValue={record?.directoryBrowsing ?? "disabled"}
+            className="field"
+          >
+            {DIRECTORY_BROWSING.map((value: DirectoryBrowsing) => (
+              <option key={value} value={value}>
+                {value === "enabled" ? "Enabled" : "Disabled"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="appRoot" label="Application root path">
+          <input
+            id={`${prefix}-appRoot`}
+            name="appRoot"
+            maxLength={260}
+            defaultValue={record?.appRoot ?? ""}
+            placeholder="C:\\inetpub\\portal"
             className="field"
           />
         </Field>
@@ -153,36 +224,6 @@ export function IisApplicationForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field prefix={prefix} name="appPool" label="Application pool">
-          <input
-            id={`${prefix}-appPool`}
-            name="appPool"
-            maxLength={80}
-            defaultValue={record?.appPool ?? ""}
-            placeholder="e.g. PortalPool"
-            className="field"
-          />
-        </Field>
-        <Field prefix={prefix} name="binding" label="Binding">
-          <input
-            id={`${prefix}-binding`}
-            name="binding"
-            maxLength={200}
-            defaultValue={record?.binding ?? ""}
-            placeholder="e.g. https://portal.example.com"
-            className="field"
-          />
-        </Field>
-        <Field prefix={prefix} name="framework" label="Runtime">
-          <input
-            id={`${prefix}-framework`}
-            name="framework"
-            maxLength={40}
-            defaultValue={record?.framework ?? ""}
-            placeholder="e.g. .NET 8"
-            className="field"
-          />
         </Field>
         <Field prefix={prefix} name="owner" label="Owner">
           <input

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Globe, X } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { IisCollectorPanel } from "@/components/modules/iis-collector";
 import { IisApplicationForm } from "@/components/modules/iis-form";
 import { IisTabs } from "@/components/modules/iis-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,9 +12,11 @@ import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   ENVIRONMENT_LABELS,
+  describeBinding,
   listApplications,
   summariseApplications,
 } from "@/lib/iis/repository";
+import { canIngestIis } from "@/lib/iis/automation";
 import { MODULE_BY_ID } from "@/lib/modules";
 import { applicationRowAction, saveApplicationAction } from "../actions";
 
@@ -48,6 +51,7 @@ export default async function IisApplicationsPage({
       <PageHeader title="IIS Application">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <IisTabs active="applications" />
+          <IisCollectorPanel canIngest={canIngestIis(user.role)} />
           <p className="text-[12px] text-muted">
             {live.length} live {live.length === 1 ? "application" : "applications"}
             {summary.attention > 0 ? ` · ${summary.attention} need attention` : ""}
@@ -92,19 +96,21 @@ export default async function IisApplicationsPage({
           title="No applications yet"
           description={
             canEdit
-              ? "Add the IIS sites and applications this team answers for — name, host, app pool and binding."
+              ? "Add the IIS sites and applications this team answers for — server, binding, app pool, directory browsing and root path. Or run the collection script on the server and let it fill the register."
               : "IT maintains this register."
           }
         />
       ) : (
         <div className="overflow-x-auto border border-line bg-surface">
-          <table className="w-full min-w-[820px] text-left">
+          <table className="w-full min-w-[1120px] text-left">
             <thead>
               <tr className="border-b border-line text-[10.5px] uppercase tracking-[0.09em] text-muted">
                 <th className="px-4 py-2.5 font-medium sm:px-5">Application</th>
-                <th className="px-3 py-2.5 font-medium">Environment</th>
-                <th className="px-3 py-2.5 font-medium">App pool</th>
                 <th className="px-3 py-2.5 font-medium">Binding</th>
+                <th className="px-3 py-2.5 font-medium">SSL</th>
+                <th className="px-3 py-2.5 font-medium">App pool</th>
+                <th className="px-3 py-2.5 font-medium">Directory browsing</th>
+                <th className="px-3 py-2.5 font-medium">Root path</th>
                 <th className="px-3 py-2.5 font-medium">Owner</th>
                 <th className="px-3 py-2.5 font-medium">State</th>
                 {canEdit && <th className="px-4 py-2.5 text-right font-medium sm:px-5">Actions</th>}
@@ -121,20 +127,31 @@ export default async function IisApplicationsPage({
                       {row.name}
                     </Link>
                     <p className="mt-0.5 text-[11px] text-muted">
-                      {row.server || "No server"}
-                      {row.framework ? ` · ${row.framework}` : ""}
+                      {row.server || "No server host name"} · {ENVIRONMENT_LABELS[row.environment]}
                     </p>
                   </td>
                   <td className="px-3 py-3 text-[12px] text-body">
-                    {ENVIRONMENT_LABELS[row.environment]}
+                    <span className="break-all">{describeBinding(row)}</span>
+                  </td>
+                  <td className="px-3 py-3 text-[12px]">
+                    {row.sslMapped ? (
+                      <span className="text-navy">Mapped</span>
+                    ) : (
+                      <span className="text-muted">Not mapped</span>
+                    )}
                   </td>
                   <td className="px-3 py-3 text-[12px] text-body">{row.appPool || "—"}</td>
-                  <td className="px-3 py-3 text-[12px] text-body">
-                    {row.binding ? (
-                      <span className="break-all">{row.binding}</span>
+                  <td className="px-3 py-3 text-[12px]">
+                    {row.directoryBrowsing === "enabled" ? (
+                      <span className="rounded-full border border-[#f2d6ba] bg-[#fdf3e7] px-2 py-0.5 text-[11px] font-medium text-[#8a5a1c]">
+                        Enabled
+                      </span>
                     ) : (
-                      "—"
+                      <span className="text-muted">Disabled</span>
                     )}
+                  </td>
+                  <td className="px-3 py-3 text-[11.5px] text-body">
+                    <span className="break-all font-mono">{row.appRoot || "—"}</span>
                   </td>
                   <td className="px-3 py-3 text-[12px] text-body">{row.owner || "—"}</td>
                   <td className="px-3 py-3">

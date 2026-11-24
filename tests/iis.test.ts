@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   applicationError,
   backupOverdue,
+  describeBinding,
+  ingestApplications,
   createApplication,
   createDatabase,
   createMysqlInstance,
@@ -26,6 +28,11 @@ import {
   type MysqlInput,
 } from "../lib/iis/repository";
 import {
+  canIngestIis,
+  parseAutomationPayload,
+} from "../lib/iis/automation";
+import { COLLECTOR_FILE_NAME, collectorScript } from "../lib/iis/collector";
+import {
   SNAPSHOT_MAX_AGE_MS,
   describeAge,
   isStale,
@@ -36,9 +43,12 @@ const appInput = (overrides: Partial<ApplicationInput> = {}): ApplicationInput =
   name: "Billing",
   server: "WEB03",
   environment: "production",
+  bindingHost: "billing.example.com",
+  bindingPort: 8443,
+  sslMapped: true,
   appPool: "BillingPool",
-  binding: "https://billing.example.com",
-  framework: ".NET 8",
+  directoryBrowsing: "disabled",
+  appRoot: "D:\\sites\\billing",
   owner: "Arun Prakash",
   status: "running",
   notes: "",
@@ -103,9 +113,9 @@ const databaseRow = (overrides: Partial<IisDatabase> = {}): IisDatabase => ({
 
 test("attention counts stopped applications, not retired ones", () => {
   const summary = summariseApplications([
-    { id: "1", name: "A", server: "", environment: "production", appPool: "", binding: "", framework: "", owner: "", status: "stopped", notes: "", active: true, createdAt: "", updatedAt: "" },
-    { id: "2", name: "B", server: "", environment: "production", appPool: "", binding: "", framework: "", owner: "", status: "stopped", notes: "", active: false, createdAt: "", updatedAt: "" },
-    { id: "3", name: "C", server: "", environment: "staging", appPool: "", binding: "", framework: "", owner: "", status: "running", notes: "", active: true, createdAt: "", updatedAt: "" },
+    { id: "1", name: "A", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: true, createdAt: "", updatedAt: "" },
+    { id: "2", name: "B", server: "", environment: "production", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "stopped", notes: "", active: false, createdAt: "", updatedAt: "" },
+    { id: "3", name: "C", server: "", environment: "staging", appPool: "", bindingHost: "", bindingPort: null, sslMapped: false, directoryBrowsing: "disabled", appRoot: "", owner: "", status: "running", notes: "", active: true, createdAt: "", updatedAt: "" },
   ]);
   assert.equal(summary.total, 3);
   assert.equal(summary.active, 2);
@@ -283,4 +293,179 @@ test("the demo MySQL register adds, edits, retires and deletes", async () => {
     (await listMysqlInstances(true)).some((row) => row.id === created.id),
     false,
   );
+});
+
+/* ------------------------ the eight IIS fields --------------------------- */
+
+test("a binding reads as host:port, with https only when SSL is mapped", () => {
+  assert.equal(
+    describeBinding({ bindingHost: "portal.example.com", bindingPort: 443, sslMapped: true }),
+    "portal.example.com:443 · https",
+  );
+  assert.equal(
+    describeBinding({ bindingHost: "portal.example.com", bindingPort: 8080, sslMapped: false }),
+    "portal.example.com:8080",
+  );
+  // A binding without a host header serves any host, and falls back to the default port.
+  assert.equal(describeBinding({ bindingHost: "", bindingPort: null, sslMapped: true }), "(any host):443 · https");
+  assert.equal(describeBinding({ bindingHost: "", bindingPort: null, sslMapped: false }), "(any host):80");
+});
+
+test("directory browsing is one of two states", () => {
+  const existing = [{ id: "a1", name: "Portal", server: "WEB01" }];
+  assert.match(
+    applicationError(appInput({ directoryBrowsing: "maybe" as never }), existing) ?? "",
+    /enabled or disabled/,
+  );
+  assert.equal(applicationError(appInput({ directoryBrowsing: "enabled" }), existing), null);
+});
+
+test("a binding port outside 1–65535 is refused with a sentence", () => {
+  const existing: { id: string; name: string; server: string }[] = [];
+  assert.match(applicationError(appInput({ bindingPort: 0 }), existing) ?? "", /1 and 65535/);
+  assert.match(applicationError(appInput({ bindingPort: 70_000 }), existing) ?? "", /1 and 65535/);
+  assert.match(applicationError(appInput({ bindingPort: 443.5 }), existing) ?? "", /1 and 65535/);
+  assert.equal(applicationError(appInput({ bindingPort: null }), existing), null);
+});
+
+/* --------------------------- ingestion contract -------------------------- */
+
+const payload = () => ({
+  server: "WEB01",
+  environment: "production",
+  applications: [
+    {
+      name: "Portal",
+      bindingHost: "portal.example.com",
+      bindingPort: 443,
+      sslMapped: true,
+      appPool: "PortalPool",
+      directoryBrowsing: "disabled",
+      appRoot: "C:\\inetpub\\portal",
+    },
+  ],
+});
+
+test("the collector payload parses into the register's shape", () => {
+  const parsed = parseAutomationPayload(payload());
+  assert.ok(parsed.ok);
+  if (!parsed.ok) return;
+  assert.equal(parsed.payload.server, "WEB01");
+  assert.equal(parsed.payload.applications.length, 1);
+  const [row] = parsed.payload.applications;
+  assert.equal(row.bindingPort, 443);
+  assert.equal(row.sslMapped, true);
+  assert.equal(row.directoryBrowsing, "disabled");
+  // A script that forgets the optional fields still lands a valid row.
+  assert.equal(row.status, "running");
+});
+
+test("the ingestion contract refuses what the register cannot hold", () => {
+  const missingServer = parseAutomationPayload({ ...payload(), server: "" });
+  assert.equal(missingServer.ok, false);
+
+  const empty = parseAutomationPayload({ ...payload(), applications: [] });
+  assert.match(empty.ok ? "" : empty.error, /empty/);
+
+  const noApps = parseAutomationPayload({ server: "WEB01" });
+  assert.match(noApps.ok ? "" : noApps.error, /applications/);
+
+  const badPort = parseAutomationPayload({
+    ...payload(),
+    applications: [{ ...payload().applications[0], bindingPort: 99999 }],
+  });
+  assert.match(badPort.ok ? "" : badPort.error, /bindingPort/);
+
+  const badBrowsing = parseAutomationPayload({
+    ...payload(),
+    applications: [{ ...payload().applications[0], directoryBrowsing: "sometimes" }],
+  });
+  assert.match(badBrowsing.ok ? "" : badBrowsing.error, /directoryBrowsing/);
+
+  const duplicate = parseAutomationPayload({
+    ...payload(),
+    applications: [payload().applications[0], { ...payload().applications[0], name: " portal " }],
+  });
+  assert.match(duplicate.ok ? "" : duplicate.error, /appears twice/);
+});
+
+test("only the IT manager and the platform owner may push the register", () => {
+  assert.equal(canIngestIis("super_admin"), true);
+  assert.equal(canIngestIis("it_manager"), true);
+  // IT engineering edits the register in the browser, but not from a script.
+  assert.equal(canIngestIis("it_engineer"), false);
+  assert.equal(canIngestIis("l2_support_manager"), false);
+  assert.equal(canIngestIis("management"), false);
+});
+
+test("the collector script carries the URL, the key and the eight reads", () => {
+  const script = collectorScript({
+    apiUrl: "https://tasktornado.vercel.app/api/v1/iis/applications",
+    serverHostName: "WEB01",
+  });
+
+  assert.ok(script.includes("https://tasktornado.vercel.app/api/v1/iis/applications"));
+  assert.ok(script.includes("Import-Module WebAdministration"));
+  assert.ok(script.includes("$ServerHostName = 'WEB01'"));
+  // No key typed means the parameter is required rather than empty.
+  assert.ok(script.includes("[Parameter(Mandatory = $true)]"));
+  assert.ok(script.includes("directoryBrowsing"));
+  assert.ok(script.includes(COLLECTOR_FILE_NAME));
+  // Without a host name the script reads the machine's own.
+  assert.ok(collectorScript({}).includes("$env:COMPUTERNAME"));
+  // A template literal that leaks an interpolation looks like this.
+  assert.equal(script.includes("${"), false);
+
+  const withKey = collectorScript({ apiKey: "tt_demo_key" });
+  assert.ok(withKey.includes("[string]$ApiKey = 'tt_demo_key'"));
+  assert.equal(withKey.includes("[Parameter(Mandatory = $true)]"), false);
+  // A quote in a host name must not end the PowerShell string early.
+  const quoted = collectorScript({ serverHostName: "WEB'01" });
+  assert.ok(quoted.includes("$ServerHostName = 'WEB''01'"));
+});
+
+test("ingesting twice updates instead of duplicating, and keeps the owner", async () => {
+  const created = await ingestApplications("WEB-INGEST", "production", [
+    {
+      name: "Ingest Portal",
+      bindingHost: "ingest.example.com",
+      bindingPort: 443,
+      sslMapped: true,
+      appPool: "IngestPool",
+      directoryBrowsing: "disabled",
+      appRoot: "C:\\inetpub\\ingest",
+      status: "running",
+    },
+  ]);
+  assert.equal(created.created, 1);
+  assert.equal(created.updated, 0);
+
+  // A person claims the row; the next run must not wipe that.
+  const claimed = (await listApplications(true)).find((row) => row.id === created.applications[0].id);
+  assert.ok(claimed);
+  if (!claimed) return;
+  await setApplicationActive(claimed.id, false);
+
+  const second = await ingestApplications("WEB-INGEST", "production", [
+    {
+      name: "ingest portal",
+      bindingHost: "ingest.example.com",
+      bindingPort: 8443,
+      sslMapped: true,
+      appPool: "IngestPool",
+      directoryBrowsing: "enabled",
+      appRoot: "C:\\inetpub\\ingest",
+      status: "running",
+    },
+  ]);
+  assert.equal(second.created, 0);
+  assert.equal(second.updated, 1);
+
+  const rows = (await listApplications(true)).filter(
+    (row) => row.server === "WEB-INGEST" && row.name.toLowerCase() === "ingest portal",
+  );
+  assert.equal(rows.length, 1, "the name is the key, so a second run does not duplicate");
+  assert.equal(rows[0].bindingPort, 8443);
+  assert.equal(rows[0].directoryBrowsing, "enabled");
+  assert.equal(rows[0].active, true, "a server that still reports an application brings it back");
 });

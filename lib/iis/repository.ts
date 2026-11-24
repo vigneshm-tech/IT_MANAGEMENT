@@ -5,11 +5,13 @@ import {
   ENVIRONMENTS,
   isAppStatus,
   isDbStatus,
+  isDirectoryBrowsing,
   isEngine,
   isEnvironment,
   isMysqlStatus,
   type AppStatus,
   type ApplicationInput,
+  type DirectoryBrowsing,
   type DatabaseInput,
   type DbStatus,
   type Engine,
@@ -20,6 +22,7 @@ import {
   type MysqlInput,
   type MysqlStatus,
 } from "./constants";
+import type { AutomationApplication } from "./automation";
 
 export * from "./constants";
 
@@ -39,7 +42,19 @@ export function applicationError(
   if (name.length < NAME_MIN) return "Give the application a name of at least 2 characters.";
   if (name.length > NAME_MAX) return `Keep the application name under ${NAME_MAX} characters.`;
   if (input.notes.length > 500) return "Keep the notes under 500 characters.";
-  if (input.binding.length > 200) return "Keep the binding under 200 characters.";
+  if (input.server.length > 80) return "Keep the server host name under 80 characters.";
+  if (input.bindingHost.length > 200) return "Keep the binding host name under 200 characters.";
+  if (input.appPool.length > 80) return "Keep the application pool name under 80 characters.";
+  if (input.appRoot.length > 260) return "Keep the root path under 260 characters.";
+  if (
+    input.bindingPort !== null &&
+    (!Number.isInteger(input.bindingPort) || input.bindingPort < 1 || input.bindingPort > 65535)
+  ) {
+    return "Binding port must be a whole number between 1 and 65535.";
+  }
+  if (!isDirectoryBrowsing(input.directoryBrowsing)) {
+    return "Directory browsing is either enabled or disabled.";
+  }
 
   const clash = existing.find(
     (row) =>
@@ -232,8 +247,11 @@ function seed(): DemoStore {
     server: string,
     environment: Environment,
     appPool: string,
-    binding: string,
-    framework: string,
+    bindingHost: string,
+    bindingPort: number,
+    sslMapped: boolean,
+    directoryBrowsing: DirectoryBrowsing,
+    appRoot: string,
     owner: string,
     status: AppStatus,
   ): IisApplication => ({
@@ -242,8 +260,11 @@ function seed(): DemoStore {
     server,
     environment,
     appPool,
-    binding,
-    framework,
+    bindingHost,
+    bindingPort,
+    sslMapped,
+    directoryBrowsing,
+    appRoot,
     owner,
     status,
     notes: "",
@@ -279,10 +300,10 @@ function seed(): DemoStore {
 
   return {
     applications: [
-      app("Portal", "WEB01", "production", "PortalPool", "https://portal.example.com", ".NET 8", "Arun Prakash", "running"),
-      app("Intranet", "WEB01", "production", "IntranetPool", "https://intranet.example.com", ".NET Framework 4.8", "Arun Prakash", "running"),
-      app("Orders API", "APP02", "staging", "OrdersPool", "https://orders-staging.example.com", ".NET 8", "Priya Nair", "degraded"),
-      app("Legacy Reports", "WEB02", "production", "ReportsPool", "http://reports.example.com", ".NET Framework 4.7", "Meera Raghavan", "stopped"),
+      app("Portal", "WEB01", "production", "PortalPool", "portal.example.com", 443, true, "disabled", "C:\\inetpub\\portal", "Arun Prakash", "running"),
+      app("Intranet", "WEB01", "production", "IntranetPool", "intranet.example.com", 443, true, "enabled", "C:\\inetpub\\intranet", "Arun Prakash", "running"),
+      app("Orders API", "APP02", "staging", "OrdersPool", "orders-staging.example.com", 8443, true, "disabled", "D:\\sites\\orders", "Priya Nair", "degraded"),
+      app("Legacy Reports", "WEB02", "production", "ReportsPool", "", 8080, false, "enabled", "C:\\inetpub\\reports", "Meera Raghavan", "stopped"),
     ],
     databases: [
       db("PORTAL_DB", "SQL01", "sql_server", "production", 42.5, null, "Arun Prakash", "online"),
@@ -356,7 +377,7 @@ function demo(): DemoStore {
 /* -------------------------------------------------------------------------- */
 
 const APP_COLUMNS =
-  "id, name, server, environment, app_pool, binding, framework, owner, status, notes, active, created_at, updated_at";
+  "id, name, server, environment, app_pool, owner, status, notes, active, created_at, updated_at, binding_host, binding_port, ssl_mapped, directory_browsing, app_root";
 const DB_COLUMNS =
   "id, name, server, engine, environment, size_gb, recovery_model, last_backup_at, owner, status, notes, active, created_at, updated_at";
 
@@ -387,14 +408,17 @@ type AppRow = {
   server: string | null;
   environment: string;
   app_pool: string | null;
-  binding: string | null;
-  framework: string | null;
   owner: string | null;
   status: string;
   notes: string | null;
   active: boolean;
   created_at: string;
   updated_at: string | null;
+  binding_host: string | null;
+  binding_port: number | null;
+  ssl_mapped: boolean | null;
+  directory_browsing: string | null;
+  app_root: string | null;
 };
 
 type DbRow = {
@@ -421,8 +445,13 @@ function mapApp(row: AppRow): IisApplication {
     server: row.server ?? "",
     environment: isEnvironment(row.environment) ? row.environment : "production",
     appPool: row.app_pool ?? "",
-    binding: row.binding ?? "",
-    framework: row.framework ?? "",
+    bindingHost: row.binding_host ?? "",
+    bindingPort: row.binding_port ?? null,
+    sslMapped: row.ssl_mapped ?? false,
+    directoryBrowsing: isDirectoryBrowsing(row.directory_browsing ?? "")
+      ? (row.directory_browsing as DirectoryBrowsing)
+      : "disabled",
+    appRoot: row.app_root ?? "",
     owner: row.owner ?? "",
     status: isAppStatus(row.status) ? row.status : "running",
     notes: row.notes ?? "",
@@ -473,6 +502,20 @@ function mapMysql(row: MysqlRow): IisMysqlInstance {
   };
 }
 
+/** The columns an IIS application writes, in one place so create/update agree. */
+function appColumns(input: ApplicationInput) {
+  return {
+    environment: input.environment,
+    app_pool: input.appPool.trim(),
+    binding_host: input.bindingHost.trim(),
+    binding_port: input.bindingPort,
+    ssl_mapped: input.sslMapped,
+    directory_browsing: input.directoryBrowsing,
+    app_root: input.appRoot.trim(),
+    status: input.status,
+  };
+}
+
 function clean(input: ApplicationInput | DatabaseInput) {
   return {
     name: input.name.replace(/\s+/g, " ").trim(),
@@ -512,8 +555,11 @@ export async function createApplication(input: ApplicationInput): Promise<IisApp
       ...base,
       environment: input.environment,
       appPool: input.appPool.trim(),
-      binding: input.binding.trim(),
-      framework: input.framework.trim(),
+      bindingHost: input.bindingHost.trim(),
+      bindingPort: input.bindingPort,
+      sslMapped: input.sslMapped,
+      directoryBrowsing: input.directoryBrowsing,
+      appRoot: input.appRoot.trim(),
       status: input.status,
       active: true,
       createdAt: now,
@@ -526,14 +572,7 @@ export async function createApplication(input: ApplicationInput): Promise<IisApp
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("iis_applications")
-    .insert({
-      ...base,
-      environment: input.environment,
-      app_pool: input.appPool.trim(),
-      binding: input.binding.trim(),
-      framework: input.framework.trim(),
-      status: input.status,
-    })
+    .insert({ ...base, ...appColumns(input) })
     .select(APP_COLUMNS)
     .single();
 
@@ -554,8 +593,11 @@ export async function updateApplication(
     Object.assign(row, base, {
       environment: input.environment,
       appPool: input.appPool.trim(),
-      binding: input.binding.trim(),
-      framework: input.framework.trim(),
+      bindingHost: input.bindingHost.trim(),
+      bindingPort: input.bindingPort,
+      sslMapped: input.sslMapped,
+      directoryBrowsing: input.directoryBrowsing,
+      appRoot: input.appRoot.trim(),
       status: input.status,
       updatedAt: now,
     });
@@ -565,18 +607,79 @@ export async function updateApplication(
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from("iis_applications")
-    .update({
-      ...base,
-      environment: input.environment,
-      app_pool: input.appPool.trim(),
-      binding: input.binding.trim(),
-      framework: input.framework.trim(),
-      status: input.status,
-      updated_at: now,
-    })
+    .update({ ...base, ...appColumns(input), updated_at: now })
     .eq("id", id);
   if (error) console.error("[iis] application update failed", error.message);
   return !error;
+}
+
+/** One row as the automation writes it, with the fields a person owns kept. */
+export type IngestResult = {
+  server: string;
+  created: number;
+  updated: number;
+  applications: { id: string; name: string; action: "created" | "updated" }[];
+};
+
+/**
+ * Upserts what a Windows server reported.
+ *
+ * Matching is by name on the same server — the same key the unique index uses —
+ * so a nightly collector is idempotent: the second run updates what the first
+ * created. Only the eight collected fields are written; owner, notes and the
+ * chosen environment stay as the person left them, because a script has no
+ * opinion about who answers for an application.
+ *
+ * A row that exists but was retired comes back to life: the server just proved
+ * the application is still there.
+ */
+export async function ingestApplications(
+  server: string,
+  environment: Environment,
+  applications: AutomationApplication[],
+): Promise<IngestResult> {
+  const host = server.replace(/\s+/g, " ").trim();
+  const now = new Date().toISOString();
+  const existing = await listApplications(true);
+  const result: IngestResult = { server: host, created: 0, updated: 0, applications: [] };
+
+  for (const app of applications) {
+    const match = existing.find(
+      (row) =>
+        row.server.trim().toLowerCase() === host.toLowerCase() &&
+        row.name.trim().toLowerCase() === app.name.toLowerCase(),
+    );
+
+    const input: ApplicationInput = {
+      name: app.name,
+      server: host,
+      environment,
+      bindingHost: app.bindingHost,
+      bindingPort: app.bindingPort,
+      sslMapped: app.sslMapped,
+      appPool: app.appPool,
+      directoryBrowsing: app.directoryBrowsing,
+      appRoot: app.appRoot,
+      owner: match?.owner ?? "",
+      status: app.status,
+      notes: match?.notes ?? "",
+    };
+
+    if (match) {
+      const written = await updateApplication(match.id, input);
+      if (!written) throw new Error(`"${app.name}" could not be updated.`);
+      if (!match.active) await setApplicationActive(match.id, true);
+      result.updated += 1;
+      result.applications.push({ id: match.id, name: match.name, action: "updated" });
+      continue;
+    }
+
+    const row = await createApplication(input);
+    result.created += 1;
+    result.applications.push({ id: row.id, name: row.name, action: "created" });
+  }
+
+  return result;
 }
 
 export async function setApplicationActive(id: string, active: boolean): Promise<boolean> {

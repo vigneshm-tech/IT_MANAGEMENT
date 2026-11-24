@@ -25,4 +25,6 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
   { method: "GET", path: "/api/v1/clients", scope: "clients:read", summary: "List the client register" },
   { method: "GET", path: "/api/v1/approvals", scope: "approvals:read", summary: "List approvals" },
   { method: "GET", path: "/api/v1/servers", scope: "servers:read", summary: "Endpoints from the Action1 inventory" },
+  { method: "GET", path: "/api/v1/iis/applications", scope: "iis:read", summary: "IIS applications on one server (?server=) — IT manager and super admin only" },
+  { method: "POST", path: "/api/v1/iis/applications", scope: "iis:write", summary: "Ingest applications from the PowerShell collector — IT manager and super admin only" },
 ];

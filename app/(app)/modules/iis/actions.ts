@@ -16,6 +16,7 @@ import {
   isMysqlStatus,
   isAppStatus,
   isDbStatus,
+  isDirectoryBrowsing,
   isEngine,
   isEnvironment,
   listApplications,
@@ -66,14 +67,19 @@ export async function saveApplicationAction(
   const id = text(formData, "id");
   const environment = text(formData, "environment");
   const status = text(formData, "status");
+  const browsing = text(formData, "directoryBrowsing");
+  const port = Math.trunc(Number(text(formData, "bindingPort")));
 
   const input: ApplicationInput = {
     name: text(formData, "name"),
     server: text(formData, "server"),
     environment: isEnvironment(environment) ? environment : "production",
+    bindingHost: text(formData, "bindingHost"),
+    bindingPort: Number.isFinite(port) && port > 0 ? port : null,
+    sslMapped: formData.get("sslMapped") !== null,
     appPool: text(formData, "appPool"),
-    binding: text(formData, "binding"),
-    framework: text(formData, "framework"),
+    directoryBrowsing: isDirectoryBrowsing(browsing) ? browsing : "disabled",
+    appRoot: text(formData, "appRoot"),
     owner: text(formData, "owner"),
     status: isAppStatus(status) ? status : "running",
     notes: text(formData, "notes"),

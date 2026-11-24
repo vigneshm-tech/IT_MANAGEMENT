@@ -16,6 +16,14 @@ export type AppStatus = (typeof APP_STATUSES)[number];
 export const DB_STATUSES = ["online", "offline", "maintenance"] as const;
 export type DbStatus = (typeof DB_STATUSES)[number];
 
+/** Directory browsing is a switch a person has to be able to read at a glance. */
+export const DIRECTORY_BROWSING = ["disabled", "enabled"] as const;
+export type DirectoryBrowsing = (typeof DIRECTORY_BROWSING)[number];
+
+export function isDirectoryBrowsing(value: string): value is DirectoryBrowsing {
+  return (DIRECTORY_BROWSING as readonly string[]).includes(value);
+}
+
 export const MYSQL_STATUSES = ["running", "stopped", "degraded", "maintenance"] as const;
 export type MysqlStatus = (typeof MYSQL_STATUSES)[number];
 
@@ -37,14 +45,32 @@ export const ENGINE_LABELS: Record<Engine, string> = {
   other: "Other",
 };
 
+/**
+ * One IIS application, as the Windows server describes it.
+ *
+ * The eight fields a person needs to answer "what is this and where does it
+ * live": the host, the application, the binding (host, port, TLS), the pool, the
+ * directory-browsing switch and the root path on disk. The rest — environment,
+ * owner, state, notes — is what a person adds around them.
+ */
 export type IisApplication = {
   id: string;
-  name: string;
+  /** Server Host Name — the machine, e.g. WEB01. */
   server: string;
+  /** Application Name — the IIS site name. */
+  name: string;
   environment: Environment;
+  /** Binding Host Name — the host header, e.g. portal.example.com. */
+  bindingHost: string;
+  /** Binding Port — 80, 443, 8080… */
+  bindingPort: number | null;
+  /** SSL Mapped — the binding speaks https. */
+  sslMapped: boolean;
+  /** Application Pool. */
   appPool: string;
-  binding: string;
-  framework: string;
+  directoryBrowsing: DirectoryBrowsing;
+  /** Application Root Path — the physicalPath on the server. */
+  appRoot: string;
   owner: string;
   status: AppStatus;
   notes: string;
@@ -75,13 +101,27 @@ export type ApplicationInput = {
   name: string;
   server: string;
   environment: Environment;
+  bindingHost: string;
+  bindingPort: number | null;
+  sslMapped: boolean;
   appPool: string;
-  binding: string;
-  framework: string;
+  directoryBrowsing: DirectoryBrowsing;
+  appRoot: string;
   owner: string;
   status: AppStatus;
   notes: string;
 };
+
+/** "portal.example.com:443 · https" — the one-line form of a binding. */
+export function describeBinding(row: {
+  bindingHost: string;
+  bindingPort: number | null;
+  sslMapped: boolean;
+}): string {
+  const host = row.bindingHost.trim() || "(any host)";
+  const port = row.bindingPort ?? (row.sslMapped ? 443 : 80);
+  return `${host}:${port}${row.sslMapped ? " · https" : ""}`;
+}
 
 export type DatabaseInput = {
   name: string;
