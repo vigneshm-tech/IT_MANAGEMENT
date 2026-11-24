@@ -20,7 +20,7 @@ import { requireUser } from "@/lib/auth";
 import { can, visibleModules } from "@/lib/access";
 import { isOpenStatus } from "@/lib/tasks/options";
 import { integrationStatus } from "@/lib/integrations/store";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import {
   Table,
   TableBody,
@@ -353,7 +353,7 @@ export default async function OverviewPage() {
                     </span>
                   </TableCell>
                   <TableCell className="py-3 pl-0 pr-4 text-[12px] text-body">
-                    {ROLE_BY_ID[task.assigneeRole]?.label ?? "—"}
+                    {roleOf(task.assigneeRole).label}
                   </TableCell>
                   <TableCell className="py-3 pl-0 pr-4 text-[12px] text-body">
                     {task.dueDate ? formatDayMonth(task.dueDate, now) : "—"}

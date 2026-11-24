@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Fingerprint, KeyRound, Plug, ShieldCheck } from "lucide-react";
+import { ChevronRight, Fingerprint, KeyRound, Plug, ShieldCheck, UserCog } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listApiKeys } from "@/lib/api/keys";
 import { API_SCOPES, effectiveScopes } from "@/lib/api/scopes";
 import { canManageAction1 } from "@/lib/integrations/access";
 import { integrationStatus } from "@/lib/integrations/store";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
+import { listRoleDefinitions } from "@/lib/roles/registry";
 import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -34,7 +35,8 @@ export default async function SettingsPage() {
     integrationStatus(user.id, "action1"),
     listApiKeys(user.id),
   ]);
-  const role = ROLE_BY_ID[user.role];
+  const role = roleOf(user.role);
+  const roles = listRoleDefinitions();
   const activeKeys = keys.filter((key) => !key.revokedAt && (!key.expiresAt || new Date(key.expiresAt) > new Date()));
   const connected = [redmine.connected, action1.connected].filter(Boolean).length;
   const scopes = effectiveScopes(
@@ -79,7 +81,18 @@ export default async function SettingsPage() {
           ? "No active keys"
           : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"}`,
     },
-  ];
+    {
+      id: "roles",
+      href: "/modules/settings/roles",
+      icon: UserCog,
+      title: "Roles & access",
+      summary:
+        "What each role may open, and whether it can only read or may also change things",
+      status: `${roles.length} roles · ${
+        roles.filter((entry) => !entry.hidden).length
+      } assignable`,
+    },
+  ].filter((section) => section.id !== "roles" || can(user.role, "settings", "admin"));
 
   return (
     <div className="space-y-5">

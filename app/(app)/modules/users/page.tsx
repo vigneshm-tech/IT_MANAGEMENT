@@ -4,6 +4,7 @@ import { UsersView } from "@/components/modules/users-view";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getModule } from "@/lib/modules";
+import { assignableRoleDefinitions } from "@/lib/roles/registry";
 import { listDirectory, listGroups } from "@/lib/users/repository";
 
 const MODULE = getModule("users");
@@ -23,6 +24,7 @@ export default async function UsersPage() {
     <UsersView
       users={directory.users}
       groups={groups.groups}
+      roles={assignableRoleDefinitions().map((role) => ({ id: role.id, label: role.label }))}
       error={directory.error}
       currentUserId={user.id}
     />

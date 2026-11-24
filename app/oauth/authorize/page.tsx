@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getSession } from "@/lib/auth/session";
 import { API_SCOPES } from "@/lib/api/scopes";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { consentScopes, getClient, redirectUriError } from "@/lib/mcp/oauth";
 
 export const metadata: Metadata = { title: "Connect an app" };
@@ -92,7 +92,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   }
 
   const scopes = API_SCOPES.filter((scope) => resolved.scopes.includes(scope.id));
-  const role = ROLE_BY_ID[session.role];
+  const role = roleOf(session.role);
 
   const hidden = {
     client_id: client.clientId,

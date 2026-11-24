@@ -10,7 +10,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { getTask } from "@/lib/tasks/repository";
 
 type PageProps = {
@@ -96,7 +96,7 @@ export default async function TaskPage({ params, searchParams }: PageProps) {
           <Detail label="Activity type">{task.activityType || "—"}</Detail>
           <Detail label="Planned">{humanise(task.planStatus)}</Detail>
           <Detail label="Assigned to">
-            {task.assigneeName || ROLE_BY_ID[task.assigneeRole]?.label || "—"}
+            {task.assigneeName || roleOf(task.assigneeRole).label}
           </Detail>
           <Detail label="Due">{task.dueDate ? formatDate(task.dueDate) : "—"}</Detail>
           <Detail label="Reference ticket">{task.referenceTicketNo || "—"}</Detail>

@@ -339,9 +339,17 @@ and on the edit page.
   every module. Deleting a field cascades its answers; clearing a field stores an
   empty string rather than dropping the row.
 
-The registry lives in [`lib/modules.ts`](lib/modules.ts) and [`lib/roles.ts`](lib/roles.ts);
-edit those two files to change policy. `lib/access.ts` exposes `can()`,
-`canAccessModule()`, `visibleModules()` and `accessMap()`.
+The module registry lives in [`lib/modules.ts`](lib/modules.ts); the roles that
+every install starts with are in [`lib/roles.ts`](lib/roles.ts). Since migration
+`0039` a role is data, not code: **Settings → Roles & access** lists every role,
+and each module is answered three ways — *Not allowed* (the module disappears
+from that role's navigation and its page refuses to open), *Read only* (it opens,
+nothing can be changed) and *Write* (add, edit and approve). A new role can be
+defined there and assigned in Users & Groups.
+
+`lib/access.ts` exposes `can()`, `canAccessModule()`, `visibleModules()` and
+`accessMap()`; `can()` reads the saved levels, and a role nobody has edited
+keeps the compiled rules exactly as before.
 
 ### Patching Plans
 

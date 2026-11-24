@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export type SettingsTab = "hub" | "profile" | "security" | "integrations" | "developers";
+export type SettingsTab = "hub" | "profile" | "security" | "integrations" | "developers" | "roles";
 
 const TABS: { id: SettingsTab; label: string; href: string }[] = [
   { id: "hub", label: "Overview", href: "/modules/settings" },
@@ -8,6 +8,7 @@ const TABS: { id: SettingsTab; label: string; href: string }[] = [
   { id: "security", label: "Security & sessions", href: "/modules/settings/security" },
   { id: "integrations", label: "Integrations", href: "/modules/settings/integrations" },
   { id: "developers", label: "Developers", href: "/modules/settings/developers" },
+  { id: "roles", label: "Roles & access", href: "/modules/settings/roles" },
 ];
 
 /**

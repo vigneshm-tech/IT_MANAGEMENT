@@ -19,7 +19,6 @@ import { SearchSelect } from "@/components/ui/search-select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { can } from "@/lib/access";
 import { formatDate } from "@/lib/format";
 import type { SessionUser } from "@/lib/auth/token";
 import type { AssignableUser, PatchScheduleRecord } from "@/lib/records/repository";
@@ -65,6 +64,7 @@ export function PatchingView({
   inventory,
   schedules,
   people,
+  canEdit,
 }: {
   user: SessionUser;
   /** Module title from `lib/modules.ts` — never spelled out here. */
@@ -72,8 +72,14 @@ export function PatchingView({
   inventory: ServersInventory;
   schedules: PatchScheduleRecord[];
   people: AssignableUser[];
+  /**
+   * Decided on the server, from the role catalogue. A browser cannot be the one
+   * to answer this: it holds only the built-in rules, and a role edited in
+   * Settings → Roles would disagree with it.
+   */
+  canEdit: boolean;
 }) {
-  const canEdit = can(user.role, "patching", "edit");
+  
 
   const rows = useMemo<Row[]>(() => {
     const planned = new Map(schedules.map((plan) => [plan.endpointId, plan]));

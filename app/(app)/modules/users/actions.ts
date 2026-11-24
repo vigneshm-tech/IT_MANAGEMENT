@@ -5,7 +5,7 @@ import { clearCache } from "@/lib/cache/ttl";
 import { isSupabaseConfigured } from "@/lib/config";
 import { EMAIL_PATTERN, type FormState } from "@/lib/forms";
 import { requireUser } from "@/lib/auth";
-import { isAssignableRole, ROLE_BY_ID } from "@/lib/roles";
+import { isAssignableRole, roleOf } from "@/lib/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createDemoUser,
@@ -90,7 +90,7 @@ export async function createUserAction(
     revalidatePath("/modules/users/groups");
     return {
       ok: true,
-      message: `${fullName} was added as ${ROLE_BY_ID[role].label}.`,
+      message: `${fullName} was added as ${roleOf(role).label}.`,
     };
   }
 
@@ -128,7 +128,7 @@ export async function createUserAction(
     revalidatePath("/modules/users/groups");
     return {
       ok: true,
-      message: `${fullName} was added as ${ROLE_BY_ID[role].label}.`,
+      message: `${fullName} was added as ${roleOf(role).label}.`,
     };
   } catch (error) {
     console.error("[users] create threw", error);

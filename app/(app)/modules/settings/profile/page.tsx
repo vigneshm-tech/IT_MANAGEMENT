@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { canAccessModule, visibleModules } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/auth/actions";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "Profile" };
 
@@ -28,7 +28,7 @@ export default async function ProfileSettingsPage() {
     return <AccessDenied moduleTitle="Settings" />;
   }
 
-  const role = ROLE_BY_ID[user.role];
+  const role = roleOf(user.role);
   const modules = visibleModules(user.role);
 
   return (

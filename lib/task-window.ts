@@ -1,4 +1,4 @@
-import { ROLE_BY_ID, isLeadership } from "./roles";
+import { roleOf, isLeadership } from "./roles";
 import type { RoleId } from "./roles";
 import { TASK_WINDOW } from "./config";
 
@@ -87,7 +87,7 @@ export type TaskWindow = {
 
 export function taskWindowFor(role: RoleId, now: Date = new Date()): TaskWindow {
   const { startHour, endHour, timeZone } = TASK_WINDOW;
-  const restricted = !ROLE_BY_ID[role].unrestrictedTaskCreation;
+  const restricted = !roleOf(role).unrestrictedTaskCreation;
   const parts = zonedParts(now, timeZone);
   const localTime = `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 

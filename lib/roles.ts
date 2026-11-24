@@ -1,11 +1,21 @@
 /**
  * TaskTornado role catalogue.
  *
- * Every employee account is assigned exactly one role from this list. The role
- * decides which modules are visible and which actions are allowed. Keep this
- * file as the single source of truth — the database enum in
- * `supabase/migrations/0001_rbac.sql` mirrors these ids.
+ * Every employee account is assigned exactly one role. A role decides which
+ * modules are visible and which of them can be written to; the per-module
+ * matrix lives in the database (`access_roles` / `access_role_modules`, edited
+ * from Settings → Roles) and these entries are the starting point a workspace
+ * inherits.
+ *
+ * Two kinds of role exist:
+ *  - the built-in set below, shipped with the product and present in every
+ *    install, with access rules in `lib/modules.ts`;
+ *  - workspace-defined roles, created in Settings → Roles, whose access comes
+ *    only from what an administrator ticked. Their ids are slugs, so a role
+ *    typed as "Warehouse Supervisor" is `warehouse_supervisor`.
  */
+
+import { roleLabelOverride } from "./roles/labels";
 
 export const ROLE_IDS = [
   /**
@@ -31,7 +41,15 @@ export const ROLE_IDS = [
   "management",
 ] as const;
 
-export type RoleId = (typeof ROLE_IDS)[number];
+/** One of the roles shipped with the product. */
+export type BuiltinRoleId = (typeof ROLE_IDS)[number];
+
+/**
+ * A role key. Deliberately open: a workspace can define roles that this build
+ * has never heard of. Anything that needs to know whether a key is real asks
+ * `isRoleId`, which the registry answers once the catalogue has been read.
+ */
+export type RoleId = string;
 
 export type RoleGroup =
   | "platform"
@@ -40,7 +58,8 @@ export type RoleGroup =
   | "implementation"
   | "development"
   | "testing"
-  | "management";
+  | "management"
+  | "custom";
 
 export type RoleLevel = "manager" | "lead" | "engineer" | "executive";
 
@@ -99,6 +118,11 @@ export const ROLE_GROUPS: Record<
     label: "Management",
     accent: "#94a3b8",
     description: "Cross-functional oversight and reporting.",
+  },
+  custom: {
+    label: "Workspace roles",
+    accent: "#64748b",
+    description: "Roles this workspace defined for itself.",
   },
 };
 
@@ -272,9 +296,9 @@ export const ROLES: Role[] = [
   }),
 ];
 
-export const ROLE_BY_ID: Record<RoleId, Role> = Object.fromEntries(
+export const ROLE_BY_ID: Record<string, Role> = Object.fromEntries(
   ROLES.map((r) => [r.id, r]),
-) as Record<RoleId, Role>;
+);
 
 /** Everything a role picker, catalogue or report is allowed to list. */
 export const VISIBLE_ROLES: Role[] = ROLES.filter((r) => !r.hidden);
@@ -283,17 +307,86 @@ export function isHiddenRole(id: RoleId): boolean {
   return ROLE_BY_ID[id]?.hidden === true;
 }
 
-/** A role that may own work: visible to pickers, safe to store on a record. */
-export function isAssignableRole(value: unknown): value is RoleId {
-  return isRoleId(value) && !isHiddenRole(value);
+
+/* ------------------------------------------------------------------ custom */
+
+/**
+ * The role keys this process knows about beyond the built-ins.
+ *
+ * A workspace-defined role lives in the database, but a lot of synchronous code
+ * asks "is this a real role?" while rendering. The registry (server) fills this
+ * in once the catalogue has been read; the browser keeps the built-in set only,
+ * which is why anything shown to a person carries its label through props rather
+ * than re-deriving it client-side.
+ */
+let knownCustomRoles = new Set<string>();
+
+export function rememberKnownRoles(ids: string[]): void {
+  knownCustomRoles = new Set(ids.filter((id) => !ROLE_BY_ID[id]));
+}
+
+export function forgetKnownRoles(): void {
+  knownCustomRoles = new Set();
+}
+
+export function isBuiltinRole(id: string): boolean {
+  return (ROLE_IDS as readonly string[]).includes(id);
 }
 
 export function isRoleId(value: unknown): value is RoleId {
-  return typeof value === "string" && (ROLE_IDS as readonly string[]).includes(value);
+  return typeof value === "string" && (isBuiltinRole(value) || knownCustomRoles.has(value));
+}
+
+/** Role keys have to survive a URL, a cookie and a database column. */
+export const ROLE_ID_PATTERN = /^[a-z][a-z0-9_]{2,39}$/;
+
+/** "Warehouse Supervisor" → "warehouse_supervisor". */
+export function roleSlug(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40)
+    .replace(/_+$/g, "");
+}
+
+/** "warehouse_supervisor" → "Warehouse Supervisor", for a role we have no row for. */
+export function roleLabelFromId(id: string): string {
+  const words = id.split(/[_\s]+/).filter(Boolean);
+  if (words.length === 0) return id || "Unassigned";
+  return words.map((word) => word[0].toUpperCase() + word.slice(1)).join(" ");
+}
+
+/** The neutral definition used when a role exists in the data but not in code. */
+export function customRole(id: string): Role {
+  const label = roleLabelOverride(id) ?? roleLabelFromId(id);
+  return {
+    id,
+    label,
+    shortLabel: label,
+    group: "custom",
+    level: "engineer",
+    description: "Workspace-defined role.",
+    accent: "#64748b",
+    badgeClass: "text-white",
+    unrestrictedTaskCreation: false,
+  };
+}
+
+/** A role for display: the built-in label when we have one, the slug otherwise. */
+export function roleOf(id: string | null | undefined): Role {
+  if (!id) return customRole("unassigned");
+  return ROLE_BY_ID[id] ?? customRole(id);
+}
+
+export function isAssignableRole(value: unknown): value is RoleId {
+  return isRoleId(value) && value !== "super_admin" && !isHiddenRole(value);
 }
 
 export function getRole(id: string | null | undefined): Role | null {
-  return isRoleId(id) ? ROLE_BY_ID[id] : null;
+  return isRoleId(id) ? roleOf(id) : null;
 }
 
 export function rolesInGroup(group: RoleGroup): Role[] {
@@ -302,5 +395,5 @@ export function rolesInGroup(group: RoleGroup): Role[] {
 
 /** Manager, lead and executive tiers bypass time-based restrictions. */
 export function isLeadership(roleId: RoleId): boolean {
-  return ["manager", "lead", "executive"].includes(ROLE_BY_ID[roleId].level);
+  return ["manager", "lead", "executive"].includes(roleOf(roleId).level);
 }

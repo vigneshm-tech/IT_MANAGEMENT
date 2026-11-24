@@ -15,7 +15,8 @@ import { StatusPill, humanise } from "@/components/ui/status-pill";
 import { UsersTabs } from "@/components/modules/users-tabs";
 import { UserForm } from "@/components/modules/user-form";
 import { buttonClass } from "@/components/ui/button";
-import { ROLE_BY_ID, VISIBLE_ROLES } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
+import type { RoleOption } from "@/lib/roles/types";
 import type { DirectoryUser } from "@/lib/users/repository";
 import type { UserGroup } from "@/lib/users/groups";
 import { createUserAction, updateUserAction } from "@/app/(app)/modules/users/actions";
@@ -29,12 +30,8 @@ const COLUMNS: Column[] = [
   { key: "status", label: "Status", type: "status", width: "10%" },
 ];
 
-function roleLabel(role: DirectoryUser["role"]): string {
-  if (!role) return "Unassigned";
-  const entry = ROLE_BY_ID[role];
-  if (!entry || entry.hidden) return "Unassigned";
-  return entry.label;
-}
+/* Workspace roles are not in the browser's copy of the catalogue, so the server
+ * sends the list and every label here resolves against it. */
 
 function lastSeen(value: string | null): string {
   if (!value) return "Not recorded";
@@ -53,14 +50,23 @@ function lastSeen(value: string | null): string {
 export function UsersView({
   users,
   groups,
+  roles,
   error,
   currentUserId,
 }: {
   users: DirectoryUser[];
   groups: Pick<UserGroup, "id" | "name" | "members">[];
+  roles: RoleOption[];
   error: string | null;
   currentUserId: string;
 }) {
+  const roleLabel = (role: DirectoryUser["role"]): string => {
+    if (!role) return "Unassigned";
+    const entry = roles.find((option) => option.id === role);
+    if (entry) return entry.label;
+    const known = roleOf(role);
+    return known.hidden ? "Unassigned" : known.label;
+  };
   const [viewing, setViewing] = useState<DirectoryUser | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -108,7 +114,7 @@ export function UsersView({
           actions,
         };
       }),
-    [users, currentUserId],
+    [users, currentUserId, roles],
   );
 
   return (
@@ -128,7 +134,9 @@ export function UsersView({
         <UsersTabs active="users" />
       </PageHeader>
 
-      {adding && <UserForm groups={groupOptions} onClose={() => setAdding(false)} />}
+      {adding && (
+        <UserForm groups={groupOptions} roles={roles} onClose={() => setAdding(false)} />
+      )}
 
       <DataTable
         columns={COLUMNS}

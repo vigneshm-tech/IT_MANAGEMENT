@@ -6,7 +6,7 @@ import { DataTable, type Column, type TableRow } from "@/components/ui/data-tabl
 import { EmptyState } from "@/components/ui/empty-state";
 import { RecordDialog, type FieldDef } from "@/components/ui/record-dialog";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { createApprovalAction, decideApprovalAction } from "@/app/(app)/modules/approvals/actions";
 import type {
@@ -93,7 +93,7 @@ function cellsFor(approval: ApprovalRecord, labels: Record<string, string>) {
     title: approval.title,
     id: approval.id,
     category: labels[approval.category] ?? requestTypeLabel(approval.category),
-    requester: `${approval.requesterName} · ${ROLE_BY_ID[approval.requesterRole]?.label ?? "—"}`,
+    requester: `${approval.requesterName} · ${roleOf(approval.requesterRole).label}`,
     created: formatDayMonth(approval.createdAt),
     decidedBy: approval.decidedBy ?? "—",
     decidedAt: approval.decidedAt ? formatDayMonth(approval.decidedAt) : "—",

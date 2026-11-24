@@ -7,6 +7,7 @@ import { getRole, isRoleId, type RoleId } from "../roles";
 import { createSupabaseServerClient } from "../supabase/server";
 import { readCache, writeCache } from "../cache/ttl";
 import { findDemoDirectoryUser } from "../users/store";
+import { ensureRoleRegistry } from "../roles/registry";
 import { getSession, type SessionUser } from "./session";
 
 export type AuthResult =
@@ -77,6 +78,10 @@ export async function authenticate(
         await supabase.auth.signOut();
         return { ok: false, error: "This account is inactive. Contact IT." };
       }
+
+      // A workspace-defined role is only "real" once the catalogue has been
+      // read, so sign-in has to load it before judging the profile.
+      await ensureRoleRegistry();
 
       if (!isRoleId(profile.role)) {
         await supabase.auth.signOut();
@@ -155,6 +160,11 @@ const STATUS_TTL_MS = 30_000;
 export const requireUser = cache(async (): Promise<SessionUser> => {
   const user = await getSession();
   if (!user) redirect("/login");
+
+  // The role catalogue decides what this person can see, and every page reads
+  // it synchronously after this point. Loading it here — once per request, with
+  // a minute of caching — is what lets `can()` stay a plain function.
+  await ensureRoleRegistry();
 
   if (isSupabaseConfigured && user.provider === "supabase") {
     const key = `profile-status:${user.id}`;

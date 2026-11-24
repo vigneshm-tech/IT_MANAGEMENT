@@ -6,7 +6,7 @@ import { BrandPanel } from "@/components/login/brand-panel";
 import { LoginForm } from "@/components/login/login-form";
 import { getSession } from "@/lib/auth/session";
 import { isDemoMode } from "@/lib/config";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { DEMO_USERS, type DemoAccount } from "@/lib/demo-users";
 
 export const metadata: Metadata = {
@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   const demoMode = isDemoMode && process.env.DISABLE_DEMO_LOGIN !== "true";
   const demoAccounts: DemoAccount[] = demoMode
-    ? DEMO_USERS.filter((user) => !ROLE_BY_ID[user.role]?.hidden).map(
+    ? DEMO_USERS.filter((user) => !roleOf(user.role).hidden).map(
         ({ email, password, name, role }) => ({ email, password, name, role }),
       )
     : [];

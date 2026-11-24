@@ -1,5 +1,5 @@
 import { planStatus, type PatchScheduleRecord } from "@/lib/patching/plan";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { requestTypeLabel } from "@/lib/request-types";
 import type { ApprovalRecord } from "@/lib/records/repository";
 import type { ApprovalView } from "./views";
@@ -57,7 +57,7 @@ export function requestItem(
     type: labels[approval.category] ?? requestTypeLabel(approval.category),
     title: approval.title,
     requester: approval.requesterName,
-    requesterDetail: `${approval.requesterName} · ${ROLE_BY_ID[approval.requesterRole]?.label ?? "—"}`,
+    requesterDetail: `${approval.requesterName} · ${roleOf(approval.requesterRole).label}`,
     requesterId: approval.requesterId,
     createdAt: approval.createdAt,
     status: approval.status,

@@ -14,7 +14,7 @@ import { TicketSlaPanel } from "@/components/modules/ticket-sla-panel";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import {
   getTicket,
   listAssignableUsers,
@@ -212,7 +212,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
         <div className="space-y-4">
           <ol className="space-y-3">
             {articles.map((article) => {
-              const role = ROLE_BY_ID[article.authorRole as keyof typeof ROLE_BY_ID];
+              const role = roleOf(article.authorRole);
               if (article.kind === "system") {
                 return (
                   <li

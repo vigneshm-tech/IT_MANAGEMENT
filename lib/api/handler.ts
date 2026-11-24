@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runWithServiceRole } from "../supabase/server";
+import { ensureRoleRegistry } from "../roles/registry";
 import { authenticateRequest, requireScope, type ApiCaller } from "./auth";
 import { fail } from "./http";
 import { API_RATE_LIMIT } from "./rate-limit";
@@ -22,6 +23,9 @@ export async function apiRoute(
 ): Promise<NextResponse> {
   const auth = await authenticateRequest(request);
   if (!auth.ok) return auth.response;
+
+  // Role scoping reads the same catalogue the web app does.
+  await ensureRoleRegistry();
 
   if (scope) {
     const denied = requireScope(auth.caller, scope);

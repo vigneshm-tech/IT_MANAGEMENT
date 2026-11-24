@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { buttonClass } from "@/components/ui/button";
-import { VISIBLE_ROLES } from "@/lib/roles";
+import type { RoleOption } from "@/lib/roles/types";
 import type { UserGroup } from "@/lib/users/groups";
 import { createUserAction } from "@/app/(app)/modules/users/actions";
 
@@ -159,9 +159,12 @@ function GroupPicker({ groups }: { groups: Pick<UserGroup, "id" | "name">[] }) {
 /** Inline add-user panel — seven fields, no dialog. */
 export function UserForm({
   groups,
+  roles,
   onClose,
 }: {
   groups: Pick<UserGroup, "id" | "name">[];
+  /** Every role a person may be given, including ones this workspace defined. */
+  roles: RoleOption[];
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createUserAction, {});
@@ -212,7 +215,7 @@ export function UserForm({
             <option value="" disabled>
               Select an access level
             </option>
-            {VISIBLE_ROLES.map((role) => (
+            {roles.map((role) => (
               <option key={role.id} value={role.id}>
                 {role.label}
               </option>

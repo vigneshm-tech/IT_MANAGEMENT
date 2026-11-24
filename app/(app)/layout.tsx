@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { isIntroPending } from "@/lib/auth/intro";
 import { can, visibleModules } from "@/lib/access";
 import { NAV_GROUPS } from "@/lib/modules";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { listPatchInbox, listPendingApprovals } from "@/lib/records/repository";
 import { formatPlannedDate } from "@/lib/patching/plan";
 
@@ -22,7 +22,7 @@ export default async function WorkspaceLayout({
 }) {
   const user = await requireUser();
   const introPending = await isIntroPending();
-  const role = ROLE_BY_ID[user.role];
+  const role = roleOf(user.role);
   const allowed = visibleModules(user.role);
 
   const groups: NavGroup[] = NAV_GROUPS.map((group) => ({

@@ -138,6 +138,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           inventory={inventory}
           schedules={schedules}
           people={people}
+          canEdit={can(user.role, "patching", "edit")}
         />
       );
     }

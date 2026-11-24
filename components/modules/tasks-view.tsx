@@ -5,7 +5,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
-import { ROLE_BY_ID } from "@/lib/roles";
+import { roleOf } from "@/lib/roles";
 import { taskWindowFor } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
@@ -54,7 +54,7 @@ export function TasksView({
     ? (view as TaskViewId)
     : "requested";
 
-  const roleGroup = ROLE_BY_ID[user.role].group;
+  const roleGroup = roleOf(user.role).group;
   const mine = (task: TaskRecord) =>
     task.assigneeId ? task.assigneeId === user.id : task.assigneeRole === user.role;
 
@@ -62,7 +62,7 @@ export function TasksView({
     currentView === "mine"
       ? tasks.filter(mine)
       : currentView === "group"
-        ? tasks.filter((task) => ROLE_BY_ID[task.assigneeRole]?.group === roleGroup)
+        ? tasks.filter((task) => roleOf(task.assigneeRole).group === roleGroup)
         : tasks;
 
   const rows = visibleTasks.map((task) => ({
@@ -75,7 +75,7 @@ export function TasksView({
       planStatus: task.planStatus === "planned" ? "Planned" : "Unplanned",
       referenceTicketNo: task.referenceTicketNo || "—",
       priority: task.priority,
-      assignee: task.assigneeName || ROLE_BY_ID[task.assigneeRole]?.label || "—",
+      assignee: task.assigneeName || roleOf(task.assigneeRole).label,
       due: task.dueDate ? formatDayMonth(task.dueDate) : "—",
       status: task.status,
     },

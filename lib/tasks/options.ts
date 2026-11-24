@@ -1,4 +1,4 @@
-import { isRoleId, ROLE_BY_ID } from "../roles";
+import { isRoleId, roleOf } from "../roles";
 import type { PlanStatus, TaskStatus } from "./store";
 
 /**
@@ -65,6 +65,6 @@ export function peopleOptions(
   return users.map((person) => ({
     value: person.id,
     label: person.name,
-    hint: isRoleId(person.role) ? ROLE_BY_ID[person.role].label : "",
+    hint: isRoleId(person.role) ? roleOf(person.role).label : "",
   }));
 }

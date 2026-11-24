@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { loginAction, type LoginState } from "@/app/login/actions";
 import type { DemoAccount } from "@/lib/demo-users";
-import { ROLE_BY_ID, type RoleId } from "@/lib/roles";
+import { roleOf, type RoleId } from "@/lib/roles";
 
 const initialState: LoginState = {};
 
@@ -145,7 +145,7 @@ export function LoginForm({
             <option value="">Choose a role…</option>
             {demoAccounts.map((account) => (
               <option key={account.role} value={account.role}>
-                {ROLE_BY_ID[account.role].label} · {account.name}
+                {roleOf(account.role).label} · {account.name}
               </option>
             ))}
           </select>
