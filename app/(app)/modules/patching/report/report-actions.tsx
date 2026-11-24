@@ -31,9 +31,8 @@ export function ReportActions({ plans }: { plans: string }) {
         </a>
       </div>
       <p className="max-w-[460px] text-right text-[11px] leading-snug text-muted">
-        The PDF carries the logo and clean margins. Printing from the browser adds its own
-        header and footer — turn off <span className="font-medium text-body">Headers and footers</span>{" "}
-        in the print dialog to drop the date and the URL.
+        Turn off <span className="font-medium text-body">Headers and footers</span> in the print
+        dialog to drop the date and the URL.
       </p>
     </div>
   );

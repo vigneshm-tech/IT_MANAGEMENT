@@ -12,10 +12,10 @@ export function AccessDenied({ moduleTitle }: { moduleTitle: string }) {
         You don’t have access to {moduleTitle}
       </h1>
       <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-        This page is limited to specific teams. Ask your manager or IT if you need access.
+        Ask your manager or IT if you need access.
       </p>
-      <Link href="/modules/dashboard" className={buttonClass({ className: "mt-6" })}>
-        Back to overview
+      <Link href="/modules" className={buttonClass({ className: "mt-6" })}>
+        Back to modules
       </Link>
     </div>
   );

@@ -118,7 +118,7 @@ export function ClientForm({
       {client && <input type="hidden" name="id" value={client.id} />}
       <Section
         title="Client"
-        description="Who the account is, and who inside TaskTornado looks after it."
+        description="Account details and the owner inside TaskTornado."
       >
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
           <div>
@@ -223,7 +223,7 @@ export function ClientForm({
 
       <Section
         title="Primary contact"
-        description="The person IT speaks to first. Fill in what you have — anything typed must be valid."
+        description="The person IT speaks to first."
       >
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
           <div>
@@ -268,7 +268,7 @@ export function ClientForm({
 
       <Section
         title="Secondary contact"
-        description="The escalation contact. Optional, and validated the same way."
+        description="Optional."
       >
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 px-4 py-4 sm:grid-cols-2 sm:px-5">
           <div>
@@ -324,9 +324,6 @@ export function ClientForm({
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border border-line bg-surface px-4 py-3 sm:px-5">
-        <p className="text-[11.5px] text-muted">
-          The created date and last update are stamped automatically — nothing to fill in here.
-        </p>
         <div className="flex items-center gap-2">
           <Link href="/modules/clients" className={buttonClass({ variant: "secondary", size: "sm" })}>
             Cancel

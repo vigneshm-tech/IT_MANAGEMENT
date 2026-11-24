@@ -43,7 +43,7 @@ export default async function EditClientPage({ params }: PageProps) {
           <div>
             <p className="text-[13px] font-medium text-navy">That client is not in the register</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              It may have been removed while this page was open.
+              It may have been removed in another tab.
             </p>
             <Link
               href="/modules/clients"

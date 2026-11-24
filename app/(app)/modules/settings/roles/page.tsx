@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, ChevronRight, Info, Plus, Users } from "lucide-react";
+import { CheckCircle2, ChevronRight, Plus, Users } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -82,17 +82,6 @@ export default async function RolesSettingsPage({
         </p>
       )}
 
-      <p className="flex items-start gap-2 border border-line bg-surface px-4 py-2.5 text-[11.5px] leading-relaxed text-muted">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-        <span>
-          Every module is answered three ways. <span className="text-body">Not allowed</span> hides
-          it from the role entirely — no menu entry, and its pages refuse to open.{" "}
-          <span className="text-body">Read only</span> lets them look but not change anything.{" "}
-          <span className="text-body">Write</span> lets them add, edit and approve. A change applies
-          to everyone holding the role on their next page load.
-        </span>
-      </p>
-
       {!isAdmin && (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
           You can read the access matrix but not change it. Granting access is limited to
@@ -164,11 +153,11 @@ export default async function RolesSettingsPage({
       </div>
 
       <p className="text-[11.5px] text-muted">
-        A role a person holds is what they see. Assign one in{" "}
+        Assign roles in{" "}
         <Link href="/modules/users" className="text-navy underline underline-offset-2">
-          Users &amp; Groups
+          Users &amp; groups
         </Link>
-        , where adding an account asks for the role and every module follows from it.
+        .
       </p>
     </div>
   );

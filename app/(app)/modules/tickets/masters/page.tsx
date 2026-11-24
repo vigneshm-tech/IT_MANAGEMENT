@@ -49,7 +49,7 @@ export default async function TicketMastersPage() {
     {
       id: "queues",
       title: "Queues",
-      summary: "Who a ticket belongs to, and which queues the public form offers",
+      summary: "Who a ticket belongs to",
       href: "/modules/tickets/masters/queues",
       count: queues.length,
       noun: "queues",
@@ -58,7 +58,7 @@ export default async function TicketMastersPage() {
     {
       id: "targets",
       title: "Targets & shifts",
-      summary: "How fast a reply is promised, and the office clock it is measured on",
+      summary: "Reply targets and office hours",
       href: "/modules/tickets/masters/service-targets",
       count: slas.length,
       noun: "targets",
@@ -67,7 +67,7 @@ export default async function TicketMastersPage() {
     {
       id: "triggers",
       title: "Triggers",
-      summary: "If this, then that — automatic changes as a ticket is raised or answered",
+      summary: "Automatic changes when a ticket is raised or answered",
       href: "/modules/tickets/masters/triggers",
       count: triggers.length,
       noun: "triggers",
@@ -94,7 +94,7 @@ export default async function TicketMastersPage() {
     {
       id: "kb-categories",
       title: "KB categories",
-      summary: "The shelves behind the knowledge base",
+      summary: "Groups for knowledge base articles",
       href: "/modules/tickets/masters/kb-categories",
       count: kbCategories.length,
       noun: "categories",

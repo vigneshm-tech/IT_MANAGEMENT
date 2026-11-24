@@ -149,7 +149,7 @@ export function KbArticleForm({
             rows={10}
             maxLength={KB_BODY_MAX}
             defaultValue={article?.body ?? ""}
-            placeholder="Steps, in order. A blank line starts a new paragraph; a line starting with 1. or - becomes a list."
+            placeholder="Write the answer, step by step."
             className="field resize-y font-sans"
             disabled={disabled}
           />
@@ -168,7 +168,7 @@ export function KbArticleForm({
             disabled={disabled}
           />
           <p className="mt-1 text-[11px] text-muted">
-            Comma separated. Tags carry more weight than body text when an agent searches mid-reply.
+            Separate tags with commas.
           </p>
         </div>
       </div>
@@ -178,7 +178,7 @@ export function KbArticleForm({
       <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
           {canEdit
-            ? "Saved changes are live on the public site immediately, if the article is public."
+            ? "Changes to a public article appear on the public site immediately."
             : "Your role can read the knowledge base but not change it."}
         </p>
         {canEdit && (

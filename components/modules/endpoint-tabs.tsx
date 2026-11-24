@@ -296,12 +296,12 @@ export function EndpointTabs({
                 title={updatesError ? "No update list" : "Nothing missing"}
                 description={
                   updatesError
-                    ? "Action1 answered the endpoint call, but not the update list. The counts above are from the endpoint record."
+                    ? "Action1 did not return the update list for this endpoint."
                     : countedUpdates > 0
-                      ? `Action1 counts ${countedUpdates} missing ${
+                      ? `Action1 reports ${countedUpdates} missing ${
                           countedUpdates === 1 ? "update" : "updates"
-                        } for this endpoint but returned no rows. Check that the API key may read update data.`
-                      : "Action1 reports this endpoint as fully patched — there are no missing Windows or application updates."
+                        } but returned no rows.`
+                      : "This endpoint is fully patched."
                 }
                 compact
               />

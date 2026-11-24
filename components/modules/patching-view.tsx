@@ -413,7 +413,7 @@ export function PatchingView({
             <EmptyState
               icon={ClipboardList}
               title="No endpoints to plan"
-              description="Endpoints appear here as soon as Action1 reports them."
+              description="Endpoints appear once Action1 reports them."
               compact
             />
           </div>

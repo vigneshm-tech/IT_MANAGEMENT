@@ -26,7 +26,7 @@ const REGISTERS: {
   {
     key: "activityTypes",
     title: "Activity types",
-    summary: "The vocabulary the task form offers for every request",
+    summary: "Activity types offered in the task form",
     href: "/modules/masters/activity-types",
     noun: "types",
     guard: "masters",
@@ -34,7 +34,7 @@ const REGISTERS: {
   {
     key: "industries",
     title: "Industries",
-    summary: "The Industry list the client form draws from",
+    summary: "Industries offered in the client form",
     href: "/modules/masters/industries",
     noun: "industries",
     guard: "masters",
@@ -42,7 +42,7 @@ const REGISTERS: {
   {
     key: "requestTypes",
     title: "Request types",
-    summary: "The Request type list the approval form offers",
+    summary: "Request types offered in the approval form",
     href: "/modules/masters/request-types",
     noun: "types",
     guard: "masters",
@@ -50,7 +50,7 @@ const REGISTERS: {
   {
     key: "customFields",
     title: "Custom fields",
-    summary: "Extra fields, each filed under one module",
+    summary: "Extra fields for each module",
     href: "/modules/masters/custom-fields",
     noun: "fields",
     guard: "masters",

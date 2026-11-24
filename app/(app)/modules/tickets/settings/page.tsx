@@ -72,7 +72,7 @@ export default async function TicketSettingsPage() {
       href: "/modules/tickets/masters/service-targets",
       label: "Targets & shifts",
       count: slas.length + calendars.length,
-      noun: "promises and shifts",
+      noun: "targets and shifts",
     },
     { href: "/modules/tickets/masters/triggers", label: "Triggers", count: triggers.length, noun: "rules" },
     { href: "/modules/tickets/masters/macros", label: "Macros", count: macros.length, noun: "macros" },
@@ -86,7 +86,7 @@ export default async function TicketSettingsPage() {
       href: "/modules/tickets/masters/kb-categories",
       label: "KB categories",
       count: categories.length,
-      noun: "shelves",
+      noun: "categories",
     },
   ];
 
@@ -95,9 +95,7 @@ export default async function TicketSettingsPage() {
       <PageHeader title="Settings">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <TicketAdminTabs active="settings" />
-          <p className="text-[12px] text-muted">
-            The public form, the knowledge base and the mailbox — and the registers they read from
-          </p>
+          <p className="text-[12px] text-muted">Public form, email channel and queues</p>
         </div>
       </PageHeader>
 
@@ -115,15 +113,15 @@ export default async function TicketSettingsPage() {
           </div>
           <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
             <p>
-              Anyone can file at{" "}
+              Open to anyone at{" "}
               <Link href="/support/new" className="text-navy underline-offset-2 hover:underline">
                 /support/new
-              </Link>{" "}
-              — no account, five submissions an hour, and never into an internal queue.
+              </Link>
+              .
             </p>
             <p className="mt-2">
               {publicQueues.length === 0
-                ? "No queue is offered yet, so the form tells visitors to email instead."
+                ? "No queue offered yet — visitors are asked to email instead."
                 : `Offered into ${publicQueues.map((queue) => queue.name).join(", ")}.`}
             </p>
             <Link
@@ -149,8 +147,8 @@ export default async function TicketSettingsPage() {
           <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
             <p>
               {mail.enabled
-                ? "Replies to the support address open tickets in the queue below; replies carry [TT-…] in the subject."
-                : "The channel is off. Nothing is filed from mail and no reply is queued."}
+                ? "Mail to the support address opens tickets in the queue below."
+                : "Off — no mail is being filed."}
             </p>
             <p className="mt-2">
               Address{" "}
@@ -188,25 +186,20 @@ export default async function TicketSettingsPage() {
           </div>
           <div className="px-4 py-3 text-[11.5px] leading-relaxed text-muted">
             <p>
-              {articles.length} articles across {categories.length} shelves — {publicArticles.length}{" "}
-              readable without an account, {articles.length - publicArticles.length} internal.
-            </p>
-            <p className="mt-2">
-              Public readers see{" "}
-              <Link href="/support/kb" className="text-navy underline-offset-2 hover:underline">
-                /support/kb
-              </Link>
-              ; agents write at{" "}
-              <Link href="/modules/kb" className="text-navy underline-offset-2 hover:underline">
-                /modules/kb
-              </Link>
-              .
+              {articles.length} articles in {categories.length} categories · {publicArticles.length}{" "}
+              public, {articles.length - publicArticles.length} internal.
             </p>
             <Link
-              href="/modules/tickets/masters/kb-categories"
-              className="mt-2 inline-block text-[11.5px] text-navy underline underline-offset-2"
+              href="/support/kb"
+              className="text-navy underline-offset-2 hover:underline"
             >
-              Manage the shelves
+              View the public knowledge base
+            </Link>
+            <Link
+              href="/modules/tickets/masters/kb-categories"
+              className="mt-2 block text-[11.5px] text-navy underline underline-offset-2"
+            >
+              Manage categories
             </Link>
           </div>
         </article>
@@ -247,11 +240,8 @@ export default async function TicketSettingsPage() {
       <section className="space-y-2">
         <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-navy">
           <Zap className="h-4 w-4" aria-hidden />
-          What the channels read from
+          Registers
         </h2>
-        <p className="text-[11.5px] text-muted">
-          Every register below is editable, and adding to one is a form on its own page.
-        </p>
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {registers.map((register) => (
             <li key={register.href}>
@@ -270,12 +260,6 @@ export default async function TicketSettingsPage() {
         </ul>
       </section>
 
-      <p className="flex items-start gap-2 text-[11.5px] text-muted">
-        <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Secrets — the inbound and outbound tokens, the sweep key — live in the deployment
-        environment, not here. The mail worker posts to /api/tickets/inbound and the dispatcher
-        empties /api/tickets/outbox.
-      </p>
     </div>
   );
 }

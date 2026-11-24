@@ -269,10 +269,7 @@ export function TaskForm({
                 placeholder="Hostname or asset tag"
                 className="field"
               />
-              <p className="mt-1 text-[11.5px] text-muted">
-                The server list is unavailable, so this stays free text. IT can connect
-                Action1 in Settings.
-              </p>
+              <p className="mt-1 text-[11.5px] text-muted">No server list connected.</p>
             </>
           )}
         </Full>

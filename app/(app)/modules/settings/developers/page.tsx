@@ -115,8 +115,7 @@ export default async function DevelopersSettingsPage({
               Your keys
             </h2>
             <p className="mt-0.5 text-[11.5px] text-muted">
-              A key is a second password for this account. It carries the owner&apos;s role, narrowed
-              by its scopes — never widened.
+              Keys act as you, within the scopes you grant.
             </p>
           </div>
         </div>
@@ -191,9 +190,7 @@ export default async function DevelopersSettingsPage({
             Recent MCP requests
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
-            The last eight attempts to reach <code className="font-mono text-navy">{origin}/api/mcp</code>{" "}
-            — verb, JSON-RPC method, status and one line of detail. A connector that says &quot;no tools
-            loaded&quot; is one of these rows; the detail says which.
+            The last eight calls to <code className="font-mono text-navy">{origin}/api/mcp</code>.
           </p>
         </div>
 
@@ -255,8 +252,7 @@ export default async function DevelopersSettingsPage({
             Connected apps
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
-            Apps that connected themselves over OAuth and act as you until you revoke them. This is
-            what a connector screen uses — it never sees a key.
+            Apps that connected over OAuth and act as you until revoked.
           </p>
         </div>
 
@@ -310,11 +306,7 @@ export default async function DevelopersSettingsPage({
             </table>
           </div>
         )}
-        <p className="text-[11.5px] leading-relaxed text-muted">
-          Revoking ends the app&apos;s access token and the refresh token beside it, so it cannot mint
-          a new one on the next call. An app can also hold an access token that is simply left to
-          expire — an hour is a short leash on purpose.
-        </p>
+        <p className="text-[11.5px] text-muted">Revoking ends access immediately.</p>
       </section>
 
       <section aria-labelledby="api-heading" className="space-y-3">
@@ -486,11 +478,10 @@ export default async function DevelopersSettingsPage({
                 })}
               </ul>
             </div>
-            <p className="text-[11.5px] leading-relaxed text-muted">
-              Tools a key cannot use are hidden from <code className="font-mono">tools/list</code> and
-              refused by <code className="font-mono">tools/call</code>: the assistant is never told a
-              capability exists and then turned away. Nothing here reads more than the REST API would —
-              a second shape, not a second door.
+            <p className="text-[11.5px] text-muted">
+              Tools outside a key&apos;s scopes are hidden from{" "}
+              <code className="font-mono">tools/list</code> and refused by{" "}
+              <code className="font-mono">tools/call</code>.
             </p>
           </div>
         </div>

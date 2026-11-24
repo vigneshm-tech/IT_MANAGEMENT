@@ -48,7 +48,7 @@ export function TicketLinks({
 
       {links.length === 0 ? (
         <p className="px-4 py-3 text-[12px] text-muted">
-          Nothing linked yet. Link the ticket that has the same cause, or merge a duplicate.
+          Nothing linked yet.
         </p>
       ) : (
         <ul className="divide-y divide-line">

@@ -46,8 +46,8 @@ export default async function NewIisApplicationPage() {
         <>
           <p className="flex items-center gap-2 border border-line bg-surface px-4 py-2.5 text-[12px] text-muted">
             <Globe className="h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-            One row is one IIS site — the server, the binding it answers on, the pool it runs in,
-            and the folder it serves. <span className="text-body">Required: the application name.</span>
+            One row is one IIS site.{" "}
+            <span className="text-body">Required: the application name.</span>
           </p>
           <IisApplicationForm
             action={saveApplicationAction}

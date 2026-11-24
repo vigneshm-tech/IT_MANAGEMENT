@@ -35,9 +35,9 @@ export default async function EditIndustryPage({ params }: PageProps) {
         <div className="flex items-start gap-3 border border-line bg-surface px-4 py-4">
           <Factory className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
           <div>
-            <p className="text-[13px] font-medium text-navy">That entry is not in the register</p>
+            <p className="text-[13px] font-medium text-navy">That entry no longer exists</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              It may have been deleted while this page was open.
+              It may have been deleted in another tab.
             </p>
             <Link
               href="/modules/masters/industries"

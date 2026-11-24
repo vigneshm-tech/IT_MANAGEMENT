@@ -69,9 +69,7 @@ export default async function TicketTriggersPage({
           <div>
             <p className="text-[13px] font-medium text-navy">No triggers yet</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Start with the two that save the most typing: anything with &quot;outage&quot; in the
-              subject goes to Infrastructure at urgent, and anything with &quot;phish&quot; goes to
-              Security.
+              Add your first rule below.
             </p>
           </div>
         </div>

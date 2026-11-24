@@ -64,7 +64,7 @@ export default async function TicketMacrosPage({
           <div>
             <p className="text-[13px] font-medium text-navy">No macros yet</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Add the bundles agents apply most: escalate, park on the requester, close as duplicate.
+              Add a bundle of changes agents apply often.
             </p>
           </div>
         </div>

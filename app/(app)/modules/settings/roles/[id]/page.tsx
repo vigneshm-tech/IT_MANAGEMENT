@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, Info, Lock, Trash2, Users } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Lock, Trash2, Users } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { RoleMetaForm } from "@/components/modules/role-meta-form";
 import { RolePermissionsGrid } from "@/components/modules/role-permissions-grid";
@@ -62,13 +62,13 @@ export default async function RoleDetailPage({
       {flags.created && (
         <p className="flex items-center gap-2 border border-[#cfe3d2] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-          Role created. Nothing is allowed yet — tick the modules this role needs.
+          Role created. Choose the modules this role needs.
         </p>
       )}
       {flags.saved && (
         <p className="flex items-center gap-2 border border-[#cfe3d2] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
           <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-          Saved. Everyone holding this role sees the change on their next page.
+          Saved.
         </p>
       )}
       {flags.error && (
@@ -78,16 +78,11 @@ export default async function RoleDetailPage({
         </p>
       )}
 
-      <p className="flex items-start gap-2 border border-line bg-surface px-4 py-2.5 text-[11.5px] leading-relaxed text-muted">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-        <span>
-          {role.builtin
-            ? "This is a built-in role. Its name is part of the product, but what it can reach is yours to decide — a module set to Not allowed disappears from this role's navigation and its pages refuse to open."
-            : "This role belongs to your workspace. Assign it in Users & Groups and its members see exactly these modules."}{" "}
-          {role.id === "super_admin" &&
-            "The super admin keeps the user directory whatever is set here."}
-        </span>
-      </p>
+      {role.id === "super_admin" && (
+        <p className="border border-line bg-surface px-4 py-2.5 text-[11.5px] text-muted">
+          The super admin always keeps the user directory.
+        </p>
+      )}
 
       {isAdmin && !role.builtin ? (
         <RoleMetaForm

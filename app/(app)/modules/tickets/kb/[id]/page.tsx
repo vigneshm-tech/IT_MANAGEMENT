@@ -154,8 +154,7 @@ export default async function TicketKbFilePage({
 
       <p className="flex items-start gap-1.5 text-[11.5px] text-muted">
         <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-        Served through the app after a sign-in check — the storage bucket is private and has no
-        public URL.
+        Private — visible only to people who can open Tickets.
       </p>
     </div>
   );

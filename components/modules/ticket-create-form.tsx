@@ -79,7 +79,7 @@ export function TicketCreateForm({
             className="field"
           />
           <p className="mt-1 text-[11.5px] text-muted">
-            Comma separated, up to 8. Used by the search and the reports.
+            Separate tags with commas, up to 8.
           </p>
         </div>
 

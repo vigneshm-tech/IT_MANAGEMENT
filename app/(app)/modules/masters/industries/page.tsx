@@ -31,7 +31,7 @@ export default async function IndustriesPage({
   const notice = updatedItem
     ? { tone: "success" as const, text: `"${updatedItem.name}" was updated.` }
     : deleted
-      ? { tone: "muted" as const, text: "The industry was deleted from the register." }
+      ? { tone: "muted" as const, text: "Industry deleted." }
       : undefined;
 
   return (
@@ -39,9 +39,7 @@ export default async function IndustriesPage({
       title="Industries"
       description={
         <>
-          {active} active {active === 1 ? "industry" : "industries"} of {items.length}. The client
-          form offers this register instead of a free-text field, so the same industry is spelled
-          the same way on every account. Records that already stored a name keep it.
+          {active} active {active === 1 ? "industry" : "industries"} of {items.length}
         </>
       }
       items={items}
@@ -51,17 +49,17 @@ export default async function IndustriesPage({
       addAction={addIndustryAction}
       rowAction={industryRowAction}
       basePath="/modules/masters/industries"
-      deleteQuestion={'Delete "{name}" from the industry register?'}
+      deleteQuestion={'Delete "{name}"?'}
       deleteExplanation={
-        "Clients that already record this industry keep their text — they simply stop matching an option in the form, and the entry cannot be restored afterwards."
+        "Clients already using it keep their text. This cannot be undone."
       }
       addLabel="Add industry"
       nameLabel="Industry name"
       namePlaceholder="e.g. Pharmaceuticals"
-      addFootnote="Deactivate instead if clients already use it and you may want it back."
+      addFootnote="Deactivate rather than delete if clients already use it."
       emptyIcon={<Factory className="h-4 w-4" aria-hidden />}
       emptyTitle="No industries yet"
-      emptyDescription="Add the first industry above — the client form reads this register for its Industry list."
+      emptyDescription="Industries appear in the client form."
       tableId="industries"
       exportName="tasktornado-industries"
       searchPlaceholder="Search industries"

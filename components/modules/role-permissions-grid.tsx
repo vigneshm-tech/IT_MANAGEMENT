@@ -7,7 +7,6 @@ import type { FormState } from "@/lib/forms";
 import type { ModuleId } from "@/lib/modules";
 import {
   ACCESS_LEVELS,
-  ACCESS_LEVEL_HINTS,
   ACCESS_LEVEL_LABELS,
   type AccessLevel,
 } from "@/lib/roles/permissions";
@@ -132,8 +131,8 @@ export function RolePermissionsGrid({
 
       {!readOnly && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-2xl text-[11.5px] leading-relaxed text-muted">
-            {ACCESS_LEVEL_HINTS.none} {ACCESS_LEVEL_HINTS.read} {ACCESS_LEVEL_HINTS.write}
+          <p className="text-[11.5px] text-muted">
+            Read only can view. Write can add, edit and approve.
           </p>
           <Button type="submit" size="sm" disabled={pending}>
             {pending ? (

@@ -141,8 +141,7 @@ export default async function TicketQueuesPage({
       </ul>
 
       <p className="text-[11.5px] text-muted">
-        A queue that still holds tickets cannot be deleted — deactivate it, and its tickets keep
-        their history. Retiring a queue also takes it off the public form.
+        A queue holding tickets cannot be deleted — deactivate it instead.
       </p>
     </div>
   );

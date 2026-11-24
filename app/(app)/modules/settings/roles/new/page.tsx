@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { RoleMetaForm } from "@/components/modules/role-meta-form";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
@@ -53,15 +53,6 @@ export default async function NewRolePage() {
           </Link>
         </div>
       </PageHeader>
-
-      <p className="flex items-start gap-2 border border-line bg-surface px-4 py-2.5 text-[11.5px] leading-relaxed text-muted">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-        <span>
-          Name the role after the work it does, not the person doing it &mdash; &ldquo;Warehouse
-          Supervisor&rdquo; outlives a change of staff. The next screen is the module grid, where
-          every module starts at <span className="text-body">Not allowed</span>.
-        </span>
-      </p>
 
       <RoleMetaForm mode="create" action={createRoleAction} />
     </div>

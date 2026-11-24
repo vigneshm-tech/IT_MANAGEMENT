@@ -74,7 +74,7 @@ export function TicketsPortalView({
         <EmptyState
           icon={KeyRound}
           title="Connect your Redmine account"
-          description="Save your Redmine instance URL and personal API key under Settings → Integrations. The portal then lists your open issues and lets you raise new ones without leaving TaskTornado."
+          description="Connect Redmine in Settings → Integrations."
           action={
             <Link href="/modules/settings/integrations" className={buttonClass()}>
               Open Settings

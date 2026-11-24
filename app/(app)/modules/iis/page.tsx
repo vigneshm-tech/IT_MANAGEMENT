@@ -140,7 +140,7 @@ export default async function IisPage() {
             </div>
           </dl>
           <p className="mt-3 text-[12px] text-body">
-            Sites, app pools and bindings — what is running on which host, and who owns it.
+            Sites, pools and bindings by server.
           </p>
         </Link>
 
@@ -183,7 +183,7 @@ export default async function IisPage() {
             </div>
           </dl>
           <p className="mt-3 text-[12px] text-body">
-            Engines, size and the last backup for every instance behind those applications.
+            Engine, size and last backup.
           </p>
         </Link>
 
@@ -227,7 +227,7 @@ export default async function IisPage() {
             </div>
           </dl>
           <p className="mt-3 text-[12px] text-body">
-            MySQL servers with host, port, version, charset and the last backup.
+            Host, version and last backup.
           </p>
         </Link>
       </section>
@@ -235,17 +235,14 @@ export default async function IisPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-[13px] font-semibold text-navy">Needs attention</h2>
-          <p className="text-[11.5px] text-muted">
-            Stopped or degraded applications, databases and MySQL instances that are not online or
-            running, backups older than 7 days.
-          </p>
+          <p className="text-[11.5px] text-muted">Stopped services and overdue backups</p>
         </div>
 
         {attention.length === 0 ? (
           <EmptyState
             icon={ShieldAlert}
             title="Everything looks healthy"
-            description="No stopped applications, offline databases, stalled MySQL instances or overdue backups in the register."
+            description="Nothing is stopped, offline or overdue."
             compact
           />
         ) : (

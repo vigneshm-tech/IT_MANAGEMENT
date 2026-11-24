@@ -30,14 +30,13 @@ export default async function NewTicketPage() {
         </Link>
         <h1 className="mt-2 font-logo text-[24px] leading-tight text-navy">Raise a ticket</h1>
         <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-muted">
-          Tell us what is wrong and we will take it from there. No account needed — we reply to the
-          address you give us.
+          No account needed — we reply to the address you give us.
         </p>
       </div>
 
       {queues.length === 0 ? (
         <p className="border border-line bg-surface px-4 py-4 text-[12.5px] text-muted">
-          The desk is not accepting public tickets right now. Please call the service desk instead.
+          The desk is not accepting public tickets right now. Please call the service desk.
         </p>
       ) : (
         <PublicTicketForm queues={queues} />
@@ -46,7 +45,7 @@ export default async function NewTicketPage() {
       <div className="grid gap-3 sm:grid-cols-2">
         <p className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[11.5px] leading-relaxed text-muted">
           <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-          Replies are measured on the office clock — weekends and evenings do not count against us.
+          Replies are measured in office hours.
         </p>
         <p className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[11.5px] leading-relaxed text-muted">
           <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />

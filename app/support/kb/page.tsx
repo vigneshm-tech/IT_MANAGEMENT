@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Knowledge base",
-  description: "Answers from the IT service desk, readable without an account.",
+  description: "Answers from the IT service desk.",
 };
 
 export default async function PublicKbPage({
@@ -36,8 +36,7 @@ export default async function PublicKbPage({
         </Link>
         <h1 className="mt-2 font-logo text-[24px] leading-tight text-navy">Knowledge base</h1>
         <p className="mt-1.5 text-[12.5px] text-muted">
-          {articles.length} {articles.length === 1 ? "article" : "articles"} the desk keeps for the
-          questions it answers most.
+          {articles.length} {articles.length === 1 ? "article" : "articles"} from the desk.
         </p>
       </div>
 

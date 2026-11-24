@@ -132,10 +132,7 @@ export default async function TicketReportsPage() {
           </div>
         }
       >
-        <p className="text-[12.5px] text-muted">
-          Built from the tickets themselves, as they stand at {formatDateTime(now)}. The last six weeks run
-          Monday to Sunday on the office clock.
-        </p>
+        <p className="text-[12.5px] text-muted">As at {formatDateTime(now)} · last six weeks</p>
       </PageHeader>
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
@@ -173,9 +170,6 @@ export default async function TicketReportsPage() {
       <section className="space-y-2">
         <div>
           <h2 className="text-[13px] font-semibold text-navy">Raised and closed by week</h2>
-          <p className="mt-0.5 text-[11.5px] text-muted">
-            A quiet week with a tall closing bar is a good week — it means the backlog shrank.
-          </p>
         </div>
         <div className="border-y border-line bg-surface px-4 py-4 sm:px-5">
           <ul className="space-y-2.5">
@@ -233,9 +227,6 @@ export default async function TicketReportsPage() {
         firstColumn="Owner"
       />
 
-      <p className="text-[11.5px] text-muted">
-        The CSV carries the same sections, so the numbers in a deck match the ones on this page.
-      </p>
     </div>
   );
 }

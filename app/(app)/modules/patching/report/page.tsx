@@ -75,7 +75,7 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
         <EmptyState
           icon={FileText}
           title="Nothing selected"
-          description="Tick the endpoints that already have a plan on Patching Plans, then choose Prepare report."
+          description="Select endpoints that already have a plan."
           action={
             <Link href="/modules/patching" className={buttonClass({ size: "sm" })}>
               Open Patching Plans

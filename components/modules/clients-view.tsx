@@ -146,7 +146,7 @@ export function ClientsView({
           <EmptyState
             icon={Building2}
             title="No clients yet"
-            description="Add the accounts you support to link renewals, contacts and patching windows."
+            description="Add the accounts you support."
             action={
               canEdit ? (
                 <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>

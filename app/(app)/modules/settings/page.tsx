@@ -7,8 +7,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listApiKeys } from "@/lib/api/keys";
-import { API_SCOPES, effectiveScopes } from "@/lib/api/scopes";
-import { canManageAction1 } from "@/lib/integrations/access";
 import { integrationStatus } from "@/lib/integrations/store";
 import { roleOf } from "@/lib/roles";
 import { listRoleDefinitions } from "@/lib/roles/registry";
@@ -39,10 +37,6 @@ export default async function SettingsPage() {
   const roles = listRoleDefinitions();
   const activeKeys = keys.filter((key) => !key.revokedAt && (!key.expiresAt || new Date(key.expiresAt) > new Date()));
   const connected = [redmine.connected, action1.connected].filter(Boolean).length;
-  const scopes = effectiveScopes(
-    API_SCOPES.map((scope) => scope.id),
-    user.role,
-  );
 
   const sections = [
     {
@@ -50,7 +44,7 @@ export default async function SettingsPage() {
       href: "/modules/settings/profile",
       icon: Fingerprint,
       title: "Profile",
-      summary: "Who you are in this workspace, and what your access level can do",
+      summary: "Your details, access level and account settings",
       status: `${user.name} · ${role.label}`,
     },
     {
@@ -58,7 +52,7 @@ export default async function SettingsPage() {
       href: "/modules/settings/security",
       icon: ShieldCheck,
       title: "Security & sessions",
-      summary: "How you sign in, when this session ends, and how to end it now",
+      summary: "Session, password and API keys",
       status:
         user.provider === "supabase" ? "Organisation account" : "Demo directory account",
     },
@@ -67,7 +61,7 @@ export default async function SettingsPage() {
       href: "/modules/settings/integrations",
       icon: Plug,
       title: "Integrations",
-      summary: "Redmine for your assigned tickets, Action1 for the server inventory",
+      summary: "Connect Redmine and Action1",
       status: connected === 0 ? "None connected" : `${connected} of 2 connected`,
     },
     {
@@ -75,7 +69,7 @@ export default async function SettingsPage() {
       href: "/modules/settings/developers",
       icon: KeyRound,
       title: "Developers",
-      summary: "Personal API keys, the REST API at /api/v1 and the MCP endpoint",
+      summary: "API keys and connected apps",
       status:
         activeKeys.length === 0
           ? "No active keys"
@@ -86,8 +80,7 @@ export default async function SettingsPage() {
       href: "/modules/settings/roles",
       icon: UserCog,
       title: "Roles & access",
-      summary:
-        "What each role may open, and whether it can only read or may also change things",
+      summary: "Module access for every role",
       status: `${roles.length} roles · ${
         roles.filter((entry) => !entry.hidden).length
       } assignable`,
@@ -100,8 +93,7 @@ export default async function SettingsPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="hub" />
           <p className="text-[12px] text-muted">
-            {role.label} · session ends {formatDateTime(new Date(user.expiresAt * 1000))} ·{" "}
-            {scopes.length} API {scopes.length === 1 ? "scope" : "scopes"} available to you
+            {role.label} · session ends {formatDateTime(new Date(user.expiresAt * 1000))}
           </p>
         </div>
       </PageHeader>
@@ -132,11 +124,7 @@ export default async function SettingsPage() {
         ))}
       </ul>
 
-      <p className="text-[11.5px] text-muted">
-        Action1 credentials{" "}
-        {canManageAction1(user.role) ? "can be changed by you" : "are managed by IT"} — the
-        organisation shares one inventory, so one person connects it for everybody.
-      </p>
+
     </div>
   );
 }

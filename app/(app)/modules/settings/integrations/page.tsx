@@ -38,8 +38,7 @@ export default async function IntegrationsSettingsPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="integrations" />
           <p className="text-[12px] text-muted">
-            {[redmine.connected, action1.connected].filter(Boolean).length} of 2 connected · keys are
-            encrypted before they are stored
+            {[redmine.connected, action1.connected].filter(Boolean).length} of 2 connected
           </p>
         </div>
       </PageHeader>
@@ -95,11 +94,6 @@ export default async function IntegrationsSettingsPage() {
         </div>
       </section>
 
-      <p className="text-[11.5px] leading-relaxed text-muted">
-        A Redmine key is yours alone: the portal reads the issues assigned to the person who saved it.
-        Action1 is one credential for the whole workspace — whoever of IT saves it, everyone the
-        Servers module is visible to reads the same inventory.
-      </p>
     </div>
   );
 }

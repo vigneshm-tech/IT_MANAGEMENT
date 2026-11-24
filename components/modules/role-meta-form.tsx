@@ -59,12 +59,6 @@ export function RoleMetaForm({
             required
             className={`${FIELD} mt-1`}
           />
-          {mode === "create" && (
-            <p className="mt-1 text-[11px] text-muted">
-              Its key is made from the name — &ldquo;Warehouse Supervisor&rdquo; becomes{" "}
-              <code className="font-mono">warehouse_supervisor</code>.
-            </p>
-          )}
         </div>
 
         <div className="sm:col-span-2">

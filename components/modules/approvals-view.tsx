@@ -78,7 +78,7 @@ function raiseRequestDialog(triggerLabel: string, requestTypes: RequestTypeRecor
   return (
     <RecordDialog
       title="New request"
-      description="Requests route to managers, leads and management for a decision. The type list is maintained in Masters → Request types."
+      description="Route a request to the people who decide it."
       triggerLabel={triggerLabel}
       submitLabel="Submit request"
       fields={fields(requestTypes)}
@@ -173,8 +173,8 @@ export function ApprovalsView({
             title="Nothing waiting on you"
             description={
               patchApprovals.length > 0
-                ? "No request approvals are open — the patching sign-offs above are the only pending decisions."
-                : "Every request has been decided. New ones raised by the team land here."
+                ? "No open requests — the patch sign-offs above are the only pending decisions."
+                : "Every request has been decided."
             }
           />
         );
@@ -183,7 +183,7 @@ export function ApprovalsView({
           <EmptyState
             icon={Send}
             title="You have not raised a request"
-            description="Access, change, patch exceptions and purchases you ask for — and the patch plans you schedule — show up here with their decision."
+            description="Requests you raise, and the patch plans you schedule."
             action={raiseRequestDialog("Raise the first request", requestTypes)}
           />
         );
@@ -192,7 +192,7 @@ export function ApprovalsView({
           <EmptyState
             icon={BadgeCheck}
             title="Nothing approved yet"
-            description="Approved requests and signed-off patch plans stay here with who approved them and when."
+            description="Approved requests and signed-off patch plans."
           />
         );
       case "rejected":
@@ -200,7 +200,7 @@ export function ApprovalsView({
           <EmptyState
             icon={Ban}
             title="Nothing turned down"
-            description="Rejected requests and refused patch plans stay here with the reason the approver gave."
+            description="Rejected requests and refused patch plans."
           />
         );
     }

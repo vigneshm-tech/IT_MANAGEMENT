@@ -71,17 +71,13 @@ export default async function TicketEmailPage() {
             <Inbox className="h-3.5 w-3.5" aria-hidden />
             Inbound
           </h2>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-            Your mail worker posts each message to{" "}
+          <p className="mt-1 text-[11.5px] text-muted">
+            Mail arrives at{" "}
             <code className="rounded bg-[#f2f5fa] px-1 py-0.5 font-mono text-[11px]">
               POST /api/tickets/inbound
-            </code>{" "}
-            with{" "}
-            <code className="rounded bg-[#f2f5fa] px-1 py-0.5 font-mono text-[11px]">
-              Authorization: Bearer $TICKET_INBOUND_SECRET
             </code>
-            . A message whose subject carries <code className="font-mono text-[11px]">[TT-1001]</code> and
-            whose sender is on that ticket is appended; anything else opens a ticket in the queue above.
+            . A subject with <code className="font-mono text-[11px]">[TT-1001]</code> replies to that
+            ticket; anything else opens a new one.
           </p>
         </div>
         <div className="border border-line bg-surface px-4 py-3.5">
@@ -89,13 +85,12 @@ export default async function TicketEmailPage() {
             <Send className="h-3.5 w-3.5" aria-hidden />
             Outbound
           </h2>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-            Replies are written to the outbox, and the dispatcher at{" "}
+          <p className="mt-1 text-[11.5px] text-muted">
+            Replies are queued and sent through{" "}
             <code className="rounded bg-[#f2f5fa] px-1 py-0.5 font-mono text-[11px]">
               POST /api/tickets/outbox
-            </code>{" "}
-            empties it three attempts at a time. It stays inert until the relay URL above and the
-            dispatcher secret are set.
+            </code>
+            . Sending starts once the relay URL is set.
           </p>
         </div>
       </section>
@@ -104,7 +99,7 @@ export default async function TicketEmailPage() {
         <h2 className="text-[13px] font-semibold text-navy">Recent outbox</h2>
         {outbox.length === 0 ? (
           <p className="mt-2 border border-line bg-surface px-4 py-4 text-[12.5px] text-muted">
-            Nothing has been queued yet. An agent&apos;s public reply fills this once the channel is on.
+            Nothing queued yet.
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-line border-y border-line bg-surface">

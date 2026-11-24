@@ -234,7 +234,7 @@ export function TicketsView({
         }
       >
         <p className="text-[12.5px] text-muted">
-          Queues, states and history live in TaskTornado. Pick a ticket to reply, take it or close it.
+          Pick a ticket to reply, take it or close it.
         </p>
       </PageHeader>
 
@@ -300,7 +300,7 @@ export function TicketsView({
         <EmptyState
           icon={TicketIcon}
           title="No tickets match these filters"
-          description="Nothing in this view has that queue, state, priority, tag or owner. Clear the filters to see the whole tab."
+          description="No ticket matches these filters."
           action={
             <Link
               href={active === "mine" ? "/modules/tickets" : `/modules/tickets?view=${active}`}
@@ -316,7 +316,7 @@ export function TicketsView({
             <EmptyState
               icon={Inbox}
               title="Nothing assigned to you"
-              description="Pick a ticket from Unassigned, or raise one yourself. Tickets you own stay here until they are closed."
+              description="Tickets you own stay here until they are closed."
               action={
                 <Link href="/modules/tickets?view=unassigned" className={buttonClass({ size: "sm" })}>
                   See unassigned
@@ -327,7 +327,7 @@ export function TicketsView({
             <EmptyState
               icon={Inbox}
               title="You have not raised a ticket"
-              description="Tickets you raise land in a queue for the IT team. You can follow every reply here."
+              description="Follow every reply from here."
               action={
                 <Link href="/modules/tickets/new" className={buttonClass({ size: "sm" })}>
                   Raise a ticket
@@ -356,7 +356,7 @@ export function TicketsView({
           <EmptyState
             icon={AlertTriangle}
             title="Nothing closed yet"
-            description="Closed tickets stay here with their full history — reopen one and it returns to the open list."
+            description="Reopen one to send it back to the open list."
           />
         )
       ) : (

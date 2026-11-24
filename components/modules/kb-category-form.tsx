@@ -61,7 +61,7 @@ export function KbCategoryForm({
             name="description"
             maxLength={160}
             defaultValue={category?.description ?? ""}
-            placeholder="What belongs on this shelf"
+            placeholder="What belongs in this category"
             className="field"
           />
         </div>

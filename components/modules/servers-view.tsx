@@ -90,8 +90,8 @@ export function ServersView({
           title="Action1 isn’t connected"
           description={
             canConfigure
-              ? "Connect Action1 in Settings to load the endpoint inventory."
-              : "IT manages the Action1 connection for the organisation."
+              ? "Connect Action1 to load your servers."
+              : "IT manages the Action1 connection."
           }
           action={
             canConfigure ? (
@@ -298,7 +298,7 @@ export function ServersView({
           }
           description={
             inventory.endpoints.length === 0
-              ? "Action1 has no endpoints for this organization yet."
+              ? "No servers reported yet."
               : undefined
           }
           compact

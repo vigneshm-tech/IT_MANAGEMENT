@@ -69,8 +69,7 @@ export default async function TextModulesPage({
           <div>
             <p className="text-[13px] font-medium text-navy">No text modules yet</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Add the replies agents send most often — acknowledgements, restart steps, closing
-              notes.
+              Add a reply agents can insert.
             </p>
           </div>
         </div>

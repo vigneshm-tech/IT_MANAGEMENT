@@ -32,9 +32,7 @@ export default async function SecuritySettingsPage() {
       <PageHeader title="Security & sessions">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
           <SettingsTabs active="security" />
-          <p className="text-[12px] text-muted">
-            The session you are in, and the other ways into this account
-          </p>
+          <p className="text-[12px] text-muted">Session, password and API keys</p>
         </div>
       </PageHeader>
 
@@ -44,10 +42,7 @@ export default async function SecuritySettingsPage() {
             <ShieldCheck className="mt-0.5 h-4 w-4 text-navy-soft" aria-hidden />
             <div>
               <p className="text-[12.5px] text-body">
-                Signed in with{" "}
-                <span className="font-medium text-navy">
-                  {user.provider === "supabase" ? "your organisation account" : "the demo directory"}
-                </span>
+                Signed in as <span className="font-medium text-navy">{user.email}</span>
               </p>
               <p className="mt-0.5 text-[11.5px] text-muted">
                 {user.email} · {user.title}
@@ -79,17 +74,12 @@ export default async function SecuritySettingsPage() {
             </dt>
             <dd className="mt-1 text-body">
               Email and password
-              {user.provider === "supabase" ? ", managed by Supabase Auth" : ", demo accounts"}
             </dd>
           </div>
         </dl>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
-          <p className="max-w-xl text-[11.5px] leading-relaxed text-muted">
-            The session is a signed cookie that expires on its own. Signing out clears it in this
-            browser — there is no server-side list of live sessions to revoke, so this page does not
-            pretend to offer &quot;sign out everywhere&quot;.
-          </p>
+          <p className="text-[11.5px] text-muted">Signing out ends this session on this device.</p>
           <form action={logoutAction}>
             <Button type="submit" variant="secondary" size="sm">
               <LogOut className="h-3.5 w-3.5" aria-hidden />
@@ -104,10 +94,10 @@ export default async function SecuritySettingsPage() {
           <KeyRound className="h-3.5 w-3.5" aria-hidden />
           Password
         </h2>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
+        <p className="mt-1 text-[11.5px] text-muted">
           {user.provider === "supabase"
-            ? "A reset link goes to your mailbox and is valid for one hour. Resetting a password does not reset the second factor."
-            : "Demo accounts share one password, so there is nothing to reset here. A Supabase-backed deployment gets a reset link instead."}
+            ? "A reset link is valid for one hour."
+            : "Password changes are not available for this account."}
         </p>
         {user.provider === "supabase" && (
           <Link
@@ -128,8 +118,8 @@ export default async function SecuritySettingsPage() {
             </h2>
             <p className="mt-1 text-[11.5px] text-muted">
               {activeKeys.length === 0
-                ? "No key is active. A key is a second password for this account — issue one only for something you can revoke."
-                : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"} acting as you, with the scopes you granted.`}
+                ? "No active keys"
+                : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"}`}
             </p>
           </div>
           <Link

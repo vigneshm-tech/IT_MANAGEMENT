@@ -43,8 +43,7 @@ export function TicketEmailForm({
             <span>
               <span className="block text-[12.5px] font-medium text-navy">Email channel on</span>
               <span className="mt-0.5 block text-[11.5px] text-muted">
-                When on, an agent&apos;s public reply is queued for the relay and inbound mail becomes a
-                ticket.
+                Public replies are sent and incoming mail opens tickets.
               </span>
             </span>
           </label>
@@ -89,7 +88,7 @@ export function TicketEmailForm({
 
         <div>
           <label htmlFor="email-mailbox" className="field-label">
-            Folder the worker reads
+            Mail folder
           </label>
           <input
             id="email-mailbox"
@@ -134,8 +133,7 @@ export function TicketEmailForm({
             disabled={disabled}
           />
           <p className="mt-1 text-[11px] text-muted">
-            The dispatcher POSTs each queued message here as JSON. Leave it empty to queue without
-            sending — useful while the channel is being set up.
+            Leave empty to queue replies without sending.
           </p>
         </div>
       </div>
@@ -162,7 +160,7 @@ export function TicketEmailForm({
       <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
           {canEdit
-            ? "The inbound secret is an environment variable, not a field here."
+            ? "The inbound secret is set on the server."
             : "Your role can read the channel but not change it."}
         </p>
         {canEdit && (

@@ -61,8 +61,7 @@ export default async function NewClientPage() {
         }
       >
         <p className="text-[12.5px] leading-relaxed text-muted">
-          One account, two contacts and the people who own it. Required fields are marked, and the
-          created / last-updated dates are captured automatically.
+          Account details, contacts and owners.
         </p>
       </PageHeader>
 

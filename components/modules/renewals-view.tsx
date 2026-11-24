@@ -123,12 +123,12 @@ export function RenewalsView({
           <EmptyState
             icon={CalendarClock}
             title="No renewals tracked"
-            description="Licences, contracts and AMCs live here with their notice periods so nothing lapses quietly."
+            description="Licences, contracts and AMCs with their notice periods."
             action={
               canEdit ? (
                 <RecordDialog
                   title="Add renewal"
-                  description="Track the contract value, date and notice period."
+                  description="Value, date and notice period."
                   triggerLabel="Add the first renewal"
                   submitLabel="Save renewal"
                   fields={fields()}

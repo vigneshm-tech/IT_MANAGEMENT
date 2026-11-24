@@ -39,7 +39,7 @@ export default async function CustomFieldsPage({
   const notice = updatedItem
     ? { tone: "success" as const, text: `"${updatedItem.name}" was updated.` }
     : deleted
-      ? { tone: "muted" as const, text: "The custom field was deleted from the register." }
+      ? { tone: "muted" as const, text: "Custom field deleted." }
       : undefined;
 
   return (
@@ -47,9 +47,8 @@ export default async function CustomFieldsPage({
       title="Custom fields"
       description={
         <>
-          {active} active {active === 1 ? "field" : "fields"} of {items.length}, spread over{" "}
-          {modulesUsed} {modulesUsed === 1 ? "module" : "modules"}. Every field is filed under one
-          module when it is created, and the same name may be reused by another module.
+          {active} active {active === 1 ? "field" : "fields"} of {items.length} · {modulesUsed}{" "}
+          {modulesUsed === 1 ? "module" : "modules"}
         </>
       }
       items={items}

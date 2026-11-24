@@ -86,21 +86,21 @@ export default async function SupportHomePage() {
           <LifeBuoy className="h-4 w-4 text-navy" aria-hidden />
           <p className="mt-2 text-[12.5px] font-medium text-navy">A ticket number by return</p>
           <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-            You get a reference the moment you submit — quote it in any email.
+            You get a reference as soon as you submit.
           </p>
         </div>
         <div className="border border-line bg-surface px-4 py-4">
           <ShieldCheck className="h-4 w-4 text-navy" aria-hidden />
           <p className="mt-2 text-[12.5px] font-medium text-navy">No account needed</p>
           <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-            We only ask for a name and an address, so we can reply.
+            Just a name and an address.
           </p>
         </div>
         <div className="border border-line bg-surface px-4 py-4">
           <Mail className="h-4 w-4 text-navy" aria-hidden />
           <p className="mt-2 text-[12.5px] font-medium text-navy">Reply by email</p>
           <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-            Keep the ticket number in the subject and your reply lands on the ticket.
+            Keep the ticket number in the subject.
           </p>
         </div>
       </section>

@@ -152,7 +152,7 @@ export function TicketUpdateForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          Nothing is written until you save. Status and priority come from your Redmine settings.
+          Status and priority come from Redmine.
         </p>
         <div className="flex items-center gap-2">
           <Link

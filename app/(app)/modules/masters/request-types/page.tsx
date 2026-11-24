@@ -34,7 +34,7 @@ export default async function RequestTypesPage({
   const notice = updatedItem
     ? { tone: "success" as const, text: `"${updatedItem.name}" was updated.` }
     : deleted
-      ? { tone: "muted" as const, text: "The request type was deleted from the register." }
+      ? { tone: "muted" as const, text: "Request type deleted." }
       : undefined;
 
   return (
@@ -55,17 +55,17 @@ export default async function RequestTypesPage({
       addAction={addRequestTypeAction}
       rowAction={requestTypeRowAction}
       basePath="/modules/masters/request-types"
-      deleteQuestion={'Delete "{name}" from the request type register?'}
+      deleteQuestion={'Delete "{name}"?'}
       deleteExplanation={
-        "Approvals already filed under it keep their stored type id and will show a plain name instead of the register's wording. The entry cannot be restored afterwards."
+        "Existing approvals keep this name. This cannot be undone."
       }
       addLabel="Add request type"
       nameLabel="Request type"
       namePlaceholder="e.g. Vendor onboarding"
-      addFootnote="The approval form only offers active types. Deactivate instead if approvals already use it."
+      addFootnote="Only active types can be chosen. Deactivate rather than delete if approvals use it."
       emptyIcon={<ClipboardList className="h-4 w-4" aria-hidden />}
       emptyTitle="No request types yet"
-      emptyDescription="Add the first type above — the approval form reads this register for its Request type list."
+      emptyDescription="Request types appear in the approval form."
       tableId="request-types"
       exportName="tasktornado-request-types"
       searchPlaceholder="Search request types"

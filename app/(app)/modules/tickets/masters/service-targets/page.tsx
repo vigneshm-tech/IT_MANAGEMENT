@@ -146,7 +146,7 @@ export default async function ServiceTargetsPage({
 
       {slas.length === 0 ? (
         <p className="border border-line bg-surface px-4 py-4 text-[12.5px] text-muted">
-          No service targets yet. With none, a ticket still gets a resolution date from its priority.
+          No service targets yet. Priority sets the resolution date.
         </p>
       ) : (
         <ul className="divide-y divide-line border-y border-line bg-surface">
@@ -194,8 +194,7 @@ export default async function ServiceTargetsPage({
           Business shifts
         </h2>
         <p className="mt-1 text-[12px] text-muted">
-          The office clock. Weekends and evenings are closed time, so a four-hour promise made at
-          17:00 on Friday is not late on Saturday.
+          Weekends and evenings fall outside office hours.
         </p>
       </div>
 

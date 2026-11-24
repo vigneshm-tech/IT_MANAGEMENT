@@ -41,7 +41,7 @@ export default async function EditTextModulePage({ params }: PageProps) {
           <div>
             <p className="text-[13px] font-medium text-navy">That snippet is not in the register</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              It may have been deleted while this page was open.
+              It may have been deleted in another tab.
             </p>
             <Link
               href="/modules/tickets/masters/text-modules"

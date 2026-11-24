@@ -44,7 +44,7 @@ export default async function ActivityTypesPage({
   const notice = updatedItem
     ? { tone: "success" as const, text: `"${updatedItem.name}" was updated.` }
     : deleted
-      ? { tone: "muted" as const, text: "The activity type was deleted from the register." }
+      ? { tone: "muted" as const, text: "Activity type deleted." }
       : undefined;
 
   return (
@@ -52,10 +52,8 @@ export default async function ActivityTypesPage({
       title="Activity types"
       description={
         <>
-          {active} active {active === 1 ? "type" : "types"} of {items.length}. Every type belongs to
-          a module; the task form offers the {taskTypes} active {taskTypes === 1 ? "type" : "types"}{" "}
-          filed under Task Management. Deactivate a type to retire it without touching the tasks
-          that already recorded it.
+          {active} active {active === 1 ? "type" : "types"} of {items.length} · {taskTypes} offered in
+          tasks
         </>
       }
       items={items}
@@ -68,7 +66,7 @@ export default async function ActivityTypesPage({
       defaultModule={TASK_ACTIVITY_MODULE}
       moduleLabels={MODULE_LABELS}
       basePath="/modules/masters/activity-types"
-      deleteQuestion={'Delete "{name}" from the register?'}
+      deleteQuestion={'Delete "{name}"?'}
       deleteExplanation={
         'Filed under {module}. Records that already stored this name keep their text — no task, ticket or board entry changes. The type simply stops being offered from now on, and the entry cannot be restored afterwards.'
       }
@@ -77,7 +75,7 @@ export default async function ActivityTypesPage({
       namePlaceholder="e.g. Vulnerability remediation"
       emptyIcon={<Tags className="h-4 w-4" aria-hidden />}
       emptyTitle="No activity types yet"
-      emptyDescription="Add the first type above — the task form will only offer types from this register."
+      emptyDescription="Activity types appear in the task form."
       tableId="activity-types"
       exportName="tasktornado-activity-types"
       searchPlaceholder="Search activity types"

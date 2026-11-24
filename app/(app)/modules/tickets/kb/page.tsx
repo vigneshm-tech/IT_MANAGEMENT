@@ -234,8 +234,7 @@ export default async function TicketKbPage({
 
       <p className="flex items-start gap-1.5 text-[11.5px] text-muted">
         <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-        Files are private: they are stored outside the public web and served through the app after a
-        sign-in check, so a link cannot be opened by somebody who cannot open Tickets.
+        Files are private to people who can open Tickets.
       </p>
     </div>
   );

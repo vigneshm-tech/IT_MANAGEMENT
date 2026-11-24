@@ -72,14 +72,14 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
         open={open}
         onClose={() => setOpen(false)}
         size="lg"
-        title="Collect IIS applications from Windows"
-        description="Run this PowerShell script on the server. It reports one row per IIS site — the binding, the pool, directory browsing, the root path and the certificate actually mapped — then posts them here in batches."
+        title="Collect IIS applications"
+        description="Run this script on the server to add its sites to the register."
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] text-muted">
               {canIngest
-                ? "Your key will be accepted: this endpoint is open to the IT manager and the super admin."
-                : "Only an IT manager or super admin key is accepted by this endpoint — you can still download the script for whoever holds one."}
+                ? "Use the API key issued in Settings › Developers."
+                : "Uploads need an IT manager or super admin key."}
             </p>
             <div className="flex items-center gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={() => copy(script, "script")}>
@@ -140,10 +140,7 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
                 className="field font-mono text-[12px]"
               />
               <p className="text-[11px] text-muted">
-                Issued in Settings › Developers, with the <span className="font-mono">iis:write</span>{" "}
-                scope. It is not sent anywhere from this page — it only fills in the script below,
-                so leave it blank if you would rather pass <span className="font-mono">-ApiKey</span>{" "}
-                on the server.
+                Issued in Settings › Developers. Leave blank to pass it on the server instead.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -157,22 +154,14 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
                 placeholder="Leave blank for the machine's own name"
                 className="field"
               />
-              <p className="text-[11px] text-muted">
-                Blank uses <span className="font-mono">$env:COMPUTERNAME</span>, which is what the
-                register should usually show.
-              </p>
+              <p className="text-[11px] text-muted">Blank uses the machine&apos;s own name.</p>
             </div>
           </div>
 
           <div className="rounded-md border border-line bg-[#f7f9fc] px-3 py-2.5">
-            <p className="flex items-center gap-1.5 text-[11.5px] font-medium text-navy">
-              <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
-              Who may push
-            </p>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-              The endpoint accepts keys owned by the <span className="font-medium">IT manager</span>{" "}
-              and the <span className="font-medium">super admin</span> only, whatever other scopes the
-              key carries. Reading and editing this register in the browser is unaffected.
+            <p className="flex items-center gap-1.5 text-[11.5px] text-muted">
+              <ShieldAlert className="h-3.5 w-3.5 text-navy" aria-hidden />
+              Only IT manager and super admin keys can upload.
             </p>
           </div>
 
@@ -180,14 +169,13 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
             <div className="flex items-center justify-between">
               <p className="field-label mb-0">Script</p>
               <p className="text-[11px] text-muted">
-                {script.split("\n").length} lines · PowerShell 5.1+ · sites only by default
+                {script.split("\n").length} lines · PowerShell 5.1+
               </p>
             </div>
-            <p className="text-[11px] leading-relaxed text-muted">
-              <span className="font-mono">-ListOnly</span> shows the table without sending ·{" "}
-              <span className="font-mono">-IncludeApplications</span> adds virtual directories as
-              their own rows · <span className="font-mono">-AllBindings</span> one row per binding ·{" "}
-              <span className="font-mono">-DumpPath</span> writes the JSON it sends.
+            <p className="text-[11px] text-muted">
+              <span className="font-mono">-ListOnly</span> previews without uploading ·{" "}
+              <span className="font-mono">-IncludeApplications</span> includes virtual directories ·{" "}
+              <span className="font-mono">-AllBindings</span> one row per binding
             </p>
             <pre className="max-h-64 overflow-auto rounded-md border border-line bg-[#0f2142] px-3 py-2.5 text-[11px] leading-[1.55] text-[#dbe6f5]">
               <code>{script}</code>

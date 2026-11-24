@@ -168,8 +168,7 @@ export function TicketSlaForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          The most specific rule wins: queue and priority together, then queue, then priority, then the
-          catch-all. Minutes are office minutes, not wall-clock ones.
+          The most specific rule wins. Minutes are office hours.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (

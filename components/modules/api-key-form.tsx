@@ -97,8 +97,7 @@ export function ApiKeyForm({
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-muted">
-            Only the scopes your access level can grant are listed. A scope is a ceiling, never a
-            promotion: the role behind the key is checked on every request.
+            Only the scopes your access level allows are listed.
           </p>
         </fieldset>
       </div>

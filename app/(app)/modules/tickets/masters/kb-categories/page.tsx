@@ -79,7 +79,7 @@ export default async function TicketKbCategoriesPage({
           className="border border-[#eccfcd] bg-danger-soft px-4 py-2.5 text-[12.5px] text-danger"
         >
           &quot;{blockedCategory.name}&quot; still holds {blockedCount}{" "}
-          {blockedCount === 1 ? "article" : "articles"}. Move them to another shelf first, or
+          {blockedCount === 1 ? "article" : "articles"}. Move them to another category first, or
           deactivate the category instead.
         </p>
       )}
