@@ -76,7 +76,7 @@ function MobileFields({
         />
       </div>
       <p className="mt-1.5 text-[11px] text-muted">
-        Pick the country code, then the number without it. Digits only are stored.
+        Country code, then the number.
       </p>
     </div>
   );
@@ -150,7 +150,7 @@ export function ClientForm({
               className="field font-mono uppercase"
             />
             <p className="mt-1.5 text-[11px] text-muted">
-              Used on registers and tickets. Left blank, it is taken from the name.
+              Shown on tickets. Blank uses the name.
             </p>
           </div>
 
@@ -214,7 +214,7 @@ export function ClientForm({
             </select>
             {people.length === 0 && (
               <p className="mt-1.5 text-[11px] text-muted">
-                The directory is empty, so the account stays with the owner role.
+                No users to assign yet.
               </p>
             )}
           </div>

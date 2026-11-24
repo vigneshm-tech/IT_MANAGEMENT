@@ -37,7 +37,7 @@ export default async function NewIisApplicationPage() {
             className="inline-flex items-center gap-1 text-[11.5px] text-muted transition-colors hover:text-navy"
           >
             <ArrowLeft className="h-3 w-3" aria-hidden />
-            Back to the register
+            Back to applications
           </Link>
         </div>
       </PageHeader>
@@ -57,7 +57,7 @@ export default async function NewIisApplicationPage() {
         </>
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read the application register but not add to it.
+          Read only — you cannot add applications.
         </p>
       )}
     </div>

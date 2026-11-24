@@ -140,7 +140,7 @@ export function IisCollectorPanel({ canIngest }: { canIngest: boolean }) {
                 className="field font-mono text-[12px]"
               />
               <p className="text-[11px] text-muted">
-                Issued in Settings › Developers. Leave blank to pass it on the server instead.
+                Issued in Settings › Developers.
               </p>
             </div>
             <div className="space-y-1.5">

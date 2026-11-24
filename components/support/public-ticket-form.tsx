@@ -38,10 +38,10 @@ export function PublicTicketForm({ queues }: { queues: TicketQueueRecord[] }) {
         <p className="mt-1.5 text-[13px] text-body">
           Your ticket number is{" "}
           <span className="font-mono text-[13.5px] font-semibold text-navy">{state.ticketId}</span>.
-          Quote it in any email about this problem — replies that carry it land straight on the ticket.
+          Quote it in any email about this problem.
         </p>
         <p className="mt-3 text-[12px] text-muted">
-          We reply to the address you gave us. Nothing else is needed from you right now.
+          We reply to the address you gave us.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
@@ -157,7 +157,7 @@ export function PublicTicketForm({ queues }: { queues: TicketQueueRecord[] }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          We use your name and address only to answer this ticket.
+          Only used to answer this ticket.
         </p>
         <Button type="submit" disabled={pending}>
           {pending ? (

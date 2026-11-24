@@ -49,7 +49,7 @@ export default async function NewTicketPage() {
         </p>
         <p className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[11.5px] leading-relaxed text-muted">
           <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy" aria-hidden />
-          Already have a ticket number? Reply to our last email and keep it in the subject line.
+          Already have a ticket number? Reply to our last email.
         </p>
       </div>
     </div>

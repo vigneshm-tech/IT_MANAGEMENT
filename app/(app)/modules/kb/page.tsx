@@ -174,7 +174,7 @@ export default async function KbPage({
           <div>
             <h2 className="text-[13px] font-semibold text-navy">New article</h2>
             <p className="mt-1 text-[12px] text-muted">
-              Write the answer once; link it from a reply instead of typing it again.
+              Link an answer from a reply instead of retyping it.
             </p>
           </div>
           <KbArticleForm

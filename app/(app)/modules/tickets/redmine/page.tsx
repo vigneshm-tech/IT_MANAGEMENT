@@ -33,7 +33,7 @@ export default async function RedminePortalPage({
           Back to Tickets
         </Link>
         <p className="text-[11.5px] text-muted">
-          Issues raised here live in Redmine, not in TaskTornado.
+          These issues live in Redmine.
         </p>
       </div>
 

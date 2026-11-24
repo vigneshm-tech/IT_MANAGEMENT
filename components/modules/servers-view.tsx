@@ -143,7 +143,7 @@ export function ServersView({
         <div className="border border-[#f2c9c9] bg-danger-soft px-4 py-3">
           <p className="flex items-center gap-2 text-[13px] font-medium text-danger">
             <AlertTriangle className="h-4 w-4" aria-hidden />
-            {`Action1 could not be read${inventory.status ? ` (HTTP ${inventory.status})` : ""}.`}
+            Action1 could not be read.
           </p>
           <p className="mt-1 text-[12.5px] text-body">{inventory.message}</p>
           {canConfigure && (
@@ -208,7 +208,7 @@ export function ServersView({
           </span>
           <span className="text-[#c2cbd9]">·</span>
           <span className="text-muted">
-            Refreshed daily by the nightly job{inventory.syncedFrom === "live" ? " · read live just now" : ""}
+            Updated daily
           </span>
           {inventory.stale && (
             <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">

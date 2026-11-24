@@ -133,8 +133,7 @@ export default async function RoleDetailPage({
                 </>
               ) : (
                 <>
-                  Nobody holds this role, so deleting it removes only the definition. Set its
-                  modules to Not allowed instead if you only want to switch it off.
+                  Nobody holds this role — deleting it removes only the definition.
                 </>
               )}
             </p>

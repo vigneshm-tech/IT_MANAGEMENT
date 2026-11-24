@@ -33,13 +33,13 @@ export default async function NewTicketPage() {
         }
       >
         <p className="text-[12.5px] text-muted">
-          The ticket is created in Redmine with your API key — nothing is stored locally.
+          The ticket is created in Redmine.
         </p>
       </PageHeader>
 
       {!canCreate ? (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read tickets but not raise them.
+          Read only — you cannot raise tickets.
         </p>
       ) : projects.state === "disconnected" ? (
         <div className="flex items-start gap-3 border border-line bg-surface px-4 py-4">
@@ -47,7 +47,7 @@ export default async function NewTicketPage() {
           <div>
             <p className="text-[13px] font-medium text-navy">Redmine is not connected</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Save your instance URL and API key first.
+              Connect Redmine in Settings → Integrations.
             </p>
             <Link
               href="/modules/settings/integrations"
@@ -66,7 +66,7 @@ export default async function NewTicketPage() {
         </div>
       ) : projects.projects.length === 0 ? (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          This Redmine account cannot see any projects. A ticket needs a project.
+          This Redmine account cannot see any projects.
         </p>
       ) : (
         <TicketForm projects={projects.projects} />

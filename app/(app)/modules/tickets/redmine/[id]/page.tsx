@@ -51,7 +51,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           <div>
             <p className="text-[13px] font-medium text-navy">Redmine is not connected</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              Save your instance URL and API key to open tickets here.
+              Connect Redmine in Settings → Integrations.
             </p>
             <Link
               href="/modules/settings/integrations"
@@ -148,9 +148,6 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-navy">
             Activity
           </h2>
-          <p className="mt-1 text-[11.5px] text-muted">
-            Journal entries as Redmine stores them, newest at the bottom.
-          </p>
         </div>
 
         <div className="px-4 py-4 sm:px-5">
@@ -190,7 +187,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
         />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read tickets but not change them.
+          Read only — you cannot change this ticket.
         </p>
       )}
     </div>

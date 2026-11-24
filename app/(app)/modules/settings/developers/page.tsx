@@ -76,7 +76,7 @@ export default async function DevelopersSettingsPage({
             {activeKeys.length === 0
               ? "No active keys"
               : `${activeKeys.length} active ${activeKeys.length === 1 ? "key" : "keys"}`}{" "}
-            · {granting.length} of {API_SCOPES.length} scopes your role can grant ·{" "}
+            · {granting.length} scopes available ·{" "}
             {liveApps.length === 0
               ? "no connected apps"
               : `${liveApps.length} connected ${liveApps.length === 1 ? "app" : "apps"}`}
@@ -122,7 +122,7 @@ export default async function DevelopersSettingsPage({
 
         {keys.length === 0 ? (
           <p className="border-y border-line bg-surface px-4 py-6 text-center text-[12.5px] text-muted">
-            No keys yet. Issue one below when a script or an assistant needs to read tickets.
+            No keys yet.
           </p>
         ) : (
           <div className="overflow-x-auto border-y border-line">
@@ -196,9 +196,8 @@ export default async function DevelopersSettingsPage({
 
         {requests.length === 0 ? (
           <p className="border-y border-line bg-surface px-4 py-5 text-[12.5px] text-muted">
-            Nothing has reached the endpoint yet. If you have just added the connector, its attempt will
-            appear here within a second — an empty table means the request never arrived (wrong URL, or
-            blocked before it reached the app).
+            No calls yet. If you just added the connector, retry it — an empty table means the request
+            never arrived.
           </p>
         ) : (
           <div className="overflow-x-auto border-y border-line">
@@ -252,15 +251,13 @@ export default async function DevelopersSettingsPage({
             Connected apps
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
-            Apps that connected over OAuth and act as you until revoked.
+            Apps that act as you until revoked.
           </p>
         </div>
 
         {liveApps.length === 0 ? (
           <p className="border-y border-line bg-surface px-4 py-5 text-[12.5px] text-muted">
-            No app is connected. Add{" "}
-            <code className="font-mono text-navy">{origin}/api/mcp</code> as an MCP connector and it
-            will land on a consent screen instead of failing.
+            No app connected yet.
           </p>
         ) : (
           <div className="overflow-x-auto border-y border-line">
@@ -384,9 +381,9 @@ export default async function DevelopersSettingsPage({
             MCP server
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
-            <code className="font-mono text-navy">{origin}/api/mcp</code> · JSON-RPC 2.0 over POST ·
-            protocol <code className="font-mono text-navy">{MCP_PROTOCOL_VERSION}</code> · OAuth 2.1
-            or a personal key, the same scopes either way
+            <code className="font-mono text-navy">{origin}/api/mcp</code> · protocol{" "}
+            <code className="font-mono text-navy">{MCP_PROTOCOL_VERSION}</code> · OAuth 2.1 or a
+            personal key
           </p>
         </div>
 
@@ -421,7 +418,7 @@ export default async function DevelopersSettingsPage({
                     <td className="px-2.5 py-1.5 font-mono text-navy">X-TaskTornado-Key</td>
                     <td className="px-2.5 py-1.5 font-mono text-body">tt_…</td>
                     <td className="px-2.5 py-1.5 text-muted">
-                      App-specific; nothing can silently replace it
+                      App-specific
                     </td>
                   </tr>
                   <tr>

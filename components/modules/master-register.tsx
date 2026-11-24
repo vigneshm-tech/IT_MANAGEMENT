@@ -215,7 +215,7 @@ export function MasterRegister({
                   Keep it
                 </Link>
                 <span className="text-[11.5px] text-muted">
-                  Or deactivate it instead to retire it but keep the entry.
+                  Or deactivate it to keep the entry.
                 </span>
               </div>
             </div>

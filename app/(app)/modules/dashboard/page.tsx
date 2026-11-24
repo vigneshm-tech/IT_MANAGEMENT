@@ -6,7 +6,6 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDot,
-  KeyRound,
   ListChecks,
   Plus,
   Server,
@@ -313,7 +312,7 @@ export default async function OverviewPage() {
             <h2 id="recent-heading" className="text-[14px] font-semibold text-navy">
               Recent tasks
             </h2>
-            <p className="mt-0.5 text-[12px] text-muted">Latest activity across every team</p>
+            <p className="mt-0.5 text-[12px] text-muted">Across every team</p>
           </div>
           <Link
             href="/modules/tasks"
@@ -403,7 +402,7 @@ export default async function OverviewPage() {
         {showSetup && (
           <div>
             <h2 className="text-[14px] font-semibold text-navy">Connections</h2>
-            <p className="mt-0.5 text-[12px] text-muted">Bring your tools into TaskTornado</p>
+            <p className="mt-0.5 text-[12px] text-muted">Not connected yet</p>
 
             <ul className="mt-3 divide-y divide-line border-t border-line">
               {!redmine.connected && (
@@ -448,10 +447,6 @@ export default async function OverviewPage() {
               )}
             </ul>
 
-            <div className="mt-4 flex items-start gap-2 text-[11.5px] leading-relaxed text-muted">
-              <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              Keys are stored per user and masked after saving.
-            </div>
           </div>
         )}
       </section>

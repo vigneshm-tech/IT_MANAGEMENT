@@ -61,8 +61,8 @@ export default async function IisDatabasesPage({
       {deleting && (
         <div className="flex flex-wrap items-center justify-between gap-3 border border-[#f0d5d5] bg-danger-soft px-4 py-3">
           <p className="text-[12.5px] text-danger">
-            Remove <span className="font-medium">“{deleting.name}”</span> from the register? Its
-            history goes with it — retire it instead if you only want to stop tracking it.
+            Remove <span className="font-medium">“{deleting.name}”</span>? Its history goes too —
+            retire it instead to keep it.
           </p>
           <div className="flex items-center gap-2">
             <Link

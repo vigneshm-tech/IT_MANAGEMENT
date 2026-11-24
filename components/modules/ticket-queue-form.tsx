@@ -26,7 +26,7 @@ export function TicketQueueForm({
   if (!canEdit) {
     return (
       <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-        Your role can read the queues but not change them.
+        Read only — you cannot change queues.
       </p>
     );
   }
@@ -94,7 +94,7 @@ export function TicketQueueForm({
               Offered on the public form
             </span>
             <span className="mt-0.5 block text-[11.5px] text-muted">
-              A visitor at /support/new can file into this queue without an account.
+              Anyone can file here at /support/new.
             </span>
           </span>
         </label>

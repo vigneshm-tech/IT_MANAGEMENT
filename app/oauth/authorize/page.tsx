@@ -31,7 +31,7 @@ function Invalid({ reason }: { reason: string }) {
         <h1 className="mt-4 text-[17px] font-semibold text-navy">This connection request is not valid</h1>
         <p className="mt-2 text-[12.5px] leading-relaxed text-muted">{reason}</p>
         <p className="mt-4 text-[12px] text-muted">
-          Nothing was granted. A client must register itself and send a redirect address it owns.
+          Nothing was granted.
         </p>
         <Link
           href="/modules/settings/developers"
@@ -111,9 +111,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
             Connect &ldquo;{client.name}&rdquo;
           </h1>
           <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
-            It is asking for access to your TaskTornado workspace. It will act as{" "}
-            <span className="font-medium text-navy">{session.name}</span> ({role.label}), and can never
-            do more than that access level allows.
+            It will act as <span className="font-medium text-navy">{session.name}</span>{" "}
+            ({role.label}) and can never exceed that access level.
           </p>
         </div>
 
@@ -123,8 +122,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
           </p>
           {scopes.length === 0 ? (
             <p className="mt-2 border border-[#ecd9b6] bg-warning-soft px-3 py-2 text-[12px] text-[#7b5c1d]">
-              Nothing: your role cannot grant any of the scopes requested. Connecting would produce an
-              app that always fails.
+              Nothing — your role cannot grant the access it asks for.
             </p>
           ) : (
             <ul className="mt-2 divide-y divide-line border-y border-line">
@@ -143,7 +141,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
           <div className="mt-4 flex items-center justify-between gap-3 text-[11.5px] text-muted">
             <span className="inline-flex items-center gap-1.5">
               <KeyRound className="h-3 w-3" aria-hidden />
-              One app, one approval — revocable any time
+              Revocable any time
             </span>
             <StatusPill status="active" label={role.label} />
           </div>

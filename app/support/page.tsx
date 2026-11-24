@@ -28,8 +28,7 @@ export default async function SupportHomePage() {
           How can we help?
         </h1>
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-body">
-          Search the knowledge base first — most problems already have an answer. If yours does not, raise
-          a ticket and the desk will pick it up. You do not need an account for either.
+          Search the knowledge base, or raise a ticket. No account needed.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/support/new" className={buttonClass({ variant: "primary", size: "md" })}>

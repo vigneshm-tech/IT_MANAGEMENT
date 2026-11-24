@@ -124,12 +124,6 @@ export default async function ServiceTargetsPage({
         </div>
       </PageHeader>
 
-      <div className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[12px] text-muted">
-        <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Promises are cut when a ticket is raised and stored on it. Changing a target only affects
-        tickets raised after the change — a promise already made is not rewritten.
-      </div>
-
       {canEdit ? (
         <TicketSlaForm
           key={editingSla?.id ?? "new-sla"}
@@ -140,7 +134,7 @@ export default async function ServiceTargetsPage({
         />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read the targets but not change them.
+          Read only — you cannot change targets.
         </p>
       )}
 

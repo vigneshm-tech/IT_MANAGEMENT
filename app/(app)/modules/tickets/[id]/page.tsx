@@ -101,7 +101,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           <div>
             <p className="text-[13px] font-medium text-navy">That ticket is not here</p>
             <p className="mt-1 text-[12.5px] text-muted">
-              It may have been deleted, or it belongs to someone else.
+              It may have been deleted, or it is not yours to open.
             </p>
             <Link
               href="/modules/tickets"
@@ -268,8 +268,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
 
           {ticket.state === "merged" ? (
             <p className="border border-line bg-[#f4f7fc] px-4 py-3 text-[12.5px] text-body">
-              This ticket is merged into another one — replies continue there. Nothing has been
-              deleted; the history above stays for reference.
+              Merged into another ticket — replies continue there.
             </p>
           ) : (
             <TicketReplyForm
@@ -332,7 +331,7 @@ export default async function TicketPage({ params, searchParams }: PageProps) {
           ) : (
             <div className="flex items-start gap-2 border border-line bg-surface px-4 py-3 text-[12px] text-muted">
               <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              You raised this ticket. Replies you add go straight to the agent handling it.
+              Your replies go to the agent handling this ticket.
             </div>
           )}
         </aside>

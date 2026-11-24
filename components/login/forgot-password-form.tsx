@@ -29,21 +29,18 @@ export function ForgotPasswordForm({ demoMode }: { demoMode: boolean }) {
         <p className="mt-2 text-[13px] leading-relaxed text-body">
           {demoMode ? (
             <>
-              This preview runs without mail delivery. In production, a reset link is
-              emailed to <span className="font-medium text-navy">{state.email}</span> and
-              stays valid for one hour.
+              A reset link for <span className="font-medium text-navy">{state.email}</span>{" "}
+              would be emailed here and stay valid for one hour. Mail delivery is off in this preview.
             </>
           ) : (
             <>
               If <span className="font-medium text-navy">{state.email}</span> belongs to an
-              account, a reset link is on its way. It expires in one hour and can only be
-              used once.
+              account, a reset link is on its way. It expires in one hour.
             </>
           )}
         </p>
         <p className="mt-4 text-[12px] leading-relaxed text-muted">
-          Nothing arrived? Check the spam folder, then ask IT to confirm the address on
-          your profile.
+          Nothing arrived? Check spam, then ask IT to confirm your address.
         </p>
         <Link
           href="/login"

@@ -84,8 +84,7 @@ export default async function RolesSettingsPage({
 
       {!isAdmin && (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          You can read the access matrix but not change it. Granting access is limited to
-          administrators.
+          Read only — you cannot change access.
         </p>
       )}
 

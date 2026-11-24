@@ -36,9 +36,7 @@ export function TicketCreateForm({
             placeholder="One line: what is wrong or needed?"
             className="field"
           />
-          <p className="mt-1 text-[11.5px] text-muted">
-            Everything after this lives in the ticket thread — you can add detail below.
-          </p>
+          <p className="mt-1 text-[11.5px] text-muted">Add detail below.</p>
         </div>
 
         <div>
@@ -139,7 +137,7 @@ export function TicketCreateForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          You are the requester. Agents in the queue are notified in their list.
+          You will be the requester.
         </p>
         <div className="flex items-center gap-2">
           <Link href="/modules/tickets" className={buttonClass({ variant: "secondary", size: "sm" })}>

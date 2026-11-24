@@ -294,7 +294,7 @@ export function TicketCalendarForm({
             defaultValue={offset}
             className="field"
           />
-          <p className="mt-1 text-[11px] text-muted">India is 330. Use a fixed offset; a shift here does not follow daylight saving.</p>
+          <p className="mt-1 text-[11px] text-muted">Minutes from UTC — India is 330.</p>
         </div>
       </div>
 
@@ -303,7 +303,7 @@ export function TicketCalendarForm({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="flex items-center gap-1.5 text-[11.5px] text-muted">
           <Clock className="h-3.5 w-3.5" aria-hidden />
-          Targets pointed at a deleted shift fall back to the first active one.
+          A deleted shift is replaced by the first active one.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (

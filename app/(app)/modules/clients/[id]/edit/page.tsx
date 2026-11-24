@@ -62,7 +62,7 @@ export default async function EditClientPage({ params }: PageProps) {
       <div className="space-y-4">
         <PageHeader title={client.name} />
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read the client register but not change it.
+          Read only — you cannot change clients.
         </p>
         <Link href="/modules/clients" className={buttonClass({ variant: "secondary", size: "sm" })}>
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />

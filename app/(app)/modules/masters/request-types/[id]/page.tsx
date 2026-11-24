@@ -93,7 +93,7 @@ export default async function EditRequestTypePage({ params }: PageProps) {
         />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read master data but not change it.
+          Read only — you cannot change master data.
         </p>
       )}
     </div>

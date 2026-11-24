@@ -148,7 +148,7 @@ export default async function TicketSettingsPage() {
             <p>
               {mail.enabled
                 ? "Mail to the support address opens tickets in the queue below."
-                : "Off — no mail is being filed."}
+                : "No mail is being filed."}
             </p>
             <p className="mt-2">
               Address{" "}
@@ -161,8 +161,7 @@ export default async function TicketSettingsPage() {
               </span>
             </p>
             <p className="mt-1">
-              Outbox: {queued} queued, {failed} failed of the last {outbox.length} · updated{" "}
-              {formatDateTime(mail.updatedAt)}
+              Replies: {queued} queued, {failed} failed · updated {formatDateTime(mail.updatedAt)}
             </p>
             <Link
               href="/modules/tickets/settings/email"
@@ -208,13 +207,13 @@ export default async function TicketSettingsPage() {
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
             <h2 className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-navy">
               <Send className="h-3.5 w-3.5" aria-hidden />
-              Recent outbox
+              Recent replies
             </h2>
-            <span className="text-[11px] text-muted">last {recentOutbox.length}</span>
+            <span className="text-[11px] text-muted">{recentOutbox.length} shown</span>
           </div>
           {recentOutbox.length === 0 ? (
             <p className="px-4 py-3 text-[11.5px] text-muted">
-              Nothing queued yet. An agent&apos;s public reply lands here once the channel is on.
+              Nothing queued yet.
             </p>
           ) : (
             <ul className="divide-y divide-line">
@@ -240,7 +239,7 @@ export default async function TicketSettingsPage() {
       <section className="space-y-2">
         <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-navy">
           <Zap className="h-4 w-4" aria-hidden />
-          Registers
+          Queues &amp; templates
         </h2>
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {registers.map((register) => (

@@ -150,7 +150,7 @@ export function LoginForm({
             ))}
           </select>
           <p className="mt-2 text-[11.5px] text-muted">
-            The role is filled into the form above so you can sign in as that team.
+            Fills the form above with that account.
           </p>
         </div>
       )}

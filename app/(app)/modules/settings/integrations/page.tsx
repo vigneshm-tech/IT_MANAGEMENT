@@ -85,11 +85,11 @@ export default async function IntegrationsSettingsPage() {
                 name: "orgId",
                 label: "Organization ID",
                 placeholder: "Optional — first organization",
-                hint: "Leave blank to use the first organization the credential can see.",
+                hint: "Blank uses the first organization.",
               },
             ]}
-            hint="Create an API key in the Action1 console under Settings → API keys."
-            managedBy="Super Admin, IT Manager or IT Engineer can connect Action1."
+            hint="Create the API key in the Action1 console."
+            managedBy="Managed by IT."
           />
         </div>
       </section>

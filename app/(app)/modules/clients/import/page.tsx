@@ -22,7 +22,7 @@ export default async function ImportClientsPage() {
       <div className="space-y-4">
         <PageHeader title="Import clients" />
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read the client register but not add to it.
+          Read only — you cannot add clients.
         </p>
       </div>
     );

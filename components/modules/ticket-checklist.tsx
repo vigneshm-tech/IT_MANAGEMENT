@@ -34,7 +34,7 @@ export function TicketChecklist({
 
       {tasks.length === 0 ? (
         <p className="px-4 py-3 text-[12px] text-muted">
-          Break the work into steps — they tick off here and count on the ticket list.
+          Add the steps for this ticket.
         </p>
       ) : (
         <ul className="divide-y divide-line">

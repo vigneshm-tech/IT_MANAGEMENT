@@ -58,7 +58,7 @@ export function ApiKeyForm({
             className="field"
           />
           <p className="mt-1 text-[11px] text-muted">
-            Name it after the thing that will use it, so revoking it later is obvious.
+            Name it after what will use it.
           </p>
         </div>
         <div>

@@ -96,7 +96,7 @@ export function IisApplicationForm({
   if (!canEdit) {
     return (
       <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-        Your role can read the application register but not change it.
+        Read only — you cannot change applications.
       </p>
     );
   }
@@ -348,7 +348,7 @@ export function IisDatabaseForm({
   if (!canEdit) {
     return (
       <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-        Your role can read the database register but not change it.
+        Read only — you cannot change databases.
       </p>
     );
   }
@@ -537,7 +537,7 @@ export function IisMysqlForm({
   if (!canEdit) {
     return (
       <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-        Your role can read the MySQL register but not change it.
+        Read only — you cannot change MySQL instances.
       </p>
     );
   }

@@ -59,7 +59,7 @@ export default async function TextModulesPage({
         />
       ) : (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read text modules but not change them.
+          Read only — you cannot change text modules.
         </p>
       )}
 

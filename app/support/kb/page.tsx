@@ -101,7 +101,7 @@ export default async function PublicKbPage({
             {searching ? `Nothing matched “${q}”.` : "No articles here yet."}
           </p>
           <p className="mt-1.5 text-[12px] text-muted">
-            Raise a ticket and the desk will answer — the answer often becomes an article.
+            Raise a ticket and the desk will answer.
           </p>
           <Link
             href="/support/new"

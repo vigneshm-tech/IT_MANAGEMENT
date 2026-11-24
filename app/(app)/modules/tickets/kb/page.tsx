@@ -69,8 +69,7 @@ export default async function TicketKbPage({
       {deleting && (
         <div className="flex flex-wrap items-center justify-between gap-3 border border-[#f0d5d5] bg-danger-soft px-4 py-3">
           <p className="text-[12.5px] text-danger">
-            Delete <span className="font-medium">“{deleting.title}”</span>? The file is removed from
-            storage as well, and cannot be recovered.
+            Delete <span className="font-medium">“{deleting.title}”</span>? This cannot be undone.
           </p>
           <div className="flex items-center gap-2">
             <Link

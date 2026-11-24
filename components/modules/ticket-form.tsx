@@ -60,7 +60,7 @@ export function TicketForm({ projects }: { projects: { id: number; name: string 
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          Priority and tracker follow the project defaults in Redmine.
+          Priority and tracker come from Redmine.
         </p>
         <div className="flex items-center gap-2">
           <Link href="/modules/tickets" className={buttonClass({ variant: "secondary", size: "sm" })}>

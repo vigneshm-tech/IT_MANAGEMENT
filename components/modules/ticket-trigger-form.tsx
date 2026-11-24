@@ -136,7 +136,7 @@ export function TicketTriggerForm({
             </div>
           </div>
           <p className="mt-1 text-[11px] text-muted">
-            Matching ignores case. A priority or state value has to be the id, e.g. <code>urgent</code>.
+            Matching ignores case. Use the value, e.g. <code>urgent</code>.
           </p>
         </div>
 
@@ -257,7 +257,7 @@ export function TicketTriggerForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <p className="text-[11.5px] text-muted">
-          Rules run in the order listed. The first rule to set a field wins; tags add up.
+          Rules run top to bottom; the first to set a field wins, tags add up.
         </p>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? (

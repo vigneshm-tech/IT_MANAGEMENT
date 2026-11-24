@@ -42,8 +42,7 @@ export default async function ResetPasswordPage() {
                 This link has expired
               </h1>
               <p className="mt-2 text-[13px] leading-relaxed text-body">
-                Reset links are single-use and last one hour. Request a fresh one and open
-                it in this browser.
+                Reset links are single use and last one hour.
               </p>
               <Link
                 href="/login/forgot-password"

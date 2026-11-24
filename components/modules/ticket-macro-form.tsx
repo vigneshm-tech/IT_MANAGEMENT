@@ -39,7 +39,7 @@ export function TicketMacroForm({
         </button>
       </div>
       <p className="mt-1.5 text-[11px] leading-snug text-muted">
-        Every macro leaves a line in the thread, so the change is never silent.
+        The change is recorded in the thread.
       </p>
     </form>
   );

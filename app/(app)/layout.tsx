@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Heart } from "lucide-react";
 import { LaunchIntro } from "@/components/intro/launch-intro";
 import { Breadcrumbs } from "@/components/nav/breadcrumbs";
 import { TopNav, type NavGroup } from "@/components/nav/top-nav";
@@ -106,12 +105,7 @@ export default async function WorkspaceLayout({
             TaskTornado
           </span>
           <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden />
-          <span>Developed by Infeara Technologies</span>
-          <span className="ml-auto inline-flex items-center gap-1.5">
-            Made with
-            <Heart className="h-3 w-3 text-gold" aria-hidden />
-            <span className="sr-only">love</span>
-          </span>
+          <span>Infeara Technologies</span>
         </div>
       </footer>
     </div>

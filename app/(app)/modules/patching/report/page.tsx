@@ -233,8 +233,7 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
         </div>
 
         <footer className="mt-6 border-t border-line pt-2.5 text-[10.5px] text-muted">
-          Patch data as Action1 reports it on {prepared}. TaskTornado · Developed by Infeara
-          Technologies.
+          Patch data as at {prepared} · TaskTornado, Infeara Technologies
         </footer>
       </article>
     </div>

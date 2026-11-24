@@ -29,7 +29,7 @@ export default async function NewClientPage() {
         <PageHeader title="New client" />
         <div className="flex items-start gap-3 border border-line bg-surface px-4 py-4">
           <p className="text-[12.5px] text-muted">
-            Your role can read the client register but not add to it.
+            Read only — you cannot add clients.
           </p>
         </div>
         <Link href="/modules/clients" className={buttonClass({ variant: "secondary", size: "sm" })}>

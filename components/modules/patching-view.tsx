@@ -263,9 +263,9 @@ export function PatchingView({
           </p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-body">
             {inventory.kind === "not_connected"
-              ? "Endpoint names and patch counts come from Action1. Connect it under Settings to build plans."
+              ? "Connect Action1 to see endpoints and patch counts."
               : inventory.kind === "unconfigured"
-                ? `Missing ${inventory.missing.join(" and ")}. Complete the connection under Settings.`
+                ? `Missing ${inventory.missing.join(" and ")} in Settings → Integrations.`
                 : inventory.message}
           </p>
           <Link

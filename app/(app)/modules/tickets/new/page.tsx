@@ -33,17 +33,17 @@ export default async function NewTicketPage() {
         }
       >
         <p className="text-[12.5px] text-muted">
-          The ticket is stored in TaskTornado and lands in the queue you pick.
+          It lands in the queue you pick.
         </p>
       </PageHeader>
 
       {!canCreate ? (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          Your role can read tickets but not raise them.
+          Read only — you cannot raise tickets.
         </p>
       ) : queues.length === 0 ? (
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
-          No ticket queue is active, so a ticket has nowhere to land.
+          No queue is active. Ask IT to add one.
         </p>
       ) : (
         <TicketCreateForm queues={queues} clients={clients} />
