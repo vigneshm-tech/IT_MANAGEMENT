@@ -4,7 +4,7 @@ import { AlertCircle, Loader2, Save } from "lucide-react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
-import { ROLE_LABEL_MAX, ROLE_DESCRIPTION_MAX, ROLE_GROUPS_FOR_PICKER } from "@/lib/roles/types";
+import { ROLE_LABEL_MAX, ROLE_GROUPS_FOR_PICKER } from "@/lib/roles/types";
 import type { RoleGroup, RoleLevel } from "@/lib/roles";
 
 const LEVELS: { id: RoleLevel; label: string; hint: string }[] = [
@@ -30,7 +30,7 @@ export function RoleMetaForm({
 }: {
   mode: "create" | "edit";
   action: (state: FormState, formData: FormData) => Promise<FormState>;
-  role?: { id: string; label: string; description: string; group: RoleGroup; level: RoleLevel };
+  role?: { id: string; label: string; group: RoleGroup; level: RoleLevel };
 }) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
 
@@ -57,20 +57,6 @@ export function RoleMetaForm({
             maxLength={ROLE_LABEL_MAX}
             placeholder="Warehouse Supervisor"
             required
-            className={`${FIELD} mt-1`}
-          />
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className={LABEL} htmlFor="role-description">
-            What this role is for
-          </label>
-          <input
-            id="role-description"
-            name="description"
-            defaultValue={role?.description ?? ""}
-            maxLength={ROLE_DESCRIPTION_MAX}
-            placeholder="Runs the warehouse floor and the stock portal"
             className={`${FIELD} mt-1`}
           />
         </div>

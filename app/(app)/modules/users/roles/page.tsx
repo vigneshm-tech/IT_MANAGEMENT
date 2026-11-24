@@ -43,7 +43,6 @@ export default async function RolesPage({
   const grouped = GROUP_ORDER.map((group) => ({
     group,
     label: ROLE_GROUPS[group].label,
-    description: ROLE_GROUPS[group].description,
     roles: roles.filter((role) => role.group === group),
   })).filter((entry) => entry.roles.length > 0);
 
@@ -54,7 +53,6 @@ export default async function RolesPage({
     grouped.push({
       group: "custom",
       label: ROLE_GROUPS.custom.label,
-      description: ROLE_GROUPS.custom.description,
       roles: strays,
     });
   }
@@ -92,10 +90,7 @@ export default async function RolesPage({
       <div className="space-y-5">
         {grouped.map((entry) => (
           <section key={entry.group} className="space-y-2">
-            <div className="flex flex-wrap items-baseline gap-x-3">
-              <h2 className="text-[13px] font-semibold text-navy">{entry.label}</h2>
-              <p className="text-[11.5px] text-muted">{entry.description}</p>
-            </div>
+            <h2 className="text-[13px] font-semibold text-navy">{entry.label}</h2>
 
             <ul className="divide-y divide-line border-y border-line bg-surface">
               {entry.roles.map((role) => (
@@ -126,9 +121,6 @@ export default async function RolesPage({
                             Hidden
                           </span>
                         )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11.5px] text-muted">
-                        {role.description || "No description yet."}
                       </span>
                     </span>
                     <span className="hidden shrink-0 text-right text-[11.5px] text-muted md:block">

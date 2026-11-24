@@ -85,15 +85,13 @@ export default async function RoleDetailPage({
           role={{
             id: role.id,
             label: role.label,
-            description: role.description,
             group: role.group,
             level: role.level,
           }}
         />
       ) : (
         <div className="border border-line bg-surface px-4 py-3 sm:px-5">
-          <p className="text-[12.5px] text-body">{role.description || "No description yet."}</p>
-          <p className="mt-1 text-[11.5px] text-muted">
+          <p className="text-[11.5px] text-muted">
             Key <code className="font-mono">{role.id}</code>
             {role.builtin ? " · built-in role" : ""} · {role.level}
             {role.unrestrictedTaskCreation ? " · creates tasks any hour" : ""}

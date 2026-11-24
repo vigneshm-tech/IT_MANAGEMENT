@@ -15,7 +15,7 @@ import {
   persistRoleMeta,
 } from "@/lib/roles/registry";
 import { extendRoleEnum } from "@/lib/roles/repository";
-import { validateRoleDescription, validateRoleLabel } from "@/lib/roles/types";
+import { validateRoleLabel } from "@/lib/roles/types";
 
 const LIST_PATH = "/modules/users/roles";
 
@@ -84,10 +84,6 @@ export async function createRoleAction(
   const labelError = validateRoleLabel(label);
   if (labelError) return { error: labelError };
 
-  const description = text(formData, "description");
-  const descriptionError = validateRoleDescription(description);
-  if (descriptionError) return { error: descriptionError };
-
   const id = roleSlug(label);
   if (!id || id.length < 3) {
     return { error: "That name is too short to make a role key from." };
@@ -104,7 +100,9 @@ export async function createRoleAction(
   const error = await persistRoleMeta({
     id,
     label,
-    description,
+    // A role's one-line description is no longer shown or asked for; new
+    // roles start without one and a rename never touches an existing one.
+    description: "",
     group: groupFrom(text(formData, "group")),
     level: levelOf(text(formData, "level")),
     accent: "#64748b",
@@ -141,10 +139,6 @@ export async function saveRoleMetaAction(
   const labelError = validateRoleLabel(label);
   if (labelError) return { error: labelError };
 
-  const description = text(formData, "description");
-  const descriptionError = validateRoleDescription(description);
-  if (descriptionError) return { error: descriptionError };
-
   // The record tables store a role as an enum value, so the key has to exist
   // in the database before the catalogue row that points at it.
   const enumError = await extendRoleEnum(id);
@@ -153,7 +147,9 @@ export async function saveRoleMetaAction(
   const error = await persistRoleMeta({
     id,
     label,
-    description,
+    // Kept as stored: the description is not part of this form any more, so a
+    // rename must not blank whatever the role was created with.
+    description: current.description,
     group: groupFrom(text(formData, "group")),
     level: levelOf(text(formData, "level")),
     accent: current.accent,
