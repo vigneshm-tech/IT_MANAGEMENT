@@ -18,7 +18,8 @@ C# proof of concept was written around; it is now part of the app.
 | Storing and reading the capture | `lib/tickets/redmine-clients.ts` |
 | Tables | `supabase/migrations/0040_redmine_clients.sql` |
 | Page (with **Sync now**) | `app/(app)/modules/tickets/redmine/clients` |
-| Entry point | **Clients** on the Redmine portal header |
+| Also shown in the Clients module | `/modules/clients` — tab *From Redmine* |
+| Entry points | **Clients** on the Redmine portal header; *From Redmine* tab in Clients |
 
 ## How the scan works
 
@@ -67,6 +68,26 @@ Nothing else on the page calls Redmine. A page load reads our tables only.
 `674` and `112` are the defaults. Both can be changed per profile in
 **Settings → Integrations → Redmine** (Portal project id, Client field id), which
 is where the scan's two assumptions are visible instead of buried in code.
+
+## Also in the Clients module
+
+The captured list is a client list, so it also lives where clients live:
+`/modules/clients` now has two tabs — **Client register** (the accounts we
+maintain) and **From Redmine** (everything the scan captured). Both use the same
+panel; the register keeps its Import and Add client buttons, the captured tab
+gets **Sync now**.
+
+Opening `/modules/clients` with no `view` picks the tab a reader needs rather
+than the one the code happens to default to: if the register has no rows and the
+capture does, the captured list opens (an empty register would otherwise present
+the module as empty while the client list sat one tab away). A single register
+row, or an explicit `?view=`, overrides that. `resolveClientTab` in
+`lib/clients.ts` is the rule, and it is unit tested.
+
+Who may sync is `canSyncRedmineClients(role)` — the tickets *edit* right or the
+clients *edit* right, since the list is client data read out of Tickets. The scan
+still only returns what the caller's own Redmine key can see, and the action
+re-checks the role rather than trusting the hidden button.
 
 ## Matching our own clients
 

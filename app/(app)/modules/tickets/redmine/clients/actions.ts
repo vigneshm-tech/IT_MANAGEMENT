@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { can } from "@/lib/access";
+import { canSyncRedmineClients } from "@/lib/integrations/access";
 import { requireUser } from "@/lib/auth";
 import { runClientSync } from "@/lib/tickets/redmine-clients";
 
@@ -25,8 +25,9 @@ export async function syncRedmineClientsAction(
 ): Promise<ClientSyncState> {
   const user = await requireUser();
 
-  if (!can(user.role, "tickets", "edit")) {
-    return { error: "Your role cannot change tickets, so it cannot refresh this list." };
+  // The list is client data read out of Tickets, so either right is enough.
+  if (!canSyncRedmineClients(user.role)) {
+    return { error: "Your role cannot change clients or tickets, so it cannot refresh this list." };
   }
 
   const result = await runClientSync(user.id, "manual");

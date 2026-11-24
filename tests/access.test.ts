@@ -8,6 +8,7 @@ import {
   type RoleId,
 } from "../lib/roles";
 import { can, canAccessModule, visibleModules } from "../lib/access";
+import { canSyncRedmineClients } from "../lib/integrations/access";
 import { MODULES } from "../lib/modules";
 
 const ALL_ROLES = [...ROLE_IDS] as RoleId[];
@@ -155,4 +156,21 @@ test("dashboard is available to all and every module declares a view rule", () =
     );
     assert.ok(module.access.view, `${module.id} needs a view rule`);
   }
+});
+
+test("the Redmine client scan follows either the tickets or the clients right", () => {
+  for (const role of ALL_ROLES) {
+    assert.equal(
+      canSyncRedmineClients(role),
+      can(role, "tickets", "edit") || can(role, "clients", "edit"),
+      `${role} should follow tickets-edit or clients-edit`,
+    );
+  }
+
+  // Not everybody: someone who may only raise tickets cannot run the scan.
+  assert.equal(
+    ALL_ROLES.some((role) => !canSyncRedmineClients(role)),
+    true,
+    "at least one role must be refused",
+  );
 });

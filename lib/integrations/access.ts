@@ -1,3 +1,4 @@
+import { can } from "../access";
 import type { RoleId } from "../roles";
 
 /**
@@ -20,4 +21,15 @@ export type IntegrationProviderKey = "redmine" | "action1";
  */
 export function integrationSlot(userId: string, provider: IntegrationProviderKey): string {
   return provider === "action1" ? "organisation:action1" : `${userId}:${provider}`;
+}
+
+/**
+ * Who may run the Redmine client scan.
+ *
+ * The captured list belongs to the Clients module (it is a client list) but is
+ * read out of Tickets (it only exists on tickets). Either right is enough, and
+ * the scan still returns nothing the caller's own Redmine key cannot see.
+ */
+export function canSyncRedmineClients(role: RoleId): boolean {
+  return can(role, "tickets", "edit") || can(role, "clients", "edit");
 }

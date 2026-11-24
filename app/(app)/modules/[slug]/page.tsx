@@ -10,8 +10,12 @@ import { isServersFilter, ServersView } from "@/components/modules/servers-view"
 import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
 import { can, canAccessModule } from "@/lib/access";
+import { canSyncRedmineClients } from "@/lib/integrations/access";
+import { getIntegration } from "@/lib/integrations/store";
 import { approvalView } from "@/lib/approvals/views";
+import { resolveClientTab } from "@/lib/clients";
 import { parseTicketFilters } from "@/lib/tickets/core";
+import { readClientCatalogue } from "@/lib/tickets/redmine-clients";
 import { requireUser } from "@/lib/auth";
 import { loadServersInventory } from "@/lib/servers/inventory";
 import { getModule } from "@/lib/modules";
@@ -119,9 +123,28 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
     }
 
     case "clients": {
-      const [{ created, updated }, clients] = await Promise.all([searchParams, listClients()]);
+      // Both lists live on this page: the register we maintain, and the client
+      // list Redmine already has. The captured list also decides which one to
+      // open when the address does not say.
+      const [{ created, updated, view }, clients, catalogue] = await Promise.all([
+        searchParams,
+        listClients(),
+        readClientCatalogue(),
+      ]);
+      const tab = resolveClientTab(view, clients.length, catalogue.clients.length);
+      const redmine = tab === "redmine" ? await getIntegration(user.id, "redmine") : null;
+
       return (
-        <ClientsView user={user} clients={clients} createdId={created} updatedId={updated} />
+        <ClientsView
+          user={user}
+          clients={clients}
+          createdId={created}
+          updatedId={updated}
+          tab={tab}
+          catalogue={catalogue}
+          redmineConnected={Boolean(redmine?.baseUrl)}
+          canSync={canSyncRedmineClients(user.role)}
+        />
       );
     }
 

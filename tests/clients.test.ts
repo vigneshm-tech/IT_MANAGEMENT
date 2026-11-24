@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CLIENT_TABS,
   clientCodeError,
   clientFormError,
   clientNameError,
   clientTimestamps,
   deriveClientCode,
+  isClientTab,
   normaliseClientCode,
+  resolveClientTab,
 } from "../lib/clients";
 import {
   COUNTRIES,
@@ -205,4 +208,39 @@ test("assignable users come from the directory without the hidden account", asyn
   assert.ok(people.every((person) => person.id && person.name));
   assert.ok(!people.some((person) => person.id === "u-super-admin"));
   assert.ok(people.some((person) => person.name === "Meera Raghavan"));
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Which list the Clients module opens on                                    */
+/* -------------------------------------------------------------------------- */
+
+test("the clients module opens the register unless only the captured list has rows", () => {
+  // Nothing asked for: the register, when it has anything in it.
+  assert.equal(resolveClientTab(undefined, 3, 68), "register");
+  assert.equal(resolveClientTab(undefined, 3, 0), "register");
+  // An empty register with a captured list must not show an empty module.
+  assert.equal(resolveClientTab(undefined, 0, 68), "redmine");
+  // Nothing anywhere: the register, where clients are added.
+  assert.equal(resolveClientTab(undefined, 0, 0), "register");
+  // An explicit tab always wins, even when its list is empty.
+  assert.equal(resolveClientTab("redmine", 5, 0), "redmine");
+  assert.equal(resolveClientTab("register", 0, 68), "register");
+  // Anything else in the address is not a tab.
+  assert.equal(resolveClientTab("bogus", 0, 68), "redmine");
+  assert.equal(resolveClientTab("", 2, 0), "register");
+});
+
+test("the client tabs are exactly the two lists, with their addresses", () => {
+  assert.equal(isClientTab("register"), true);
+  assert.equal(isClientTab("redmine"), true);
+  assert.equal(isClientTab("mine"), false);
+  assert.equal(isClientTab(undefined), false);
+
+  assert.deepEqual(
+    CLIENT_TABS.map((tab) => [tab.id, tab.href]),
+    [
+      ["register", "/modules/clients"],
+      ["redmine", "/modules/clients?view=redmine"],
+    ],
+  );
 });

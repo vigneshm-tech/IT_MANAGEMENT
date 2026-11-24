@@ -144,3 +144,43 @@ export function clientTimestamps(createdAt: string, updatedAt: string): {
   return { created: format(createdAt), updated: format(updatedAt), touched };
 }
 
+
+/* -------------------------------------------------------------------------- */
+/*  Which list the Clients module opens on                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The Clients module holds two lists, because they answer two questions.
+ *
+ * The *register* is the accounts we manage — contacts, industry, owner. The
+ * *captured* list is every client Redmine has ever had on a ticket, read from
+ * the Client-eShopaid field. A workspace that raises tickets from day one has
+ * the second before the first, so neither list can be hidden behind the other.
+ */
+export type ClientTab = "register" | "redmine";
+
+export function isClientTab(value: string | undefined): value is ClientTab {
+  return value === "register" || value === "redmine";
+}
+
+/**
+ * What to show when the address says nothing.
+ *
+ * An empty register with a captured list would present the module as empty when
+ * it is not, so the captured list wins in that one case. A single register row,
+ * or an explicit `view`, overrides it.
+ */
+export function resolveClientTab(
+  requested: string | undefined,
+  registerCount: number,
+  capturedCount: number,
+): ClientTab {
+  if (isClientTab(requested)) return requested;
+  return registerCount === 0 && capturedCount > 0 ? "redmine" : "register";
+}
+
+/** The tab the module offers, and the address that opens it. */
+export const CLIENT_TABS: { id: ClientTab; label: string; href: string }[] = [
+  { id: "register", label: "Client register", href: "/modules/clients" },
+  { id: "redmine", label: "From Redmine", href: "/modules/clients?view=redmine" },
+];

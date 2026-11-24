@@ -21,29 +21,43 @@ const COLUMNS: Column[] = [
   { key: "register", label: "Client record", type: "muted", width: "170px" },
 ];
 
-/**
- * The client list Redmine already knows, captured rather than queried.
- *
- * The values live on tickets, so this page shows what the last scan read: the
- * client's name, the short codes that follow it, the exact string Redmine stores
- * (which is what a future update has to send back), and whether our own client
- * register already has a record for it.
- */
-export function RedmineClientsView({
-  catalogue,
-  connected,
-  canSync,
-  register,
-}: {
+type PanelProps = {
   catalogue: ClientCatalogue;
   /** False when no Redmine key is saved for this person. */
   connected: boolean;
   canSync: boolean;
   register: RegisterCandidate[];
-}) {
+};
+
+/**
+ * The captured list itself: what the last scan read, where an attempt failed,
+ * and how old the capture is. No header — the Clients module and the Redmine
+ * portal both put their own above it.
+ */
+export function RedmineClientsPanel({
+  catalogue,
+  connected,
+  canSync,
+  register,
+}: PanelProps) {
   const { clients, sync } = catalogue;
   const lastError = sync?.lastError ?? null;
   const stale = isSyncStale(sync);
+
+  if (!connected) {
+    return (
+      <EmptyState
+        icon={KeyRound}
+        title="Redmine isn’t connected"
+        description="Connect Redmine in Settings → Integrations and the client list can be read from its tickets."
+        action={
+          <Link href="/modules/settings/integrations" className={buttonClass()}>
+            Open Settings
+          </Link>
+        }
+      />
+    );
+  }
 
   const rows: TableRow[] = clients.map((client) => {
     const match = matchRegisterClient(client, register);
@@ -58,49 +72,8 @@ export function RedmineClientsView({
     };
   });
 
-  const header = (
-    <PageHeader
-      title="Redmine clients"
-      actions={
-        connected && canSync && clients.length > 0 ? <RedmineClientSync /> : undefined
-      }
-    />
-  );
-
-  const back = (
-    <Link
-      href="/modules/tickets/redmine"
-      className="inline-flex items-center gap-1.5 text-[12px] text-muted transition-colors hover:text-navy"
-    >
-      <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-      Back to the Redmine portal
-    </Link>
-  );
-
-  if (!connected) {
-    return (
-      <div className="space-y-4">
-        {back}
-        {header}
-        <EmptyState
-          icon={KeyRound}
-          title="Redmine isn’t connected"
-          description="Connect Redmine in Settings → Integrations and the client list can be read from its tickets."
-          action={
-            <Link href="/modules/settings/integrations" className={buttonClass()}>
-              Open Settings
-            </Link>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {back}
-      {header}
-
       {lastError && (
         <div className="border border-[#f0dfb4] bg-warning-soft px-4 py-3">
           <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-warning">
@@ -158,6 +131,35 @@ export function RedmineClientsView({
           }
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * The same list, as a page of its own under the Redmine portal — for anyone who
+ * is working in Tickets and wants the client list without leaving the module.
+ */
+export function RedmineClientsView(props: PanelProps) {
+  const hasRows = props.catalogue.clients.length > 0;
+
+  return (
+    <div className="space-y-4">
+      <Link
+        href="/modules/tickets/redmine"
+        className="inline-flex items-center gap-1.5 text-[12px] text-muted transition-colors hover:text-navy"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+        Back to the Redmine portal
+      </Link>
+
+      <PageHeader
+        title="Redmine clients"
+        actions={
+          props.connected && props.canSync && hasRows ? <RedmineClientSync /> : undefined
+        }
+      />
+
+      <RedmineClientsPanel {...props} />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Building2, Plus, Upload } from "lucide-react";
+import { ClientTabs } from "@/components/modules/client-tabs";
+import { RedmineClientSync } from "@/components/modules/redmine-client-sync";
+import { RedmineClientsPanel } from "@/components/modules/redmine-clients-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { DataTable, type Column, type TableRow } from "@/components/ui/data-table";
@@ -8,9 +11,10 @@ import { can } from "@/lib/access";
 import { VISIBLE_ROLES, isLeadership } from "@/lib/roles";
 import type { SessionUser } from "@/lib/auth/token";
 import { updateClientStatusAction } from "@/app/(app)/modules/clients/actions";
-import { clientTimestamps } from "@/lib/clients";
+import { clientTimestamps, type ClientTab } from "@/lib/clients";
 import { formatPhone } from "@/lib/countries";
 import type { ClientRecord } from "@/lib/records/repository";
+import type { ClientCatalogue } from "@/lib/tickets/redmine-clients";
 
 const COLUMNS: Column[] = [
   { key: "name", label: "Client" },
@@ -30,15 +34,25 @@ const COLUMNS: Column[] = [
 ];
 
 /**
- * Clients register. The create form lives on its own page
- * (`/modules/clients/new`) — full page, no popup — and every field the register
- * captures is a column here, so nothing has to be opened to be checked.
+ * The Clients module: two lists, one page.
+ *
+ * *Client register* — the accounts we manage, with contacts, industry and owner.
+ * The create form lives on its own page (`/modules/clients/new`), full page, no
+ * popup, and every field the register captures is a column here.
+ *
+ * *From Redmine* — every client the ticket system has on a ticket, captured by
+ * the scan. A workspace that raises tickets before it fills a register would
+ * otherwise be shown an empty module while the client list sits one tab away.
  */
 export function ClientsView({
   user,
   clients,
   createdId,
   updatedId,
+  tab = "register",
+  catalogue = { clients: [], sync: null },
+  redmineConnected = false,
+  canSync = false,
 }: {
   user: SessionUser;
   clients: ClientRecord[];
@@ -46,6 +60,12 @@ export function ClientsView({
   createdId?: string;
   /** Set after a client was edited in this session. */
   updatedId?: string;
+  tab?: ClientTab;
+  /** The captured Redmine list; empty until a sync has run. */
+  catalogue?: ClientCatalogue;
+  redmineConnected?: boolean;
+  /** Whether this person may run the scan (their own Redmine key). */
+  canSync?: boolean;
 }) {
   const canEdit = can(user.role, "clients", "edit");
   // RLS removes client rows for leadership only (clients_delete -> is_leadership()).
@@ -95,64 +115,108 @@ export function ClientsView({
     };
   });
 
+  const registerActions =
+    canEdit && tab === "register" ? (
+      <>
+        <Link
+          href="/modules/clients/import"
+          className={buttonClass({ variant: "secondary", size: "sm" })}
+        >
+          <Upload className="h-3.5 w-3.5" aria-hidden />
+          Import
+        </Link>
+        <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          Add client
+        </Link>
+      </>
+    ) : undefined;
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Clients"
         actions={
-          canEdit ? (
-            <>
-              <Link
-                href="/modules/clients/import"
-                className={buttonClass({ variant: "secondary", size: "sm" })}
-              >
-                <Upload className="h-3.5 w-3.5" aria-hidden />
-                Import
-              </Link>
-              <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
-                Add client
-              </Link>
-            </>
-          ) : undefined
+          tab === "redmine" ? (
+            redmineConnected && canSync && catalogue.clients.length > 0 ? (
+              <RedmineClientSync />
+            ) : undefined
+          ) : (
+            registerActions
+          )
         }
-      />
+      >
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
+          <ClientTabs active={tab} />
+        </div>
+      </PageHeader>
 
-      {created && (
-        <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
-          {created.name} was added to the register.
-        </p>
+      {tab === "redmine" && (
+        <RedmineClientsPanel
+          catalogue={catalogue}
+          connected={redmineConnected}
+          canSync={canSync}
+          register={clients.map((client) => ({
+            id: client.id,
+            name: client.name,
+            code: client.code,
+          }))}
+        />
       )}
 
-      {updated && (
-        <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
-          {updated.name} was updated.
-        </p>
-      )}
+      {tab === "register" && (
+        <>
+          {created && (
+            <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
+              {created.name} was added to the register.
+            </p>
+          )}
 
-      <DataTable
-        columns={COLUMNS}
-        rows={rows}
-        tableId="clients"
-        exportName="tasktornado-clients"
-        rowAction={canEdit ? updateClientStatusAction : undefined}
-        rowActions={[]}
-        searchPlaceholder="Search clients, codes, industries, contacts or owners"
-        emptyState={
-          <EmptyState
-            icon={Building2}
-            title="No clients yet"
-            description="Add the accounts you support."
-            action={
-              canEdit ? (
-                <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
-                  Add the first client
-                </Link>
-              ) : undefined
+          {updated && (
+            <p className="border border-[#cfe4d4] bg-success-soft px-4 py-2.5 text-[12.5px] text-success">
+              {updated.name} was updated.
+            </p>
+          )}
+
+          <DataTable
+            columns={COLUMNS}
+            rows={rows}
+            tableId="clients"
+            exportName="tasktornado-clients"
+            rowAction={canEdit ? updateClientStatusAction : undefined}
+            rowActions={[]}
+            searchPlaceholder="Search clients, codes, industries, contacts or owners"
+            emptyState={
+              <EmptyState
+                icon={Building2}
+                title="No clients yet"
+                description={
+                  catalogue.clients.length > 0
+                    ? "Add the accounts you support — or start from the list Redmine already has."
+                    : "Add the accounts you support."
+                }
+                action={
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {canEdit && (
+                      <Link href="/modules/clients/new" className={buttonClass({ size: "sm" })}>
+                        Add the first client
+                      </Link>
+                    )}
+                    {catalogue.clients.length > 0 && (
+                      <Link
+                        href="/modules/clients?view=redmine"
+                        className={buttonClass({ variant: "secondary", size: "sm" })}
+                      >
+                        See the Redmine list
+                      </Link>
+                    )}
+                  </div>
+                }
+              />
             }
           />
-        }
-      />
+        </>
+      )}
     </div>
   );
 }

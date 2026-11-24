@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { RedmineClientsView } from "@/components/modules/redmine-clients-view";
-import { can, canAccessModule } from "@/lib/access";
+import { canAccessModule } from "@/lib/access";
+import { canSyncRedmineClients } from "@/lib/integrations/access";
 import { requireUser } from "@/lib/auth";
 import { getIntegration } from "@/lib/integrations/store";
 import { listClients } from "@/lib/records/repository";
@@ -30,7 +31,7 @@ export default async function RedmineClientsPage() {
     <RedmineClientsView
       catalogue={catalogue}
       connected={Boolean(record?.baseUrl)}
-      canSync={can(user.role, "tickets", "edit")}
+      canSync={canSyncRedmineClients(user.role)}
       register={clients.map((client) => ({
         id: client.id,
         name: client.name,
