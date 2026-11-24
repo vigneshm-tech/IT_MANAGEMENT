@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { can } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import type { FormState } from "@/lib/forms";
@@ -101,12 +102,13 @@ export async function saveApplicationAction(
   }
 
   revalidate();
-  return {
-    ok: true,
-    message: id
-      ? `"${input.name}" updated.`
-      : `"${input.name}" added to the register.`,
-  };
+
+  // The form is its own page now, so a save ends on the register it changed.
+  redirect(
+    id
+      ? `/modules/iis/applications?updated=${encodeURIComponent(input.name)}`
+      : `/modules/iis/applications?saved=${encodeURIComponent(input.name)}`,
+  );
 }
 
 export async function saveDatabaseAction(
@@ -161,12 +163,17 @@ export async function applicationRowAction(formData: FormData): Promise<void> {
 
   const id = text(formData, "id");
   const intent = text(formData, "intent");
+  const returnTo = text(formData, "returnTo");
   if (!id) return;
 
   if (intent === "delete") await deleteApplication(id);
   else await setApplicationActive(id, intent === "activate");
 
   revalidate();
+
+  // Come back to the view the button was pressed in, filters and all.
+  const back = returnTo.startsWith("?") && returnTo.length < 400 ? returnTo : "";
+  redirect(`/modules/iis/applications${back}`);
 }
 
 export async function databaseRowAction(formData: FormData): Promise<void> {

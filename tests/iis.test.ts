@@ -34,6 +34,16 @@ import {
 } from "../lib/iis/automation";
 import { COLLECTOR_FILE_NAME, collectorScript } from "../lib/iis/collector";
 import {
+  EMPTY_FILTERS,
+  applicationFilterQuery,
+  filterApplications,
+  hasApplicationFilters,
+  parseApplicationFilters,
+  serverOptions,
+  type ApplicationFilters,
+} from "../lib/iis/filters";
+import type { IisApplication } from "../lib/iis/constants";
+import {
   SNAPSHOT_MAX_AGE_MS,
   describeAge,
   isStale,
@@ -570,4 +580,187 @@ test("a second identical run writes nothing at all", async () => {
 test("the register holds a whole server's worth of sites", () => {
   // One UAT host in this estate runs past three hundred applications.
   assert.ok(MAX_AUTOMATION_APPLICATIONS >= 500);
+});
+
+/* ------------------------------------------------------------------ filters */
+
+function filteredRow(overrides: Partial<IisApplication>): IisApplication {
+  return {
+    id: overrides.id ?? overrides.name ?? "row",
+    server: "WEB01",
+    name: "Portal",
+    environment: "production",
+    bindingHost: "portal.example.com",
+    bindingPort: 443,
+    sslMapped: true,
+    sslCertificate: "*.example.com",
+    sslThumbprint: "A".repeat(40),
+    sslExpiresAt: "2027-03-14",
+    appPool: "PortalPool",
+    directoryBrowsing: "disabled",
+    appRoot: "C:\\inetpub\\portal",
+    owner: "",
+    status: "running",
+    notes: "",
+    active: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const FILTER_ROWS: IisApplication[] = [
+  filteredRow({ id: "a", server: "WEB02", name: "Shop" }),
+  filteredRow({ id: "b", server: "WEB01", name: "Portal", environment: "staging" }),
+  filteredRow({
+    id: "c",
+    server: "WEB01",
+    name: "Legacy Reports",
+    sslMapped: false,
+    sslCertificate: "",
+    bindingPort: 80,
+    directoryBrowsing: "enabled",
+    status: "stopped",
+    active: false,
+  }),
+  filteredRow({
+    id: "d",
+    server: "WEB03",
+    name: "Portal API",
+    bindingHost: "api.example.com",
+    appPool: "ApiPool",
+    sslMapped: false,
+    bindingPort: 8080,
+    status: "degraded",
+  }),
+];
+
+function names(filters: ApplicationFilters): string[] {
+  return filterApplications(FILTER_ROWS, filters).map((row) => `${row.server}/${row.name}`);
+}
+
+test("no filters keeps every row, sorted by server then application", () => {
+  assert.deepEqual(names(EMPTY_FILTERS), [
+    "WEB01/Legacy Reports",
+    "WEB01/Portal",
+    "WEB02/Shop",
+    "WEB03/Portal API",
+  ]);
+});
+
+test("picking a server narrows to that host, whatever its case", () => {
+  assert.deepEqual(names({ ...EMPTY_FILTERS, server: "web02" }), ["WEB02/Shop"]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, server: "web01" }), [
+    "WEB01/Legacy Reports",
+    "WEB01/Portal",
+  ]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, server: "WEB09" }), []);
+  // A hand-typed lowercase host still finds the row a collector wrote in caps.
+  assert.deepEqual(
+    filterApplications([filteredRow({ server: "WEB01", name: "Portal" })], {
+      ...EMPTY_FILTERS,
+      server: "web01",
+    }).length,
+    1,
+  );
+});
+
+test("SSL, browsing, state and liveness each narrow on their own", () => {
+  assert.equal(names({ ...EMPTY_FILTERS, ssl: "unmapped" }).length, 2);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, ssl: "mapped", state: "stopped" }), []);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, browsing: "enabled" }), ["WEB01/Legacy Reports"]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, state: "degraded" }), ["WEB03/Portal API"]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, active: "retired" }), ["WEB01/Legacy Reports"]);
+  assert.equal(names({ ...EMPTY_FILTERS, active: "live" }).length, 3);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, environment: "staging" }), ["WEB01/Portal"]);
+});
+
+test("free text searches the row, word by word", () => {
+  // "portal" reaches the names, the pool names and the root paths alike.
+  assert.equal(filterApplications(FILTER_ROWS, { ...EMPTY_FILTERS, q: "portal" }).length, 4);
+  // A second word has to match too, so the pair narrows instead of widening.
+  assert.deepEqual(names({ ...EMPTY_FILTERS, q: "web03 portal" }), ["WEB03/Portal API"]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, q: "apipool" }), ["WEB03/Portal API"]);
+  assert.deepEqual(names({ ...EMPTY_FILTERS, q: "legacy reports" }), ["WEB01/Legacy Reports"]);
+  assert.equal(
+    filterApplications(FILTER_ROWS, { ...EMPTY_FILTERS, q: "*.example.com" }).length,
+    3,
+    "the certificate name is searchable — that is how a renewal gets found",
+  );
+});
+
+test("filters stack, and an empty result is a real empty result", () => {
+  assert.deepEqual(names({ ...EMPTY_FILTERS, server: "WEB01", ssl: "mapped" }), [
+    "WEB01/Portal",
+  ]);
+  assert.deepEqual(
+    filterApplications(FILTER_ROWS, { ...EMPTY_FILTERS, server: "WEB01", ssl: "unmapped", state: "running" }),
+    [],
+  );
+});
+
+test("a URL is read leniently and written back unchanged", () => {
+  const parsed = parseApplicationFilters({
+    q: "  portal  ",
+    server: ["WEB01"],
+    environment: "production",
+    ssl: "mapped",
+    browsing: "disabled",
+    state: "running",
+    active: "live",
+    // a stray parameter the register does not filter on
+    page: "2",
+  });
+
+  assert.deepEqual(parsed, {
+    q: "portal",
+    server: "WEB01",
+    environment: "production",
+    ssl: "mapped",
+    browsing: "disabled",
+    state: "running",
+    active: "live",
+  });
+  assert.equal(
+    applicationFilterQuery(parsed),
+    "?q=portal&server=WEB01&environment=production&ssl=mapped&browsing=disabled&state=running&active=live",
+  );
+  assert.deepEqual(parseApplicationFilters(Object.fromEntries(
+    new URLSearchParams(applicationFilterQuery(parsed)),
+  )), parsed);
+});
+
+test("junk in the URL is no filter, not a filter that matches nothing", () => {
+  const parsed = parseApplicationFilters({
+    environment: "production-ish",
+    ssl: "maybe",
+    browsing: "yes",
+    state: "run",
+    active: "dead",
+    q: "x".repeat(500),
+  });
+
+  assert.equal(parsed.environment, "");
+  assert.equal(parsed.ssl, "");
+  assert.equal(parsed.browsing, "");
+  assert.equal(parsed.state, "");
+  assert.equal(parsed.active, "");
+  assert.equal(parsed.q.length, 120);
+  assert.equal(hasApplicationFilters(parsed), true);
+  assert.equal(hasApplicationFilters(EMPTY_FILTERS), false);
+  assert.equal(applicationFilterQuery(EMPTY_FILTERS), "");
+});
+
+test("the server dropdown lists each host once, in order", () => {
+  // Same host written two ways is one option, not two.
+  assert.deepEqual(
+    serverOptions([
+      filteredRow({ server: "WEB02" }),
+      filteredRow({ server: "WEB01" }),
+      filteredRow({ server: "web01" }),
+      filteredRow({ server: "  " }),
+    ]),
+    ["WEB01", "WEB02"],
+  );
+  assert.deepEqual(serverOptions([filteredRow({ server: "  " })]), []);
 });
