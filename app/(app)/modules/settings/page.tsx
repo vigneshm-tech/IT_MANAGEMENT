@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Fingerprint, ImageUp, KeyRound, Plug, ShieldCheck } from "lucide-react";
+import { ChevronRight, Fingerprint, ImageUp, KeyRound, Mail, Plug, ShieldCheck } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -44,6 +44,13 @@ export default async function SettingsPage() {
       icon: KeyRound,
       title: "Developers",
       summary: "API keys and connected apps",
+    },
+    {
+      id: "email",
+      href: "/modules/settings/email",
+      icon: Mail,
+      title: "Email & alerts",
+      summary: "The mail server Monitoring sends alerts through",
     },
     {
       id: "branding",

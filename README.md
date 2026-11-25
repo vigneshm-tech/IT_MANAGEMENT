@@ -9,7 +9,7 @@ plans, approvals, renewals and settings — behind one sign-in.
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
 - Supabase Auth + Postgres row-level security (password reset by email)
 - Signed, HTTP-only session cookie; roles re-checked on every request
-- 24 unit tests covering the permission matrix, the task window and sessions
+- 428 unit tests covering the permission matrix, the task window, sessions and the pure helpers behind each module
 
 ---
 
@@ -124,6 +124,7 @@ re-reads `profiles.status` and sends a non-active account through `/logout`.
 | Servers | IT + managers + leads + management | — | IT | — | IT Manager |
 | Clients Master | Everyone | Leadership | IT + leadership | — | — |
 | Patching Plans | IT + managers + leads + management | IT | IT | Leadership | — |
+| Monitoring | IT + managers + leads + management | — | IT | — | IT Manager |
 | Approvals | Everyone | Everyone | — | Leadership | — |
 | Renewals Master | Everyone | Leadership | IT + leadership | — | — |
 | Masters | Everyone | — | IT + leadership | — | — |
@@ -772,6 +773,52 @@ Before: one token + one organization + four page calls on **every** navigation.
 After: one token + one organization + four page calls **once per minute per
 connection**, and none at all for the other modules in between.
 
+## 4d. Monitoring (IIS bindings)
+
+Every application in the IIS register that publishes a binding host is watched,
+and nothing else. The URL is derived rather than typed twice: `https` when the
+site is SSL-mapped, `http` when it is not, and the port is dropped when it is the
+scheme's own (80/443) and kept when it is not (`:8443`). A retired application,
+or one with a blank binding host, is not watched — there is no address to call.
+
+A check is one `fetch` with an 8s timeout that never reads the body. Anything
+answering below 400 is up; a 4xx/5xx or a failed connection is down, with the
+reason written the way a person would say it ("That host name does not
+resolve."). Six run at a time.
+
+**Live.** The board polls the last answers every 15 seconds and probes again by
+itself once the newest answer is a minute old, so "live" needs nobody to press
+anything. *Check now* forces a round.
+
+**Alerts** are transitions, not states: a site that goes down is mailed once,
+a site that comes back is mailed once, and a site that stays down is not mailed
+again — a flapping or long outage does not fill the inbox. If the mail fails,
+the flag is left unset so the next round tries again instead of losing the
+outage. Recipients and the on/off switch live under **Monitoring → Alerts**, and
+only the IT Manager (or the super admin) can change them.
+
+**Mail.** Monitoring sends through a real SMTP account (nodemailer), configured
+once under **Settings → Email & alerts**: host, port, STARTTLS/TLS/plain, username,
+password, From address and name, plus a *Send test message* button that connects,
+logs in and delivers, and reports which step failed in plain words if it did not.
+The password is stored with the same AES-256-GCM envelope as the integration keys
+(key derived from `AUTH_SECRET`, so rotating that secret means re-entering it)
+and is never returned to the browser — leaving the field blank keeps the stored
+one. The ticketing channel is untouched: it still posts to its own relay and the
+app still holds no password for it.
+
+**Scheduling.** Vercel's two cron slots are already spent (ticket sweep, server
+sync), so monitoring refreshes when the page is open and when an external
+scheduler calls it:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://tasktornado.vercel.app/api/monitoring/check
+```
+
+`GET /api/monitoring/status` returns the same board as JSON for that scheduler
+or a status page. Both fall back to memory when Supabase is not configured, so a
+missing migration reads as "not checked yet" instead of failing the page.
+
 ## 5. Local development
 
 ```bash
@@ -830,6 +877,9 @@ in production; the built-in mailer is rate-limited.
   12-hour cookie to expire.
 - Supabase RLS: users read only their own profile; admins (IT Manager,
   Management) can read all profiles; the audit log is insert-self/select-admin.
+- The SMTP password Monitoring alerts use is encrypted at rest like the
+  integration keys and never leaves the server; the settings page only ever
+  shows its last four characters.
 - Integration keys are masked and never returned to the browser in full.
   Milestone 1 keeps them in process memory; production moves them to Supabase
   Vault (see roadmap).
@@ -847,6 +897,7 @@ The Vercel project `tasktornado` deploys this branch and reads these variables:
 | `AUTH_SECRET` | HMAC key for the session cookie |
 | `DISABLE_DEMO_LOGIN` | `true` on the deployed project |
 | `TASK_WINDOW_TZ`, `TASK_WINDOW_START`, `TASK_WINDOW_END` | Window policy |
+| `CRON_SECRET` | Bearer for the ticket sweep, server sync and the Monitoring check endpoint |
 
 ## 7. Project layout
 
@@ -861,6 +912,8 @@ app/
                          approvals, renewals, settings
     modules/tasks/       Board views, /new, /<id>, /<id>/edit
     modules/servers/     Endpoint inventory, /<id> endpoint detail
+    modules/monitoring/  Live IIS binding board, /settings alert recipients
+    modules/settings/email/  SMTP account for alerts, with a test message
 components/
   nav/top-nav.tsx        Two-zone header: wordmark, command palette, notifications
   ui/table.tsx           shadcn/ui table primitives (components.json included)
@@ -880,6 +933,10 @@ lib/
   servers/inventory.ts   Server inventory loader + endpoint detail state
   servers/endpoint.ts    Pure inventory helpers (summary, patch/reboot wording)
   tickets/portal.ts      Portal loaders: credentials, issue list, one issue
+  monitoring/core.ts     Pure: binding URL, up/down reading, alert plan, recipients
+  monitoring/run.ts      Probe round, merge, mail only the transitions
+  email/store.ts         SMTP row (password encrypted), display view
+  email/smtp.ts          nodemailer transport + the test message
 supabase/migrations/     RBAC, tasks, business records + RLS
 tests/                   node:test suites
 ```

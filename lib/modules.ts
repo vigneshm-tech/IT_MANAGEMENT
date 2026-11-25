@@ -14,6 +14,7 @@ export type ModuleId =
   | "kb"
   | "servers"
   | "iis"
+  | "monitoring"
   | "clients"
   | "patching"
   | "approvals"
@@ -172,6 +173,27 @@ export const MODULES: ModuleDefinition[] = [
     access: {
       view: [IT, IT_ENG, ...LEADERSHIP],
       edit: [IT, IT_ENG],
+      admin: [IT],
+    },
+  },
+  {
+    /**
+     * The IIS registers say what is published; this module says whether it
+     * answers. Every active application with a binding host becomes a URL that
+     * is checked on a schedule and whenever the page is open, so "the portal is
+     * down" is a fact the workspace can see rather than one a user reports.
+     */
+    id: "monitoring",
+    title: "Monitoring",
+    href: "/modules/monitoring",
+    summary: "Live checks on the sites IIS publishes",
+    icon: "Activity",
+    navGroup: "infrastructure",
+    access: {
+      view: [IT, IT_ENG, ...LEADERSHIP],
+      edit: [IT, IT_ENG],
+      // Alert recipients are set by the IT Manager (and the super admin, who
+      // holds every capability).
       admin: [IT],
     },
   },

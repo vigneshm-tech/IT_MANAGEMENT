@@ -109,7 +109,7 @@ test("the counts add up to every module", () => {
   assert.equal(counts.writable, 2);
   assert.equal(counts.readonly, 1);
   assert.equal(counts.hidden, MODULES.length - 3);
-  assert.match(summariseLevels(counts), /^13 modules · 2 writable · 1 read only · 10 hidden$/);
+  assert.match(summariseLevels(counts), /^14 modules · 2 writable · 1 read only · 11 hidden$/);
 });
 
 /* -------------------------------------------------------------- role keys */

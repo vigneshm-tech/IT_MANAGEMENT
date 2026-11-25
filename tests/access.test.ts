@@ -147,7 +147,7 @@ test("only the super admin can open the user directory", () => {
 });
 
 test("dashboard is available to all and every module declares a view rule", () => {
-  assert.equal(MODULES.length, 13);
+  assert.equal(MODULES.length, 14);
   for (const module of MODULES) {
     if (module.id === "users") continue; // super-admin only
     assert.equal(

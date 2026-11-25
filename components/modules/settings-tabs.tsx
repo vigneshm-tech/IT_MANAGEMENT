@@ -6,7 +6,8 @@ export type SettingsTab =
   | "security"
   | "integrations"
   | "developers"
-  | "branding";
+  | "branding"
+  | "email";
 
 const TABS: { id: SettingsTab; label: string; href: string }[] = [
   { id: "hub", label: "Overview", href: "/modules/settings" },
@@ -14,6 +15,7 @@ const TABS: { id: SettingsTab; label: string; href: string }[] = [
   { id: "security", label: "Security & sessions", href: "/modules/settings/security" },
   { id: "integrations", label: "Integrations", href: "/modules/settings/integrations" },
   { id: "developers", label: "Developers", href: "/modules/settings/developers" },
+  { id: "email", label: "Email & alerts", href: "/modules/settings/email" },
   { id: "branding", label: "Report logo", href: "/modules/settings/branding" },
 ];
 

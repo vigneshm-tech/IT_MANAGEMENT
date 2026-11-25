@@ -1,4 +1,5 @@
 import {
+  Activity,
   BadgeCheck,
   BookOpen,
   Building2,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 
 const GLYPHS: Record<string, LucideIcon> = {
+  Activity,
   BookOpen,
   Layers,
   LayoutDashboard,
