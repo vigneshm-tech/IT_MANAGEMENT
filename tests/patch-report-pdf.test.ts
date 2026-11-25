@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { inflateSync } from "node:zlib";
+import { splitCveIds } from "../lib/patching/cve";
 import { buildPatchReportPdf, type PatchReportModel } from "../lib/patching/report-pdf";
 import { WORDMARK } from "../lib/patching/wordmark";
 
@@ -180,4 +181,73 @@ test("characters the base fonts cannot encode do not break the file", async () =
   assert.equal(Buffer.from(bytes).subarray(0, 5).toString("latin1"), "%PDF-");
   // The shield emoji is a surrogate pair, so it becomes two question marks.
   assert.match(text, /SRV-\?\? Chennai \?/);
+});
+
+test("several CVE ids print one per line instead of running into the next column", async () => {
+  const bytes = await buildPatchReportPdf(
+    model({
+      endpoints: [
+        endpoint({
+          updates: [
+            {
+              name: "Security Update for SQL Server 2019 (KB5040946)",
+              kb: "KB5040946",
+              cve: "CVE-2025-21178, CVE-2025-21179, CVE-2025-21200",
+              severity: "Important",
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+
+  const text = drawnText(bytes);
+  // Each id is its own run, so it lands on its own line inside the CVE column.
+  for (const id of ["CVE-2025-21178", "CVE-2025-21179", "CVE-2025-21200"]) {
+    assert.match(text, new RegExp(`^${id}$`, "m"));
+  }
+  // The joined string is gone — that is what used to overflow the column.
+  assert.doesNotMatch(text, /CVE-2025-21178, CVE-2025-21179/);
+});
+
+test("the CVE splitter keeps ids, uppercases them and drops repeats", () => {
+  assert.deepEqual(splitCveIds("CVE-2025-1000, CVE-2025-1001"), ["CVE-2025-1000", "CVE-2025-1001"]);
+  assert.deepEqual(splitCveIds("cve-2025-1000 CVE-2025-1000"), ["CVE-2025-1000"]);
+  assert.deepEqual(splitCveIds("CVE-2025-1000;CVE-2025-1001"), ["CVE-2025-1000", "CVE-2025-1001"]);
+  assert.deepEqual(splitCveIds("not listed"), ["not listed"]);
+  assert.deepEqual(splitCveIds(""), []);
+  assert.deepEqual(splitCveIds(null), []);
+});
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("an uploaded logo replaces the wordmark in the header", async () => {
+  const bytes = await buildPatchReportPdf(model(), {
+    logo: { type: "png", bytes: new Uint8Array(TINY_PNG) },
+  });
+  // Image XObjects are objects rather than page streams, so the dictionaries are
+  // read from the file as a whole.
+  const raw = Buffer.from(bytes).toString("latin1");
+  const content = inflated(bytes).join("\n");
+
+  assert.match(raw, /\/Subtype\s*\/Image/);
+  // The vector wordmark is not drawn when a logo is present.
+  assert.doesNotMatch(content, /1407 364 m/);
+  // Everything else on the sheet is unchanged.
+  assert.match(drawnText(bytes), /Patching report/);
+});
+
+test("a logo that cannot be embedded falls back to the wordmark", async () => {
+  const bytes = await buildPatchReportPdf(model(), {
+    logo: { type: "png", bytes: new Uint8Array(Buffer.from("not an image at all")) },
+  });
+  const raw = Buffer.from(bytes).toString("latin1");
+  const content = inflated(bytes).join("\n");
+
+  assert.match(content, /1407 364 m/);
+  assert.doesNotMatch(raw, /\/Subtype\s*\/Image/);
+  assert.match(drawnText(bytes), /Page 1 of 1/);
 });

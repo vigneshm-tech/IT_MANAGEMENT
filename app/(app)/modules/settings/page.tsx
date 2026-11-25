@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Fingerprint, KeyRound, Plug, ShieldCheck } from "lucide-react";
+import { ChevronRight, Fingerprint, ImageUp, KeyRound, Plug, ShieldCheck } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -44,6 +44,13 @@ export default async function SettingsPage() {
       icon: KeyRound,
       title: "Developers",
       summary: "API keys and connected apps",
+    },
+    {
+      id: "branding",
+      href: "/modules/settings/branding",
+      icon: ImageUp,
+      title: "Report logo",
+      summary: "The logo printed on exported patching reports",
     },
   ];
 

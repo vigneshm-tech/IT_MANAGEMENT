@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
+import { readReportLogo, reportLogoBytes } from "@/lib/branding/store";
 import { loadPatchReportModel } from "@/lib/patching/report-model";
 import { buildPatchReportPdf } from "@/lib/patching/report-pdf";
 
@@ -36,7 +37,13 @@ export async function GET(request: Request) {
     );
   }
 
-  const pdf = await buildPatchReportPdf(result.model);
+  // The workspace's own logo when one has been uploaded; the wordmark otherwise.
+  const logo = await readReportLogo();
+  const pdf = await buildPatchReportPdf(result.model, {
+    logo: logo
+      ? { type: logo.mime === "image/png" ? "png" : "jpeg", bytes: reportLogoBytes(logo) }
+      : undefined,
+  });
   const stamp = new Date().toISOString().slice(0, 10);
 
   return new NextResponse(new Uint8Array(pdf), {

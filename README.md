@@ -402,6 +402,13 @@ together:
   report opens; a tenant that is unreachable prints a line instead of an empty
   table. *Print or save as PDF* hands the sheet to the browser; the print
   stylesheet hides the navigation, breadcrumbs, footer and in-page buttons.
+  Each CVE id sits on its own line in the CVE column, so an update that names
+  several bulletins keeps its row height and never spills into Severity.
+- **Report logo**: Settings → *Report logo* (`/modules/settings/branding`)
+  uploads a PNG or JPG that the downloaded PDF prints in its header. With none
+  uploaded the report falls back to the TaskTornado wordmark. The file is stored
+  in `public.app_branding` as base64 (one organisation-wide row) and only
+  Settings administrators may change it.
 - **Date range filter**: the register has *Planned from* / *Planned to* date
   inputs above the table. Both ends are inclusive, either can be left empty
   (*from 1 Nov* or *until 30 Nov*), *Clear dates* resets it, and an inverted

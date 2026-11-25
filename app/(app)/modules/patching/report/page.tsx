@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { splitCveIds } from "@/lib/patching/cve";
 import { ArrowLeft, FileText } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -195,35 +196,46 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {list.updates.map((update, row) => (
-                        <tr key={`${update.id}-${row}`} className="border-b border-line/70">
-                          <td className="py-1.5 pr-2 text-muted">{row + 1}</td>
-                          <td className="py-1.5 pr-2 text-navy">
-                            {update.name}
-                            {update.kb ? <span className="text-muted"> · {update.kb}</span> : null}
-                          </td>
-                          <td className="py-1.5 pr-2 font-mono text-[11px] text-body">
-                            {update.cve || "—"}
-                          </td>
-                          <td className="py-1.5">
-                            {update.severity ? (
-                              <StatusPill
-                                status={update.severity}
-                                label={update.severity}
-                                tone={
-                                  update.severity.toLowerCase() === "critical"
-                                    ? "danger"
-                                    : update.severity.toLowerCase() === "important"
-                                      ? "pending"
-                                      : "neutral"
-                                }
-                              />
-                            ) : (
-                              <span className="text-muted">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {list.updates.map((update, row) => {
+                        const cves = splitCveIds(update.cve);
+                        return (
+                          <tr key={`${update.id}-${row}`} className="border-b border-line/70">
+                            <td className="py-1.5 pr-2 text-muted">{row + 1}</td>
+                            <td className="py-1.5 pr-2 text-navy">
+                              {update.name}
+                              {update.kb ? <span className="text-muted"> · {update.kb}</span> : null}
+                            </td>
+                            <td className="py-1.5 pr-2 align-top font-mono text-[11px] text-body">
+                              {cves.length > 0 ? (
+                                cves.map((cve) => (
+                                  <span key={cve} className="block whitespace-nowrap">
+                                    {cve}
+                                  </span>
+                                ))
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="py-1.5">
+                              {update.severity ? (
+                                <StatusPill
+                                  status={update.severity}
+                                  label={update.severity}
+                                  tone={
+                                    update.severity.toLowerCase() === "critical"
+                                      ? "danger"
+                                      : update.severity.toLowerCase() === "important"
+                                        ? "pending"
+                                        : "neutral"
+                                  }
+                                />
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

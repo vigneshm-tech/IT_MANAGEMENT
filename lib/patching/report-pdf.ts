@@ -3,8 +3,10 @@ import {
   StandardFonts,
   rgb,
   type PDFFont,
+  type PDFImage,
   type PDFPage,
 } from "pdf-lib";
+import { splitCveIds } from "./cve";
 import { WORDMARK } from "./wordmark";
 
 /**
@@ -43,6 +45,14 @@ export type ReportEndpoint = {
   /** Set instead of `updates` when the patch list could not be read. */
   listMessage?: string;
 };
+
+/**
+ * The organisation's own logo, as the patching report prints it.
+ *
+ * `pdf-lib` can embed PNG and JPEG only, which is why the upload form accepts
+ * exactly those two. `type` says which embedder to use.
+ */
+export type ReportLogoImage = { type: "png" | "jpeg"; bytes: Uint8Array };
 
 export type PatchReportModel = {
   /** 19 Nov 2026 */
@@ -206,6 +216,16 @@ class Sheet {
     return lines.length * options.leading;
   }
 
+  /**
+   * A bitmap, top-left corner at the point given, scaled to `width` and its own
+   * aspect ratio. Returns the height used so the header can measure itself.
+   */
+  image(image: PDFImage, x: number, top: number, width: number): number {
+    const height = (width * image.height) / image.width;
+    this.page.drawImage(image, { x, y: this.flip(top + height), width, height });
+    return height;
+  }
+
   /** The wordmark, ink box anchored at the top-left corner given. */
   logo(x: number, top: number, width: number) {
     this.page.drawSvgPath(WORDMARK.path, {
@@ -218,7 +238,29 @@ class Sheet {
 
 }
 
-export async function buildPatchReportPdf(model: PatchReportModel): Promise<Uint8Array> {
+/**
+ * Embeds the uploaded logo, or gives up quietly.
+ *
+ * A file that passed the upload checks can still be unreadable to pdf-lib (a
+ * progressive JPEG, a PNG saved as a JPEG under the wrong name). The report is
+ * more important than the mark on it, so a failure falls back to the wordmark.
+ */
+async function embedReportLogo(
+  doc: PDFDocument,
+  logo: ReportLogoImage,
+): Promise<PDFImage | null> {
+  try {
+    return logo.type === "png" ? await doc.embedPng(logo.bytes) : await doc.embedJpg(logo.bytes);
+  } catch (error) {
+    console.error("[report] the uploaded logo could not be embedded", error);
+    return null;
+  }
+}
+
+export async function buildPatchReportPdf(
+  model: PatchReportModel,
+  options: { logo?: ReportLogoImage } = {},
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const fonts: Fonts = {
     regular: await doc.embedFont(StandardFonts.Helvetica),
@@ -236,12 +278,22 @@ export async function buildPatchReportPdf(model: PatchReportModel): Promise<Uint
 
   /* ---------------------------------------------------------------- header */
 
-  const logoWidth = 112;
-  const logoHeight = (logoWidth * WORDMARK.height) / WORDMARK.width;
+  // The header mark: the uploaded logo when there is one, the wordmark otherwise.
+  // Either way it is anchored top-left and kept inside a band tall enough to sit
+  // beside the title block on the right.
+  const LOGO_WIDTH = 112;
+  const LOGO_MAX_HEIGHT = 40;
   const rightEdge = PAGE_WIDTH - MARGIN.right;
   const headTop = MARGIN.top;
 
-  sheet.logo(MARGIN.left, headTop + 12, logoWidth);
+  const customLogo = options.logo ? await embedReportLogo(doc, options.logo) : null;
+  let logoHeight = (LOGO_WIDTH * WORDMARK.height) / WORDMARK.width;
+  if (customLogo) {
+    const width = Math.min(LOGO_WIDTH, (LOGO_MAX_HEIGHT * customLogo.width) / customLogo.height);
+    logoHeight = sheet.image(customLogo, MARGIN.left, headTop + 12, width);
+  } else {
+    sheet.logo(MARGIN.left, headTop + 12, LOGO_WIDTH);
+  }
 
   sheet.textRight("PATCHING REPORT", rightEdge, headTop + 6, {
     font: fonts.bold,
@@ -275,8 +327,11 @@ export async function buildPatchReportPdf(model: PatchReportModel): Promise<Uint
 
   /* -------------------------------------------------------------- sections */
 
-  const TABLE_COLUMNS = [26, 300, 108, 73];
+  // The CVE column is wider than a single id needs: an update can name several
+  // bulletins, and they are printed one per line rather than run together.
+  const TABLE_COLUMNS = [26, 286, 122, 73];
   const TABLE_LEADING = 9.9;
+  const CVE_LEADING = 9.4;
 
   function tableHeader(sheetRef: Sheet) {
     const base = sheetRef.y;
@@ -399,7 +454,18 @@ export async function buildPatchReportPdf(model: PatchReportModel): Promise<Uint
 
     endpoint.updates.forEach((update, row) => {
       const nameLines = sheet.wrap(update.name, fonts.regular, 8.4, TABLE_COLUMNS[1] - 10);
-      const rowHeight = Math.max(1, nameLines.length) * TABLE_LEADING + 5.5;
+      // One CVE id per line. Several ids in one run used to spill into the
+      // severity column and throw the row out of shape.
+      const cveIds = splitCveIds(update.cve);
+      const cveLines = (cveIds.length > 0 ? cveIds : ["—"]).flatMap((id) =>
+        sheet.wrap(id, fonts.mono, 7.6, TABLE_COLUMNS[2] - 8),
+      );
+      const rowHeight =
+        Math.max(
+          Math.max(1, nameLines.length) * TABLE_LEADING,
+          cveLines.length * CVE_LEADING,
+          9,
+        ) + 5.5;
 
       if (sheet.ensure(rowHeight + 2)) {
         sheet.text(
@@ -442,10 +508,12 @@ export async function buildPatchReportPdf(model: PatchReportModel): Promise<Uint
         }
       }
       const cveX = MARGIN.left + TABLE_COLUMNS[0] + TABLE_COLUMNS[1];
-      sheet.text(update.cve || "—", cveX + 2, rowTop + 6.5, {
-        font: fonts.mono,
-        size: 7.6,
-        color: BODY,
+      cveLines.forEach((line, lineIndex) => {
+        sheet.text(line, cveX + 2, rowTop + 6.5 + lineIndex * CVE_LEADING, {
+          font: fonts.mono,
+          size: 7.6,
+          color: BODY,
+        });
       });
       const severityX = cveX + TABLE_COLUMNS[2];
       const severityTone: ReportTone =
