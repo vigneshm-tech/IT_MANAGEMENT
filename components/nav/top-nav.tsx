@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ModuleGlyph } from "@/components/module-glyph";
+import { createChime, type Chime } from "@/lib/notify/chime";
 import { Wordmark } from "@/components/brand";
 import { logoutAction } from "@/lib/auth/actions";
 
@@ -49,10 +50,8 @@ export type NavUser = {
   roleLabel: string;
 };
 
-/** The chime played when something new lands in the bell. */
-const NOTIFICATION_SOUND = "/sounds/notification.wav";
+/** The bell's sound preference, remembered per browser. */
 const SOUND_PREFERENCE_KEY = "tt-notification-sound";
-const CHIME_VOLUME = 0.7;
 
 function initials(name: string) {
   return name
@@ -90,17 +89,15 @@ export function TopNav({
   // Sound on by default; the speaker in the bell menu remembers the choice.
   const [soundOn, setSoundOn] = useState(true);
   const soundOnRef = useRef(true);
-  const chimeRef = useRef<HTMLAudioElement | null>(null);
+  /** True when the browser is refusing to play until the page is touched. */
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const chimeRef = useRef<Chime | null>(null);
   /** The count the bell last showed — a rise above it is what rings. */
   const seenCount = useRef<number | null>(null);
 
-  /** One shared element, created lazily so nothing loads until it is needed. */
+  /** One chime per page, built the first time it is needed. */
   const getChime = useCallback(() => {
-    if (!chimeRef.current) {
-      const el = new Audio(NOTIFICATION_SOUND);
-      el.preload = "auto";
-      chimeRef.current = el;
-    }
+    if (!chimeRef.current) chimeRef.current = createChime();
     return chimeRef.current;
   }, []);
 
@@ -116,50 +113,38 @@ export function TopNav({
   }, []);
 
   /**
-   * Browsers block audio until the page has been interacted with, so the first
-   * click or keypress primes the element with a silent play. Failures are
-   * ignored: a missing chime must never break the shell.
+   * Browsers will not make a sound until the page has been touched, and they
+   * can suspend the audio bus again after a phone call or a long idle. So every
+   * gesture wakes it — not just the first — and the bell's footer explains
+   * itself when the browser is still holding back.
    */
   useEffect(() => {
-    function prime() {
-      document.removeEventListener("pointerdown", prime);
-      document.removeEventListener("keydown", prime);
-      try {
-        const el = getChime();
-        el.volume = 0;
-        void el
-          .play()
-          .then(() => {
-            el.pause();
-            el.currentTime = 0;
-            el.volume = CHIME_VOLUME;
-          })
-          .catch(() => {
-            el.volume = CHIME_VOLUME;
-          });
-      } catch {
-        // No audio support here — the badge still tells the story.
-      }
+    function wake() {
+      if (getChime().unlock()) setSoundBlocked(false);
     }
-    document.addEventListener("pointerdown", prime, { once: true });
-    document.addEventListener("keydown", prime, { once: true });
+    document.addEventListener("pointerdown", wake);
+    document.addEventListener("keydown", wake);
+    document.addEventListener("touchstart", wake, { passive: true });
+    function onVisible() {
+      if (document.visibilityState === "visible") wake();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    wake();
     return () => {
-      document.removeEventListener("pointerdown", prime);
-      document.removeEventListener("keydown", prime);
+      document.removeEventListener("pointerdown", wake);
+      document.removeEventListener("keydown", wake);
+      document.removeEventListener("touchstart", wake);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [getChime]);
 
-  const playChime = useCallback(() => {
-    try {
-      const el = getChime();
-      el.volume = CHIME_VOLUME;
-      // Seeking is only legal once the file has metadata; the first ring may be
-      // too early, and that is fine — it still plays.
-      if (el.readyState > 0) el.currentTime = 0;
-      void el.play().catch(() => {});
-    } catch {
-      // No audio support here — the badge still tells the story.
-    }
+  /** Rings once, and says so when the browser refused to let it. */
+  const playChime = useCallback(async () => {
+    const chime = getChime();
+    chime.unlock();
+    const result = await chime.play();
+    setSoundBlocked(result === "blocked");
+    return result === "played";
   }, [getChime]);
 
   /** Rings once per rise; the count the bell shows is the baseline. */
@@ -187,18 +172,24 @@ export function TopNav({
    * server every half minute (and whenever the tab comes back). A rise rings the
    * chime and refreshes the list; a fall — someone else decided, or you did —
    * only moves the baseline.
+   *
+   * The poll keeps running in a background tab, because that is exactly when a
+   * chime earns its keep. Only the redraw waits for the tab to come back.
    */
   useEffect(() => {
     let stopped = false;
+    /** A rise seen while the tab was hidden, still owed a redraw. */
+    let owed = false;
 
     async function check() {
-      if (document.visibilityState !== "visible") return;
       try {
         const response = await fetch("/api/notifications", { cache: "no-store" });
         if (!response.ok) return;
         const data = (await response.json()) as { count?: number };
         if (stopped || typeof data.count !== "number") return;
-        if (noteCount(data.count)) router.refresh();
+        if (!noteCount(data.count)) return;
+        if (document.visibilityState === "visible") router.refresh();
+        else owed = true;
       } catch {
         // Offline, or the endpoint is missing — the next tick tries again.
       }
@@ -206,9 +197,16 @@ export function TopNav({
 
     const timer = window.setInterval(check, 30_000);
     function onVisible() {
-      if (document.visibilityState === "visible") void check();
+      if (document.visibilityState !== "visible") return;
+      if (owed) {
+        owed = false;
+        router.refresh();
+        return;
+      }
+      void check();
     }
     document.addEventListener("visibilitychange", onVisible);
+    void check();
 
     return () => {
       stopped = true;
@@ -358,14 +356,31 @@ export function TopNav({
                         ))}
                       </ul>
                     )}
-                    <div className="border-t border-line px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5">
                       <Link
                         href="/modules/approvals"
                         className="text-[12px] font-medium text-navy hover:underline"
                       >
                         View approvals
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void playChime();
+                        }}
+                        className="rounded px-1.5 py-1 text-[11.5px] font-medium text-muted transition hover:bg-[#f5f7fb] hover:text-navy"
+                        title="Play the chime once, to check your speakers"
+                      >
+                        Test sound
+                      </button>
                     </div>
+                    <p className="border-t border-line px-4 py-2 text-[11px] leading-relaxed text-muted">
+                      {soundBlocked
+                        ? "Your browser is holding the sound back — click anywhere on the page, then press Test sound."
+                        : soundOn
+                          ? "The bell rings when something new arrives."
+                          : "Sound is off — the badge still shows what is waiting."}
+                    </p>
                   </motion.div>
                 )}
               </AnimatePresence>

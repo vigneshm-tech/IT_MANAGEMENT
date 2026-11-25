@@ -34,6 +34,18 @@ Tables are built on the [shadcn/ui](https://ui.shadcn.com) `Table` primitives
 retuned to the tokens below. Radii stop at 10px. The only motion is a staggered 380ms fade-up on the module
 grid and dialog/popover transitions.
 
+**The bell's chime** is synthesised, not downloaded: two sine notes (B5, then E6)
+through a Web Audio gain node, built the first time it is needed
+(`lib/notify/chime.ts`). That sidesteps every way an audio file goes quiet — a
+blocked fetch, a codec the browser lacks, iOS ignoring `volume` — and leaves the
+level ours. Browsers keep audio asleep until the page is touched, so every
+pointer, key and tab switch wakes the context, and the bell says what happened
+rather than staying silent: **Test sound** in the menu rings it once, and when the
+browser is still holding audio back the footer says so. The WAV in
+`public/sounds/` remains the fallback for a browser without Web Audio. The poll
+behind it runs in a background tab too, because that is when a chime is worth
+having.
+
 **Brand:** the logo is a wordmark, not an icon — the name set in **Audiowide**,
 outlined and shipped as fixed vectors (`public/brand/wordmark.svg` and the white
 `wordmark-inverse.svg`). The tab icon is the bare "T" from the same face — no
