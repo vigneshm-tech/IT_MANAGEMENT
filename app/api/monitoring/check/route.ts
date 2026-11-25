@@ -65,6 +65,13 @@ export async function POST() {
     return NextResponse.json({ error: "Monitoring is not open to your role." }, { status: 403 });
   }
 
+  // Five seconds is the floor: a tab, a script and a scheduler must not be able
+  // to turn the board into a load test.
+  const age = newestAgeSeconds((await readChecks()).values());
+  if (age !== null && age < 5) {
+    return NextResponse.json({ skipped: true, ageSeconds: age, intervalSeconds: 5 });
+  }
+
   const summary = await runChecks();
-  return NextResponse.json({ statuses: summary.statuses, alerts: summary.alerts });
+  return NextResponse.json({ statuses: summary.statuses, alerts: summary.alerts, skipped: summary.skipped ?? false });
 }

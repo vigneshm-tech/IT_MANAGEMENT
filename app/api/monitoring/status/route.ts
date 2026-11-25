@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { mailReady } from "@/lib/email/smtp";
+import { inMaintenance } from "@/lib/monitoring/core";
 import { readBoard } from "@/lib/monitoring/run";
 import { readMonitorSettings } from "@/lib/monitoring/store";
 
@@ -39,5 +40,6 @@ export async function GET() {
     mailReady: canMail,
     intervalSeconds: settings.intervalSeconds,
     protocolFilter: settings.protocolFilter,
+    maintenance: inMaintenance(settings.maintenance),
   });
 }

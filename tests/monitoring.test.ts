@@ -17,6 +17,15 @@ import {
   readResponse,
   statusTone,
   isProtocolFilter,
+  timeoutFor,
+  certDaysLeft,
+  certState,
+  describeCert,
+  inMaintenance,
+  escalationDue,
+  uptimePercent,
+  PROBE_TIMEOUT_HEALTHY_MS,
+  PROBE_TIMEOUT_TROUBLED_MS,
   filterFromHttpEnabled,
   isHttpEnabled,
   urlProtocol,
@@ -205,9 +214,14 @@ test("the scheduler measures from the newest answer", () => {
   const now = new Date("2026-11-19T10:00:00.000Z").getTime();
   assert.equal(newestAgeSeconds([], now), null, "nothing checked yet");
 
+  const row = (key: string, checkedAt: string) => ({
+    key, ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt,
+    since: "2026-11-19T09:00:00.000Z", alerted: false, escalated: false, certAlerted: false,
+    certExpiresAt: null, attempts: 1, phases: null,
+  });
   const rows = [
-    { key: "a", ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt: "2026-11-19T09:59:00.000Z", since: "2026-11-19T09:00:00.000Z", alerted: false },
-    { key: "b", ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt: "2026-11-19T09:58:30.000Z", since: "2026-11-19T09:00:00.000Z", alerted: false },
+    row("a", "2026-11-19T09:59:00.000Z"),
+    row("b", "2026-11-19T09:58:30.000Z"),
   ];
   assert.equal(newestAgeSeconds(rows, now), 60);
 });
@@ -245,4 +259,50 @@ test("the filter watches only the scheme that was chosen", () => {
   assert.equal(isHttpEnabled("https"), false);
   // Switching HTTP off leaves exactly the SSL-mapped bindings.
   assert.equal(buildTargets(register, filterFromHttpEnabled(false)).length, 2);
+});
+
+test("a site that answered gets the short timeout, a troubled one the long", () => {
+  assert.equal(timeoutFor(undefined), PROBE_TIMEOUT_HEALTHY_MS);
+  assert.equal(timeoutFor({ ok: true }), PROBE_TIMEOUT_HEALTHY_MS);
+  assert.equal(timeoutFor({ ok: false }), PROBE_TIMEOUT_TROUBLED_MS);
+  assert.ok(PROBE_TIMEOUT_HEALTHY_MS < PROBE_TIMEOUT_TROUBLED_MS);
+});
+
+test("a certificate is an early warning, not an outage", () => {
+  const now = new Date("2026-11-19T10:00:00.000Z");
+  assert.equal(certDaysLeft("2026-12-19T10:00:00.000Z", now), 30);
+  assert.equal(certState("2026-12-19T10:00:00.000Z", now), "expiring");
+  assert.equal(certState("2027-06-19T10:00:00.000Z", now), "ok");
+  assert.equal(certState("2026-11-01T10:00:00.000Z", now), "expired");
+  assert.equal(certState(null, now), "unknown");
+
+  assert.equal(describeCert("2026-12-01T10:00:00.000Z", now), "expires in 12 days");
+  assert.equal(describeCert("2026-11-17T10:00:00.000Z", now), "expired 2 days ago");
+  assert.equal(describeCert(null, now), "not seen");
+});
+
+test("alerts are quiet inside a declared window, and only inside it", () => {
+  const window = { from: "2026-11-19T09:00:00.000Z", to: "2026-11-19T11:00:00.000Z", note: "patch" };
+  assert.equal(inMaintenance(window, new Date("2026-11-19T10:00:00.000Z")), true);
+  assert.equal(inMaintenance(window, new Date("2026-11-19T11:01:00.000Z")), false);
+  assert.equal(inMaintenance(window, new Date("2026-11-19T08:59:00.000Z")), false);
+  // An open-ended or malformed window must not silence anything for ever.
+  assert.equal(inMaintenance({ from: null, to: null, note: "" }), false);
+  assert.equal(inMaintenance({ from: "nonsense", to: "nonsense", note: "" }), false);
+});
+
+test("escalation is for an outage that outlasts the delay, once", () => {
+  const now = new Date("2026-11-19T10:00:00.000Z");
+  assert.equal(escalationDue("2026-11-19T09:50:00.000Z", 15, false, now), false);
+  assert.equal(escalationDue("2026-11-19T09:40:00.000Z", 15, false, now), true);
+  assert.equal(escalationDue("2026-11-19T09:40:00.000Z", 15, true, now), false, "already escalated");
+  assert.equal(escalationDue(null, 15, false, now), false);
+});
+
+test("uptime is up checks over checks, to one decimal", () => {
+  const base = { key: "a", avgLatencyMs: null, p95LatencyMs: null, lastCheckedAt: null };
+  assert.equal(uptimePercent({ ...base, checks: 0, up: 0 }), null);
+  assert.equal(uptimePercent({ ...base, checks: 200, up: 200 }), 100);
+  assert.equal(uptimePercent({ ...base, checks: 3, up: 2 }), 66.7);
+  assert.equal(uptimePercent(undefined), null);
 });

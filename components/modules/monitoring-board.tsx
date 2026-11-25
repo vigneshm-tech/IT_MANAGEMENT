@@ -1,17 +1,22 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, Loader2, ShieldCheck, Wrench } from "lucide-react";
+import { Fragment, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormState } from "@/lib/forms";
 import {
   PROTOCOL_LABELS,
+  certState,
   describeAge,
+  describeCert,
   describeSince,
   formatInterval,
   statusTone,
   type MonitorStatus,
   type ProtocolFilter,
   type StatusTone,
+  type UptimeSummary,
 } from "@/lib/monitoring/core";
+import type { Incident } from "@/lib/monitoring/store";
 
 type BoardState = {
   statuses: MonitorStatus[];
@@ -20,22 +25,38 @@ type BoardState = {
   recipients: string[];
   intervalSeconds: number;
   protocolFilter: ProtocolFilter;
+  maintenance: boolean;
+};
+
+export type MonitoringBoardProps = {
+  initial: MonitorStatus[];
+  mailReady: boolean;
+  alertsEnabled: boolean;
+  recipients: string[];
+  intervalSeconds: number;
+  protocolFilter: ProtocolFilter;
+  maintenance: boolean;
+  uptime24h: Record<string, UptimeSummary>;
+  uptime7d: Record<string, UptimeSummary>;
+  incidents: Record<string, Incident[]>;
+  canAcknowledge: boolean;
+  acknowledgeAction: (state: FormState, formData: FormData) => Promise<FormState>;
 };
 
 /**
  * The live board.
  *
  * A table, because a register of sites is a list of columns: what, whether it is
- * answering, how fast, and when it was last asked. Each row opens to show the
- * full story behind the light.
+ * answering, how fast, how often it has been up, and when it was last asked.
+ * Each row opens to show the story behind the light — the address, where the
+ * milliseconds went, the certificate, and the outages it has had.
  *
- * Nobody presses anything any more. The board reads the answers the server has,
- * checks again by itself once the configured interval has passed, and shows the
- * interval it is working to so the number on the settings page is visibly real.
+ * Nobody presses anything. The board reads the answers the server has, checks
+ * again by itself once the configured interval has passed, and stops polling
+ * while the tab is hidden so an idle page costs nothing.
  */
 
 const POLL_MS = 15_000;
-/** How often the clock under the words ticks. */
 const TICK_MS = 1_000;
 
 function newestCheck(statuses: MonitorStatus[]): number {
@@ -55,13 +76,6 @@ const LIGHTS: { tone: StatusTone; className: string; label: string }[] = [
   { tone: "down", className: "bg-[#c8483f]", label: "Down" },
 ];
 
-/**
- * Three lanes, one lit.
- *
- * Green answered quickly, amber answered slowly, red did not answer at all —
- * read left to right like a pipeline, with the segment that applies filled and
- * the others left as track, so a row says its state before the word does.
- */
 function Pipeline({ tone }: { tone: StatusTone }) {
   const label = tone === "unknown" ? "Not checked" : (LIGHTS.find((l) => l.tone === tone)?.label ?? "—");
 
@@ -98,6 +112,110 @@ function Pipeline({ tone }: { tone: StatusTone }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Uptime                                                                     */
+/* -------------------------------------------------------------------------- */
+
+function percentOf(summary: UptimeSummary | undefined): number | null {
+  if (!summary || summary.checks === 0) return null;
+  return Math.round((summary.up / summary.checks) * 1000) / 10;
+}
+
+function UptimeBar({ summary, window }: { summary: UptimeSummary | undefined; window: string }) {
+  const percent = percentOf(summary);
+  const colour =
+    percent === null ? "bg-line" : percent >= 99.5 ? "bg-[#2f9e63]" : percent >= 95 ? "bg-[#d9a13b]" : "bg-[#c8483f]";
+
+  return (
+    <span className="flex items-center gap-2">
+      <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-[#edf1f7]">
+        <span
+          className={`absolute inset-y-0 left-0 rounded-full ${colour}`}
+          style={{ width: `${percent === null ? 0 : Math.max(2, percent)}%` }}
+        />
+      </span>
+      <span className="text-[11px] tabular-nums text-body">
+        {percent === null ? "—" : `${percent}%`}
+        <span className="text-muted"> · {window}</span>
+      </span>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Incidents                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function durationOf(incident: Incident): string {
+  const start = new Date(incident.startedAt).getTime();
+  const end = incident.endedAt ? new Date(incident.endedAt).getTime() : Date.now();
+  const minutes = Math.max(0, Math.round((end - start) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+function IncidentRow({
+  incident,
+  canAcknowledge,
+  action,
+  onAcknowledged,
+}: {
+  incident: Incident;
+  canAcknowledge: boolean;
+  action: (state: FormState, formData: FormData) => Promise<FormState>;
+  onAcknowledged: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+
+  useEffect(() => {
+    if (state.ok) onAcknowledged();
+  }, [state.ok, onAcknowledged]);
+
+  return (
+    <li className="border-t border-line py-2 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
+        <span className="text-navy">
+          {new Date(incident.startedAt).toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+        <span className="text-muted">→ {incident.endedAt ? "recovered" : "ongoing"}</span>
+        <span className="tabular-nums text-muted">{durationOf(incident)}</span>
+        {incident.acknowledgedAt && (
+          <span className="inline-flex items-center gap-1 text-success">
+            <ShieldCheck className="h-3 w-3" aria-hidden /> acknowledged
+          </span>
+        )}
+        {incident.note && <span className="text-body">“{incident.note}”</span>}
+      </div>
+
+      {canAcknowledge && !incident.acknowledgedAt && (
+        <form action={formAction} className="mt-1 flex flex-wrap items-center gap-2">
+          <input type="hidden" name="incidentId" value={incident.id} />
+          <input
+            name="note"
+            placeholder="What is being done?"
+            className="field h-7 w-56 px-2 text-[11.5px]"
+            maxLength={200}
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex h-7 items-center rounded-md border border-line-strong px-2 text-[11.5px] text-navy transition-colors hover:border-navy hover:bg-[#f4f7fc] disabled:opacity-60"
+          >
+            {pending ? "Saving" : "Acknowledge"}
+          </button>
+          {state.error && <span className="text-[11px] text-danger">{state.error}</span>}
+        </form>
+      )}
+    </li>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  The board                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -108,14 +226,13 @@ export function MonitoringBoard({
   recipients,
   intervalSeconds,
   protocolFilter,
-}: {
-  initial: MonitorStatus[];
-  mailReady: boolean;
-  alertsEnabled: boolean;
-  recipients: string[];
-  intervalSeconds: number;
-  protocolFilter: ProtocolFilter;
-}) {
+  maintenance,
+  uptime24h,
+  uptime7d,
+  incidents,
+  canAcknowledge,
+  acknowledgeAction,
+}: MonitoringBoardProps) {
   const [state, setState] = useState<BoardState>({
     statuses: initial,
     mailReady,
@@ -123,6 +240,7 @@ export function MonitoringBoard({
     recipients,
     intervalSeconds,
     protocolFilter,
+    maintenance,
   });
   const [now, setNow] = useState(() => Date.now());
   const [checking, setChecking] = useState(false);
@@ -131,8 +249,6 @@ export function MonitoringBoard({
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
   const running = useRef(false);
-  /** Set when the server says this role may not run a round: stop asking. */
-  const blocked = useRef(false);
   const latest = useRef<MonitorStatus[]>(initial);
   const interval = useRef(intervalSeconds);
 
@@ -141,7 +257,6 @@ export function MonitoringBoard({
     interval.current = state.intervalSeconds;
   }, [state.statuses, state.intervalSeconds]);
 
-  /** Take the answers the server just gave. */
   const apply = useCallback((payload: Partial<BoardState> & { alerts?: string | null }) => {
     setState((current) => ({ ...current, ...payload }));
     setNotice(payload.alerts ?? null);
@@ -167,7 +282,6 @@ export function MonitoringBoard({
       const response = await fetch("/api/monitoring/check", { method: "POST" });
       const payload = (await response.json()) as Partial<BoardState> & { error?: string; alerts?: string | null };
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) blocked.current = true;
         setError(payload.error ?? "The check could not run.");
         return;
       }
@@ -182,42 +296,46 @@ export function MonitoringBoard({
   }, [apply]);
 
   useEffect(() => {
-    // A clock that ticks every second keeps "checked 40s ago" true, and decides
-    // on the same tick whether the interval has run out.
     const tick = setInterval(() => {
       setNow(Date.now());
-      if (running.current) return;
-      if (blocked.current || latest.current.length === 0) return;
+      if (running.current || document.hidden) return;
+      if (latest.current.length === 0) return;
       const age = Date.now() - newestCheck(latest.current);
       if (age >= interval.current * 1000) void runCheck();
     }, TICK_MS);
 
-    // Other people's checks arrive through this poll, so two open tabs do not
-    // sit staring at each other's stale answers.
-    const poll = setInterval(() => void readStatus(), POLL_MS);
+    // Reading the stored answers is cheap, and it picks up rounds other people
+    // ran. Hidden tabs skip it: an idle page should cost nothing.
+    const poll = setInterval(() => {
+      if (!document.hidden) void readStatus();
+    }, POLL_MS);
+
+    const onVisible = () => {
+      if (!document.hidden) void readStatus();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       clearInterval(tick);
       clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [readStatus, runCheck]);
 
   const down = useMemo(() => state.statuses.filter((row) => row.ok === false), [state.statuses]);
-  const slow = useMemo(
-    () => state.statuses.filter((row) => statusTone(row) === "slow"),
+  const slow = useMemo(() => state.statuses.filter((row) => statusTone(row) === "slow"), [state.statuses]);
+  const expiring = useMemo(
+    () => state.statuses.filter((row) => certState(row.certExpiresAt) === "expiring" || certState(row.certExpiresAt) === "expired"),
     [state.statuses],
   );
   const clock = useMemo(() => new Date(now), [now]);
   const newest = newestCheck(state.statuses);
-  const nextIn = Math.max(
-    0,
-    Math.ceil((newest + state.intervalSeconds * 1000 - now) / 1000),
-  );
+  const nextIn = Math.max(0, Math.ceil((newest + state.intervalSeconds * 1000 - now) / 1000));
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-        <p className="inline-flex items-center gap-1.5 text-[11.5px] text-muted" aria-live="polite">
+        <p className="inline-flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted" aria-live="polite">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
@@ -236,23 +354,36 @@ export function MonitoringBoard({
           )}
         </p>
 
-        <p className="text-[11.5px] text-muted">
-          {state.statuses.length} {state.statuses.length === 1 ? "site" : "sites"}
+        <p className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
+          {state.maintenance && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#eef2f8] px-2 py-0.5 text-[10.5px] uppercase tracking-[0.06em] text-body">
+              <Wrench className="h-3 w-3" aria-hidden /> maintenance
+            </span>
+          )}
+          <span>
+            {state.statuses.length} {state.statuses.length === 1 ? "site" : "sites"}
+          </span>
           <span className="text-line-strong" aria-hidden>
-            {" · "}
+            ·
           </span>
           <span className={down.length > 0 ? "text-danger" : undefined}>{down.length} down</span>
           {slow.length > 0 && (
             <>
               <span className="text-line-strong" aria-hidden>
-                {" · "}
+                ·
               </span>
               <span className="text-warning">{slow.length} slow</span>
             </>
           )}
-          {nextIn > 0 && !checking && (
-            <span className="text-muted"> · next in {nextIn}s</span>
+          {expiring.length > 0 && (
+            <>
+              <span className="text-line-strong" aria-hidden>
+                ·
+              </span>
+              <span className="text-warning">{expiring.length} cert</span>
+            </>
           )}
+          {nextIn > 0 && !checking && <span> · next in {nextIn}s</span>}
         </p>
       </div>
 
@@ -262,7 +393,14 @@ export function MonitoringBoard({
         </p>
       )}
 
-      {down.length > 0 && (
+      {state.maintenance && (
+        <p className="border border-line bg-surface px-3 py-2 text-[11.5px] text-muted">
+          A maintenance window is open: the checks still run, but no alert email is sent. Clear it under
+          Settings when the deploy is over.
+        </p>
+      )}
+
+      {down.length > 0 && !state.maintenance && (
         <p className="flex items-start gap-2 border border-[#f0dfb4] bg-warning-soft px-3 py-2 text-[12.5px] text-warning">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
@@ -295,13 +433,11 @@ export function MonitoringBoard({
           Nothing to watch.{" "}
           {state.protocolFilter === "https"
             ? "No binding is SSL-mapped yet, so only HTTPS monitoring leaves nothing to check. Turn on HTTP monitoring under Settings to watch the plain http sites too."
-            : state.protocolFilter === "http"
-              ? "No plain http binding is published — every site here is SSL-mapped."
-              : "An IIS application with a binding host appears here on its own."}
+            : "An IIS application with a binding host appears here on its own."}
         </p>
       ) : (
         <div className="overflow-x-auto border border-line bg-surface">
-          <table className="w-full min-w-[680px] border-collapse text-left">
+          <table className="w-full min-w-[780px] border-collapse text-left">
             <thead>
               <tr className="border-b border-line bg-[#f8fafd]">
                 <th scope="col" className="px-4 py-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
@@ -312,6 +448,9 @@ export function MonitoringBoard({
                 </th>
                 <th scope="col" className="w-[92px] px-4 py-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
                   Response
+                </th>
+                <th scope="col" className="w-[176px] px-4 py-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
+                  Uptime 24h
                 </th>
                 <th scope="col" className="w-[140px] px-4 py-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
                   Last checked
@@ -326,6 +465,9 @@ export function MonitoringBoard({
                 const tone = statusTone(row);
                 const expanded = Boolean(open[row.key]);
                 const panelId = `site-${row.key}`;
+                const cert = certState(row.certExpiresAt);
+                const siteIncidents = incidents[row.key] ?? [];
+                const phases = row.phases;
 
                 return (
                   <Fragment key={row.key}>
@@ -357,8 +499,10 @@ export function MonitoringBoard({
                         <Pipeline tone={tone} />
                       </td>
                       <td className="px-4 py-2 text-[11.5px] tabular-nums text-body">
-                        {/* Time to fail is not a response time, so a red row says nothing here. */}
                         {row.ok === false ? "—" : row.latencyMs !== null ? `${row.latencyMs} ms` : "—"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <UptimeBar summary={uptime24h[row.key]} window="24h" />
                       </td>
                       <td
                         className="px-4 py-2 text-[11.5px] text-muted"
@@ -380,8 +524,8 @@ export function MonitoringBoard({
 
                     {expanded && (
                       <tr id={panelId} className="bg-[#f9fbfe]">
-                        <td colSpan={5} className="border-t border-line px-4 py-3">
-                          <div className="grid gap-x-8 gap-y-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                        <td colSpan={6} className="border-t border-line px-4 py-3">
+                          <div className="grid gap-x-8 gap-y-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
                             <div className="min-w-0">
                               <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">URL</p>
                               <p className="mt-1 break-all font-mono text-[12px] text-navy">{row.url}</p>
@@ -397,58 +541,138 @@ export function MonitoringBoard({
                                 Environment <span className="text-navy">{row.environment || "—"}</span>
                               </p>
                               {row.ok === false && (
-                                <p className="mt-2 text-[12px] text-danger">{row.error ?? "No answer."}</p>
+                                <p className="mt-2 text-[12px] text-danger">
+                                  {row.error ?? "No answer."}
+                                  {row.attempts === 2 && (
+                                    <span className="text-muted"> (confirmed on a second attempt)</span>
+                                  )}
+                                </p>
                               )}
-                            </div>
 
-                            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[11.5px]">
-                              <div>
-                                <dt className="text-muted">Response</dt>
-                                <dd className="mt-0.5 text-body">
-                                  {row.statusCode !== null ? `HTTP ${row.statusCode}` : row.ok === null ? "—" : "No answer"}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted">Latency</dt>
-                                <dd className="mt-0.5 tabular-nums text-body">
-                                  {row.ok === false
-                                    ? "—"
-                                    : row.latencyMs !== null
-                                      ? `${row.latencyMs} ms`
-                                      : "—"}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted">{row.ok === false ? "Down for" : "In this state"}</dt>
-                                <dd className="mt-0.5 text-body">
-                                  {row.since ? describeSince(row.since, clock) : "—"}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt className="text-muted">Last checked</dt>
-                                <dd className="mt-0.5 text-body">
-                                  {row.checkedAt
-                                    ? new Date(row.checkedAt).toLocaleString("en-IN", {
+                              {phases && (
+                                <p className="mt-2 text-[11px] text-muted">
+                                  DNS {phases.dnsMs ?? "—"} ms
+                                  <span className="px-1" aria-hidden>
+                                    ·
+                                  </span>
+                                  TCP {phases.connectMs ?? "—"} ms
+                                  <span className="px-1" aria-hidden>
+                                    ·
+                                  </span>
+                                  TLS {phases.tlsMs ?? "—"} ms
+                                  <span className="px-1" aria-hidden>
+                                    ·
+                                  </span>
+                                  first byte {phases.ttfbMs ?? "—"} ms
+                                </p>
+                              )}
+
+                              <div className="mt-3">
+                                <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
+                                  Certificate
+                                </p>
+                                <p
+                                  className={
+                                    cert === "expired" || cert === "expiring"
+                                      ? "mt-1 text-[11.5px] text-warning"
+                                      : "mt-1 text-[11.5px] text-body"
+                                  }
+                                >
+                                  {describeCert(row.certExpiresAt, clock)}
+                                  {cert !== "unknown" && row.certExpiresAt && (
+                                    <span className="text-muted">
+                                      {" "}
+                                      ·{" "}
+                                      {new Date(row.certExpiresAt).toLocaleDateString("en-IN", {
                                         day: "2-digit",
                                         month: "short",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                        second: "2-digit",
-                                      })
-                                    : "Never"}
-                                </dd>
+                                        year: "numeric",
+                                      })}
+                                    </span>
+                                  )}
+                                </p>
                               </div>
-                              <div className="col-span-2">
-                                <dt className="text-muted">Alert</dt>
-                                <dd className="mt-0.5 text-body">
-                                  {row.ok === false
-                                    ? row.alerted
-                                      ? "Emailed to the alert recipients."
-                                      : "Not emailed yet — the next round will try."
-                                    : "Nothing to send."}
-                                </dd>
+                            </div>
+
+                            <div>
+                              <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-[11.5px]">
+                                <div>
+                                  <dt className="text-muted">Response</dt>
+                                  <dd className="mt-0.5 text-body">
+                                    {row.statusCode !== null ? `HTTP ${row.statusCode}` : row.ok === null ? "—" : "No answer"}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted">Latency</dt>
+                                  <dd className="mt-0.5 tabular-nums text-body">
+                                    {row.ok === false ? "—" : row.latencyMs !== null ? `${row.latencyMs} ms` : "—"}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted">{row.ok === false ? "Down for" : "In this state"}</dt>
+                                  <dd className="mt-0.5 text-body">{row.since ? describeSince(row.since, clock) : "—"}</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted">Last checked</dt>
+                                  <dd className="mt-0.5 text-body">
+                                    {row.checkedAt
+                                      ? new Date(row.checkedAt).toLocaleString("en-IN", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          second: "2-digit",
+                                        })
+                                      : "Never"}
+                                  </dd>
+                                </div>
+                                <div className="col-span-2">
+                                  <dt className="text-muted">Uptime &amp; latency</dt>
+                                  <dd className="mt-1 flex flex-wrap items-center gap-x-6 gap-y-1.5">
+                                    <UptimeBar summary={uptime24h[row.key]} window="24h" />
+                                    <UptimeBar summary={uptime7d[row.key]} window="7d" />
+                                    {uptime7d[row.key]?.p95LatencyMs != null && (
+                                      <span className="text-[11px] text-muted">
+                                        p95 <span className="tabular-nums text-body">{uptime7d[row.key]!.p95LatencyMs} ms</span>
+                                      </span>
+                                    )}
+                                  </dd>
+                                </div>
+                                <div className="col-span-2">
+                                  <dt className="text-muted">Alert</dt>
+                                  <dd className="mt-0.5 text-body">
+                                    {row.ok === false
+                                      ? row.alerted
+                                        ? row.escalated
+                                          ? "Emailed, then escalated to the second list."
+                                          : "Emailed to the alert recipients."
+                                        : "Not emailed yet — the next round will try."
+                                      : "Nothing to send."}
+                                  </dd>
+                                </div>
+                              </dl>
+
+                              <div className="mt-3">
+                                <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted">
+                                  Incidents
+                                </p>
+                                {siteIncidents.length === 0 ? (
+                                  <p className="mt-1 text-[11.5px] text-muted">No outage recorded yet.</p>
+                                ) : (
+                                  <ul className="mt-1">
+                                    {siteIncidents.map((incident) => (
+                                      <IncidentRow
+                                        key={incident.id}
+                                        incident={incident}
+                                        canAcknowledge={canAcknowledge}
+                                        action={acknowledgeAction}
+                                        onAcknowledged={() => void readStatus()}
+                                      />
+                                    ))}
+                                  </ul>
+                                )}
                               </div>
-                            </dl>
+                            </div>
                           </div>
                         </td>
                       </tr>

@@ -35,6 +35,26 @@ export type MonitorStatus = MonitorTarget & {
   since: string | null;
   /** True once a down alert has been emailed for this outage. */
   alerted: boolean;
+  /** True once the outage has also gone to the escalation list. */
+  escalated?: boolean;
+  /** The certificate the site presented, when it did. */
+  certExpiresAt?: string | null;
+  /** 2 when a failure was confirmed by a second probe. */
+  attempts?: number;
+  /** Where the first hop's time went. */
+  phases?: ProbePhases | null;
+};
+
+/** Where the time went on the way to the first byte. */
+export type ProbePhases = {
+  /** Name resolution. */
+  dnsMs: number | null;
+  /** TCP connect. */
+  connectMs: number | null;
+  /** TLS handshake (https only). */
+  tlsMs: number | null;
+  /** Request sent → first byte of the answer. */
+  ttfbMs: number | null;
 };
 
 export type ProbeResult = {
@@ -42,10 +62,37 @@ export type ProbeResult = {
   statusCode: number | null;
   latencyMs: number | null;
   error: string | null;
+  /** The certificate's `notAfter`, when the site presented one. */
+  certExpiresAt?: string | null;
+  /** Null when nothing was measured (a refused connection has no phases). */
+  phases?: ProbePhases | null;
+  /** 1, or 2 when the first attempt failed and was confirmed. */
+  attempts?: number;
 };
 
 /** A page answers "up" if it answers at all and does not report a server fault. */
 export const UP_LATENCY_LIMIT_MS = 8_000;
+
+/**
+ * How long a probe may take.
+ *
+ * A site that answered last round gets three seconds — if it cannot answer that
+ * quickly it is not serving pages anyway, and a black-holed host must not hold
+ * its wave for eight. A site that is already down keeps the long timeout, because
+ * that is the one case where waiting longer might see it come back.
+ */
+export const PROBE_TIMEOUT_HEALTHY_MS = 3_000;
+export const PROBE_TIMEOUT_TROUBLED_MS = UP_LATENCY_LIMIT_MS;
+/** A single failure is a suspicion, not a verdict. */
+export const CONFIRM_DELAY_MS = 1_200;
+/** Certificates this close to expiry get the amber chip and one email. */
+export const CERT_WARN_DAYS = 30;
+/** The whole round's budget, after which untouched URLs keep their last answer. */
+export const ROUND_BUDGET_MS = 45_000;
+
+export function timeoutFor(previous: { ok: boolean } | undefined): number {
+  return previous && previous.ok === false ? PROBE_TIMEOUT_TROUBLED_MS : PROBE_TIMEOUT_HEALTHY_MS;
+}
 
 /** Up, but slow enough to be worth a second look: the amber light. */
 export const SLOW_LATENCY_MS = 1_500;
@@ -194,8 +241,15 @@ export function buildTargets(
  * timeout is not, and the error line says which, because "down" on its own tells
  * nobody where to look.
  */
-export function readResponse(statusCode: number, latencyMs: number | null): ProbeResult {
-  const ok = statusCode >= 100 && statusCode < 400;
+export function readResponse(
+  statusCode: number,
+  latencyMs: number | null,
+  options: { treatAuthAsUp?: boolean } = {},
+): ProbeResult {
+  const ok =
+    (statusCode >= 100 && statusCode < 400) ||
+    // A login prompt is the site doing its job behind Windows auth.
+    (Boolean(options.treatAuthAsUp) && (statusCode === 401 || statusCode === 403));
   return {
     ok,
     statusCode,
@@ -279,4 +333,85 @@ export function parseRecipients(value: string): string[] {
     seen.add(address);
   }
   return [...seen];
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Certificates, maintenance, escalation                                      */
+/* -------------------------------------------------------------------------- */
+
+export type CertState = "ok" | "expiring" | "expired" | "unknown";
+
+export function certDaysLeft(certExpiresAt: string | null | undefined, now: Date = new Date()): number | null {
+  if (!certExpiresAt) return null;
+  const at = new Date(certExpiresAt).getTime();
+  if (Number.isNaN(at)) return null;
+  return Math.floor((at - now.getTime()) / 86_400_000);
+}
+
+export function certState(certExpiresAt: string | null | undefined, now: Date = new Date()): CertState {
+  const days = certDaysLeft(certExpiresAt, now);
+  if (days === null) return "unknown";
+  if (days < 0) return "expired";
+  if (days <= CERT_WARN_DAYS) return "expiring";
+  return "ok";
+}
+
+/** "expires in 12 days", "expired 2 days ago", "unknown". */
+export function describeCert(certExpiresAt: string | null | undefined, now: Date = new Date()): string {
+  const days = certDaysLeft(certExpiresAt, now);
+  if (days === null) return "not seen";
+  if (days < 0) return `expired ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ago`;
+  if (days === 0) return "expires today";
+  return `expires in ${days} ${days === 1 ? "day" : "days"}`;
+}
+
+export type MaintenanceWindow = { from: string | null; to: string | null; note: string };
+
+/**
+ * True inside the window someone declared.
+ *
+ * Probes keep running (knowing a site is down during a deploy is still useful);
+ * what stops is the email. The end has to be in the future for the window to
+ * count, so a stale row cannot silence alerts for ever.
+ */
+export function inMaintenance(window: MaintenanceWindow, now: Date = new Date()): boolean {
+  if (!window.from || !window.to) return false;
+  const from = new Date(window.from).getTime();
+  const to = new Date(window.to).getTime();
+  if (Number.isNaN(from) || Number.isNaN(to)) return false;
+  const at = now.getTime();
+  return at >= from && at <= to;
+}
+
+/**
+ * Still down after the escalation delay?
+ *
+ * The outage's own start is the clock: a site that has been down for longer than
+ * the configured minutes is worth telling a second set of people about, once.
+ */
+export function escalationDue(
+  sinceIso: string | null,
+  minutes: number,
+  alreadyEscalated: boolean,
+  now: Date = new Date(),
+): boolean {
+  if (alreadyEscalated || !sinceIso) return false;
+  const since = new Date(sinceIso).getTime();
+  if (Number.isNaN(since)) return false;
+  return now.getTime() - since >= Math.max(1, minutes) * 60_000;
+}
+
+export type UptimeSummary = {
+  key: string;
+  checks: number;
+  up: number;
+  avgLatencyMs: number | null;
+  p95LatencyMs: number | null;
+  lastCheckedAt: string | null;
+};
+
+/** 100 × up ÷ checks, one decimal; null until something has been checked. */
+export function uptimePercent(summary: UptimeSummary | undefined): number | null {
+  if (!summary || summary.checks === 0) return null;
+  return Math.round((summary.up / summary.checks) * 1000) / 10;
 }

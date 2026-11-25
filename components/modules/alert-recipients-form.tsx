@@ -6,31 +6,37 @@ import { Button } from "@/components/ui/button";
 import type { FormState } from "@/lib/forms";
 
 /**
- * The alert recipients.
+ * Who hears about an outage — and who hears about it again.
  *
- * One textarea, because that is how a list of addresses arrives from a person —
- * pasted out of a mail thread, separated by commas or new lines. The server
- * parses it, says which entry did not look like an address, and saves the rest.
+ * The first list is told when a site changes state. The second is told when one
+ * has been down long enough that somebody should be doing something; the webhook
+ * carries the same line to whichever chat the team actually watches.
  */
 export function AlertRecipientsForm({
   action,
   initialRecipients,
   initialEnabled,
+  initialEscalation,
+  initialMinutes,
+  initialWebhook,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   initialRecipients: string[];
   initialEnabled: boolean;
+  initialEscalation: string[];
+  initialMinutes: number;
+  initialWebhook: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
 
   return (
     <form action={formAction} className="border border-line bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5 sm:px-5">
-        <p className="text-[12.5px] font-medium text-navy">Alert recipients</p>
+        <p className="text-[12.5px] font-medium text-navy">Alerts</p>
         <p className="text-[11px] text-muted">IT Manager and super admin only</p>
       </div>
 
-      <div className="space-y-3 px-4 py-4 sm:px-5">
+      <div className="space-y-4 px-4 py-4 sm:px-5">
         {state.error && (
           <p
             role="alert"
@@ -54,7 +60,7 @@ export function AlertRecipientsForm({
           <textarea
             id="alert-recipients"
             name="recipients"
-            rows={3}
+            rows={2}
             defaultValue={initialRecipients.join(", ")}
             placeholder="it-team@example.com, ops@example.com"
             className="field mt-1 w-full font-mono text-[12px] leading-relaxed"
@@ -78,6 +84,60 @@ export function AlertRecipientsForm({
             </span>
           </span>
         </label>
+
+        <div className="border-t border-line pt-3">
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Escalation</p>
+
+          <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
+            <div>
+              <label htmlFor="alert-escalation" className="field-label">
+                Second list
+              </label>
+              <input
+                id="alert-escalation"
+                name="escalationEmails"
+                defaultValue={initialEscalation.join(", ")}
+                placeholder="managers@example.com"
+                className="field mt-1 w-full font-mono text-[12px]"
+              />
+            </div>
+            <div>
+              <label htmlFor="alert-minutes" className="field-label">
+                After minutes
+              </label>
+              <input
+                id="alert-minutes"
+                name="escalateAfterMinutes"
+                type="number"
+                min={1}
+                max={1440}
+                defaultValue={initialMinutes}
+                className="field mt-1 w-full tabular-nums text-[12px]"
+              />
+            </div>
+          </div>
+          <p className="mt-1 text-[11px] text-muted">
+            A site still down after this long is mailed to the second list once — the first alert still
+            goes out immediately.
+          </p>
+
+          <div className="mt-3">
+            <label htmlFor="alert-webhook" className="field-label">
+              Webhook (Slack, Teams or anything that takes a JSON POST)
+            </label>
+            <input
+              id="alert-webhook"
+              name="webhookUrl"
+              type="url"
+              defaultValue={initialWebhook}
+              placeholder="https://hooks.slack.com/services/…"
+              className="field mt-1 w-full font-mono text-[12px]"
+            />
+            <p className="mt-1 text-[11px] text-muted">
+              Sent alongside the email, with the same wording. Leave empty for email only.
+            </p>
+          </div>
+        </div>
 
         <div className="flex justify-end">
           <Button type="submit" size="sm" disabled={pending}>

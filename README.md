@@ -788,41 +788,71 @@ says how many bindings that leaves ("3 of 5 published bindings"). The filter is
 applied when the register is read, so a binding that gains or loses its SSL
 mapping moves in or out of the board on its own — nothing is maintained twice.
 
-A check is one `fetch` with an 8s timeout that never reads the body. Anything
-answering below 400 is up; a 4xx/5xx or a failed connection is down, with the
-reason written the way a person would say it ("That host name does not
-resolve."). Six run at a time.
+A check is one HTTP request that never reads the body, spoken directly over
+`node:https` rather than `fetch`, so the time is reported where it went — DNS,
+TCP, TLS, first byte — instead of as one anonymous number. Anything answering
+below 400 is up; a 4xx/5xx or a failed connection is down, with the reason in the
+words a person would use ("That host name does not resolve.").
 
-The board is a table — site, status, response, when it was last asked — and
-clicking a site opens the detail: the full URL, owner, server, environment, the
-HTTP status, the latency, how long it has been in its current state, and whether
-the alert has gone out. Status is a three-lane pipeline: **green** answering
-quickly, **amber** answering but slower than 1.5s, **red** not answering, with
-the lane for the current state filled and the rest left as track.
+**A round is built to be quick and to be believed.**
+
+- A site that answered last time gets a **3-second** timeout instead of eight; a
+  site that was already down keeps the long one.
+- A single failure is a suspicion: the probe waits ~1.2s and asks again before
+  it counts, and the row says it was confirmed.
+- **One round at a time.** A lease row means three open tabs run one round, not
+  three.
+- **Ten probes in flight, one per host**, so two schemes of the same site never
+  race through one IIS worker, and the IIS register is cached for 30 seconds.
+- A round that runs long leaves untouched URLs at their previous answer rather
+  than inventing a failure.
+
+The board is a table — site, status, response, uptime, when it was last asked —
+and clicking a site opens the detail: the full URL, owner, server, environment,
+the HTTP status, where the milliseconds went, the certificate and its expiry, how
+long it has been in its current state, whether the alert went out, and the
+outages it has had. Status is a three-lane pipeline: **green** answering quickly,
+**amber** answering but slower than 1.5s, **red** not answering.
 
 **Live, and on a schedule you set.** Nobody presses anything. Monitoring →
 Settings has the interval in minutes and seconds (10 seconds to 60 minutes,
-60 seconds out of the box); the board counts down to the next round, runs it,
-and picks up other people's rounds through a 15-second poll so two open tabs
-never disagree.
+60 seconds out of the box); the board counts down to the next round, runs it, and
+picks up other people's rounds through a 15-second poll. A hidden tab stops
+polling entirely.
 
-**Alerts** are transitions, not states: a site that goes down is mailed once,
-a site that comes back is mailed once, and a site that stays down is not mailed
-again — a flapping or long outage does not fill the inbox. If the mail fails,
-the flag is left unset so the next round tries again instead of losing the
-outage. Recipients, the on/off switch and the check interval live under
-**Monitoring → Settings**, and only the IT Manager (or the super admin) can
-change them.
+**History and uptime.** Every round appends a row to `monitoring_history` (30
+days kept), so the board can show 24-hour and 7-day uptime with a bar, p95
+latency, and the outage list. An outage is an **incident**: opened on the way
+down, closed on the way back up, and acknowledged from the board by whoever is
+handling it, with a note.
+
+**Certificates are a warning, not an outage.** The probe reads the certificate's
+`notAfter` off the TLS socket; inside 30 days the detail line turns amber, the
+toolbar counts it, and one email goes out. Renewed, the warning clears itself.
+
+**Alerts** are transitions, not states: a site that goes down is mailed once, a
+site that comes back is mailed once, and a site that stays down is not mailed
+again. If the mail fails, the flag is left unset so the next round tries again.
+**Escalation** sends a still-down site to a second list once, after a delay you
+set (15 minutes by default), and a **webhook** carries the same line to Slack,
+Teams or anything that takes a JSON POST. A **maintenance window** silences the
+mail without hiding the state: the checks keep running and the board says why it
+is quiet.
+
+**What the probe is told.** Two situations make an honest site look broken, and
+both are switches rather than guesses: *Trust internal certificates* (a network
+that inspects TLS), and *Treat 401/403 as up* (a site behind Windows
+authentication). A TLS-verification failure is reported as such, never as "down".
 
 **Mail.** Monitoring sends through a real SMTP account (nodemailer), configured
-once under **Settings → Email & alerts**: host, port, STARTTLS/TLS/plain, username,
-password, From address and name, plus a *Send test message* button that connects,
-logs in and delivers, and reports which step failed in plain words if it did not.
-The password is stored with the same AES-256-GCM envelope as the integration keys
-(key derived from `AUTH_SECRET`, so rotating that secret means re-entering it)
-and is never returned to the browser — leaving the field blank keeps the stored
-one. The ticketing channel is untouched: it still posts to its own relay and the
-app still holds no password for it.
+once under **Settings → Email & alerts**: host, port, STARTTLS/TLS/plain,
+username, password, From address and name, plus a *Send test message* button that
+connects, logs in and delivers, and reports which step failed in plain words if
+it did not. The password is stored with the same AES-256-GCM envelope as the
+integration keys (key derived from `AUTH_SECRET`, so rotating that secret means
+re-entering it) and is never returned to the browser — leaving the field blank
+keeps the stored one. The ticketing channel is untouched: it still posts to its
+own relay and the app still holds no password for it.
 
 **Scheduling.** Vercel's two cron slots are already spent (ticket sweep, server
 sync), so monitoring refreshes when the page is open and when an external
@@ -830,15 +860,19 @@ scheduler calls it:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://tasktornado.vercel.app/api/monitoring/check
+curl -H "Authorization: Bearer $CRON_SECRET" https://tasktornado.vercel.app/api/monitoring/digest
 ```
 
-That call honours the interval too: it answers `{ "skipped": true }` rather than
-probing a URL more often than Settings says, so the scheduler can poll as often
-as it likes without over-checking.
+The check call honours the interval — `{ "skipped": true }` rather than probing a
+URL more often than Settings says — and refuses to run twice inside five seconds.
+The digest sends the morning summary: what is down now, and what was down
+overnight.
 
-`GET /api/monitoring/status` returns the same board as JSON for that scheduler
-or a status page. Both fall back to memory when Supabase is not configured, so a
-missing migration reads as "not checked yet" instead of failing the page.
+`GET /api/monitoring/status` returns the board as JSON for a signed-in user.
+`GET /api/monitoring/summary?token=…` is the read-only view for a status page or
+badge; the token is set under Monitoring → Settings and an empty token turns the
+endpoint off. Every store falls back to memory when Supabase is not configured,
+so a missing migration reads as "not checked yet" instead of failing the page.
 
 ## 5. Local development
 
@@ -955,7 +989,9 @@ lib/
   servers/endpoint.ts    Pure inventory helpers (summary, patch/reboot wording)
   tickets/portal.ts      Portal loaders: credentials, issue list, one issue
   monitoring/core.ts     Pure: binding URL, up/down reading, alert plan, recipients
-  monitoring/run.ts      Probe round, merge, mail only the transitions
+  monitoring/probe.ts    node:https probe: phases, redirects, certificate, timeouts
+  monitoring/run.ts      Round: lease, confirm, history, incidents, alerts, escalation
+  monitoring/digest.ts   The daily summary mail
   email/store.ts         SMTP row (password encrypted), display view
   email/smtp.ts          nodemailer transport + the test message
 supabase/migrations/     RBAC, tasks, business records + RLS
