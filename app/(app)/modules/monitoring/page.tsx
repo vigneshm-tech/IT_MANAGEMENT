@@ -44,6 +44,7 @@ export default async function MonitoringPage() {
         mailReady={canMail}
         alertsEnabled={settings.alertsEnabled}
         recipients={settings.recipientEmails}
+        intervalSeconds={settings.intervalSeconds}
       />
     </div>
   );

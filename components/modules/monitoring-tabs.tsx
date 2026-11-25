@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export type MonitoringTab = "board" | "alerts";
+export type MonitoringTab = "board" | "settings";
 
 /** Same strip as Settings and IIS, so the workspace behaves the same way twice. */
 export function MonitoringTabs({
@@ -13,7 +13,7 @@ export function MonitoringTabs({
   const tabs: { id: MonitoringTab; label: string; href: string }[] = [
     { id: "board", label: "Live status", href: "/modules/monitoring" },
     ...(canConfigure
-      ? [{ id: "alerts" as const, label: "Alerts", href: "/modules/monitoring/settings" }]
+      ? [{ id: "settings" as const, label: "Settings", href: "/modules/monitoring/settings" }]
       : []),
   ];
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
-import { runChecks } from "@/lib/monitoring/run";
+import { newestAgeSeconds, runChecks } from "@/lib/monitoring/run";
+import { readChecks, readMonitorSettings } from "@/lib/monitoring/store";
 import { runWithServiceRole } from "@/lib/supabase/server";
 
 /**
@@ -35,6 +36,18 @@ export async function GET(request: Request) {
     );
   }
   return runWithServiceRole(async () => {
+    // Honour the interval set under Monitoring → Settings: a scheduler may call
+    // as often as it likes, but a URL is not probed more often than configured.
+    const [settings, checks] = await Promise.all([readMonitorSettings(), readChecks()]);
+    const age = newestAgeSeconds(checks.values());
+    if (age !== null && age < settings.intervalSeconds) {
+      return NextResponse.json({
+        skipped: true,
+        ageSeconds: age,
+        intervalSeconds: settings.intervalSeconds,
+      });
+    }
+
     const summary = await runChecks();
     return NextResponse.json({ checked: summary.statuses.length, alerts: summary.alerts });
   });

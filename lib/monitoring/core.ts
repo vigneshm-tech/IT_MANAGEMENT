@@ -47,6 +47,55 @@ export type ProbeResult = {
 /** A page answers "up" if it answers at all and does not report a server fault. */
 export const UP_LATENCY_LIMIT_MS = 8_000;
 
+/** Up, but slow enough to be worth a second look: the amber light. */
+export const SLOW_LATENCY_MS = 1_500;
+
+/** How often the board checks by itself, unless someone says otherwise. */
+export const DEFAULT_CHECK_INTERVAL_SECONDS = 60;
+/** Ten seconds is about as fast as a round should be asked to run; an hour is
+ *  as slow as still counts as monitoring. */
+export const MIN_CHECK_INTERVAL_SECONDS = 10;
+export const MAX_CHECK_INTERVAL_SECONDS = 3_600;
+
+/**
+ * The interval a person typed, in seconds.
+ *
+ * Minutes and seconds are separate boxes because that is how people say it —
+ * "every 2 minutes", "every 1 minute 30" — and the total is clamped to something
+ * a serverless function and an IIS box can both live with.
+ */
+export function checkIntervalSeconds(minutes: number, seconds: number): number {
+  const wholeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.trunc(minutes)) : 0;
+  const wholeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.trunc(seconds)) : 0;
+  const total = wholeMinutes * 60 + wholeSeconds;
+  return Math.min(MAX_CHECK_INTERVAL_SECONDS, Math.max(MIN_CHECK_INTERVAL_SECONDS, total));
+}
+
+/** "every 45 sec", "every 2 min", "every 1 min 30 sec". */
+export function formatInterval(totalSeconds: number): string {
+  const seconds = Math.max(MIN_CHECK_INTERVAL_SECONDS, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes === 0) return `${rest} sec`;
+  if (rest === 0) return `${minutes} min`;
+  return `${minutes} min ${rest} sec`;
+}
+
+/**
+ * The three lights.
+ *
+ * Green: answering, and quickly. Amber: answering, but slowly — a page that
+ * takes four seconds is up, and still worth seeing. Red: not answering. Grey:
+ * nobody has checked it yet.
+ */
+export type StatusTone = "up" | "slow" | "down" | "unknown";
+
+export function statusTone(status: Pick<MonitorStatus, "ok" | "latencyMs">): StatusTone {
+  if (status.ok === null) return "unknown";
+  if (status.ok === false) return "down";
+  return (status.latencyMs ?? 0) >= SLOW_LATENCY_MS ? "slow" : "up";
+}
+
 /**
  * The public URL of an IIS binding.
  *

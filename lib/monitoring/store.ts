@@ -1,4 +1,5 @@
 import { isSupabaseConfigured } from "../config";
+import { DEFAULT_CHECK_INTERVAL_SECONDS, MAX_CHECK_INTERVAL_SECONDS, MIN_CHECK_INTERVAL_SECONDS } from "./core";
 import { createSupabaseServerClient } from "../supabase/server";
 
 /**
@@ -26,12 +27,15 @@ export type StoredCheck = {
 export type MonitorSettings = {
   recipientEmails: string[];
   alertsEnabled: boolean;
+  /** How often the board checks by itself, in seconds. */
+  intervalSeconds: number;
   updatedAt: string | null;
 };
 
 export const DEFAULT_MONITOR_SETTINGS: MonitorSettings = {
   recipientEmails: [],
   alertsEnabled: true,
+  intervalSeconds: DEFAULT_CHECK_INTERVAL_SECONDS,
   updatedAt: null,
 };
 
@@ -142,8 +146,14 @@ export async function markAlerted(keys: string[], alerted = true): Promise<void>
 type SettingsRow = {
   recipient_emails: string[] | null;
   alerts_enabled: boolean | null;
+  interval_seconds: number | null;
   updated_at: string | null;
 };
+
+function readInterval(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_CHECK_INTERVAL_SECONDS;
+  return Math.min(MAX_CHECK_INTERVAL_SECONDS, Math.max(MIN_CHECK_INTERVAL_SECONDS, Math.round(value)));
+}
 
 export async function readMonitorSettings(): Promise<MonitorSettings> {
   if (!isSupabaseConfigured) {
@@ -154,7 +164,7 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("monitoring_settings")
-      .select("recipient_emails,alerts_enabled,updated_at")
+      .select("recipient_emails,alerts_enabled,interval_seconds,updated_at")
       .eq("id", ROW_ID)
       .maybeSingle<SettingsRow>();
 
@@ -164,6 +174,7 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
     return {
       recipientEmails: data.recipient_emails ?? [],
       alertsEnabled: data.alerts_enabled ?? true,
+      intervalSeconds: readInterval(data.interval_seconds),
       updatedAt: data.updated_at,
     };
   } catch (error) {
@@ -174,12 +185,14 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
 
 export async function saveMonitorSettings(
   userId: string,
-  settings: { recipientEmails: string[]; alertsEnabled: boolean },
+  settings: { recipientEmails: string[]; alertsEnabled: boolean; intervalSeconds: number },
 ): Promise<void> {
   const updatedAt = new Date().toISOString();
 
+  const intervalSeconds = readInterval(settings.intervalSeconds);
+
   if (!isSupabaseConfigured) {
-    globalForMonitoring.__taskTornadoMonitorSettings = { ...settings, updatedAt };
+    globalForMonitoring.__taskTornadoMonitorSettings = { ...settings, intervalSeconds, updatedAt };
     return;
   }
 
@@ -189,6 +202,7 @@ export async function saveMonitorSettings(
       id: ROW_ID,
       recipient_emails: settings.recipientEmails,
       alerts_enabled: settings.alertsEnabled,
+      interval_seconds: intervalSeconds,
       updated_by: userId,
       updated_at: updatedAt,
     },

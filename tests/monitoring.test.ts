@@ -2,16 +2,23 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { IisApplication } from "../lib/iis/constants";
 import {
+  DEFAULT_CHECK_INTERVAL_SECONDS,
+  MAX_CHECK_INTERVAL_SECONDS,
+  MIN_CHECK_INTERVAL_SECONDS,
   bindingUrl,
   buildTargets,
+  checkIntervalSeconds,
   describeAge,
   describeSince,
+  formatInterval,
   parseRecipients,
   planAlerts,
   readFailure,
   readResponse,
+  statusTone,
   type MonitorTarget,
 } from "../lib/monitoring/core";
+import { newestAgeSeconds } from "../lib/monitoring/run";
 import { can, canAccessModule } from "../lib/access";
 import { ROLE_IDS, type RoleId } from "../lib/roles";
 
@@ -162,4 +169,41 @@ test("monitoring is a working module, not a public one", () => {
   // capability, which the registry grants separately).
   const admins = ALL_ROLES.filter((role) => can(role, "monitoring", "admin"));
   assert.deepEqual(admins.sort(), ["it_manager", "super_admin"]);
+});
+
+test("the interval is said in minutes and seconds, and kept sane", () => {
+  assert.equal(DEFAULT_CHECK_INTERVAL_SECONDS, 60);
+  assert.equal(checkIntervalSeconds(2, 0), 120);
+  assert.equal(checkIntervalSeconds(1, 30), 90);
+  assert.equal(checkIntervalSeconds(0, 45), 45);
+  // Nothing shorter than a round, nothing longer than an hour.
+  assert.equal(checkIntervalSeconds(0, 0), MIN_CHECK_INTERVAL_SECONDS);
+  assert.equal(checkIntervalSeconds(0, 5), MIN_CHECK_INTERVAL_SECONDS);
+  assert.equal(checkIntervalSeconds(90, 0), MAX_CHECK_INTERVAL_SECONDS);
+  assert.equal(checkIntervalSeconds(-4, -4), MIN_CHECK_INTERVAL_SECONDS);
+
+  assert.equal(formatInterval(45), "45 sec");
+  assert.equal(formatInterval(60), "1 min");
+  assert.equal(formatInterval(90), "1 min 30 sec");
+  assert.equal(formatInterval(3_600), "60 min");
+});
+
+test("the three lights say what the numbers mean", () => {
+  assert.equal(statusTone({ ok: null, latencyMs: null }), "unknown");
+  assert.equal(statusTone({ ok: false, latencyMs: 12 }), "down");
+  assert.equal(statusTone({ ok: true, latencyMs: 90 }), "up");
+  // Answering, but slowly: the amber light, not green and not red.
+  assert.equal(statusTone({ ok: true, latencyMs: 1_500 }), "slow");
+  assert.equal(statusTone({ ok: true, latencyMs: 4_200 }), "slow");
+});
+
+test("the scheduler measures from the newest answer", () => {
+  const now = new Date("2026-11-19T10:00:00.000Z").getTime();
+  assert.equal(newestAgeSeconds([], now), null, "nothing checked yet");
+
+  const rows = [
+    { key: "a", ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt: "2026-11-19T09:59:00.000Z", since: "2026-11-19T09:00:00.000Z", alerted: false },
+    { key: "b", ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt: "2026-11-19T09:58:30.000Z", since: "2026-11-19T09:00:00.000Z", alerted: false },
+  ];
+  assert.equal(newestAgeSeconds(rows, now), 60);
 });

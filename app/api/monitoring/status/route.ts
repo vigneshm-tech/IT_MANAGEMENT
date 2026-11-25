@@ -37,5 +37,6 @@ export async function GET() {
     alertsEnabled: settings.alertsEnabled,
     recipients: settings.recipientEmails,
     mailReady: canMail,
+    intervalSeconds: settings.intervalSeconds,
   });
 }

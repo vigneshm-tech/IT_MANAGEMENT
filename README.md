@@ -786,16 +786,26 @@ answering below 400 is up; a 4xx/5xx or a failed connection is down, with the
 reason written the way a person would say it ("That host name does not
 resolve."). Six run at a time.
 
-**Live.** The board polls the last answers every 15 seconds and probes again by
-itself once the newest answer is a minute old, so "live" needs nobody to press
-anything. *Check now* forces a round.
+The board is a table — site, status, response, when it was last asked — and
+clicking a site opens the detail: the full URL, owner, server, environment, the
+HTTP status, the latency, how long it has been in its current state, and whether
+the alert has gone out. Status is a three-lane pipeline: **green** answering
+quickly, **amber** answering but slower than 1.5s, **red** not answering, with
+the lane for the current state filled and the rest left as track.
+
+**Live, and on a schedule you set.** Nobody presses anything. Monitoring →
+Settings has the interval in minutes and seconds (10 seconds to 60 minutes,
+60 seconds out of the box); the board counts down to the next round, runs it,
+and picks up other people's rounds through a 15-second poll so two open tabs
+never disagree.
 
 **Alerts** are transitions, not states: a site that goes down is mailed once,
 a site that comes back is mailed once, and a site that stays down is not mailed
 again — a flapping or long outage does not fill the inbox. If the mail fails,
 the flag is left unset so the next round tries again instead of losing the
-outage. Recipients and the on/off switch live under **Monitoring → Alerts**, and
-only the IT Manager (or the super admin) can change them.
+outage. Recipients, the on/off switch and the check interval live under
+**Monitoring → Settings**, and only the IT Manager (or the super admin) can
+change them.
 
 **Mail.** Monitoring sends through a real SMTP account (nodemailer), configured
 once under **Settings → Email & alerts**: host, port, STARTTLS/TLS/plain, username,
@@ -814,6 +824,10 @@ scheduler calls it:
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://tasktornado.vercel.app/api/monitoring/check
 ```
+
+That call honours the interval too: it answers `{ "skipped": true }` rather than
+probing a URL more often than Settings says, so the scheduler can poll as often
+as it likes without over-checking.
 
 `GET /api/monitoring/status` returns the same board as JSON for that scheduler
 or a status page. Both fall back to memory when Supabase is not configured, so a
@@ -912,7 +926,7 @@ app/
                          approvals, renewals, settings
     modules/tasks/       Board views, /new, /<id>, /<id>/edit
     modules/servers/     Endpoint inventory, /<id> endpoint detail
-    modules/monitoring/  Live IIS binding board, /settings alert recipients
+    modules/monitoring/  Live IIS binding table, /settings interval + recipients
     modules/settings/email/  SMTP account for alerts, with a test message
 components/
   nav/top-nav.tsx        Two-zone header: wordmark, command palette, notifications

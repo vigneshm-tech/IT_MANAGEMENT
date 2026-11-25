@@ -93,6 +93,22 @@ export type RunSummary = {
   alerts: string | null;
 };
 
+/**
+ * How long ago the newest stored answer was taken, in seconds.
+ *
+ * `null` when nothing has ever been checked. The scheduler uses this to honour
+ * the interval the IT Manager set: a job that fires every minute must not probe
+ * a URL that is meant to be checked every ten.
+ */
+export function newestAgeSeconds(checks: Iterable<StoredCheck>, now = Date.now()): number | null {
+  let newest = 0;
+  for (const check of checks) {
+    const at = new Date(check.checkedAt).getTime();
+    if (!Number.isNaN(at)) newest = Math.max(newest, at);
+  }
+  return newest === 0 ? null : Math.max(0, Math.round((now - newest) / 1000));
+}
+
 /** The board without probing: whatever the last check recorded. */
 export async function readBoard(): Promise<MonitorStatus[]> {
   const [applications, checks] = await Promise.all([listApplications(true), readChecks()]);
