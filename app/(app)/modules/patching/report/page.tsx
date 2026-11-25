@@ -145,7 +145,7 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                   <StatusPill status={status} label={PATCH_STATUS_LABEL[status]} />
                 </div>
 
-                <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5">
+                <dl className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
                   <Field label="Planned date" value={formatPlannedDate(plan.plannedDate)} />
                   <Field label="IT member handling" value={plan.handlerName || "—"} />
                   <Field label="Approved provided by" value={approvedByName(plan.approvers)} />
@@ -167,7 +167,7 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                   </div>
                 </dl>
 
-                <p className="mt-2 text-[11.5px] text-muted">
+                <p className="mt-3 text-[11.5px] text-muted">
                   {plan.missingCount} missing {plan.missingCount === 1 ? "patch" : "patches"} ·{" "}
                   {plan.otherCount} other {plan.otherCount === 1 ? "update" : "updates"}
                   {plan.note ? ` · ${plan.note}` : ""}
@@ -186,13 +186,13 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                     Action1 reports no missing updates for this endpoint.
                   </p>
                 ) : (
-                  <table className="mt-3 w-full border-collapse text-[11.5px]">
+                  <table className="mt-4 w-full border-collapse text-[11.5px]">
                     <thead>
                       <tr className="border-b border-line text-left text-[10.5px] uppercase tracking-[0.08em] text-muted">
-                        <th className="w-12 py-1.5 pr-2 font-medium">S.No</th>
-                        <th className="py-1.5 pr-2 font-medium">Patch name</th>
-                        <th className="w-32 py-1.5 pr-2 font-medium">CVE</th>
-                        <th className="w-24 py-1.5 font-medium">Severity</th>
+                        <th className="w-12 py-2 pr-3 font-medium">S.No</th>
+                        <th className="py-2 pr-3 font-medium">Patch name</th>
+                        <th className="w-32 py-2 pr-3 font-medium">CVE</th>
+                        <th className="w-24 py-2 font-medium">Severity</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -200,12 +200,12 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                         const cves = splitCveIds(update.cve);
                         return (
                           <tr key={`${update.id}-${row}`} className="border-b border-line/70">
-                            <td className="py-1.5 pr-2 text-muted">{row + 1}</td>
-                            <td className="py-1.5 pr-2 text-navy">
+                            <td className="py-2 pr-3 align-top text-muted">{row + 1}</td>
+                            <td className="py-2 pr-3 align-top text-navy">
                               {update.name}
                               {update.kb ? <span className="text-muted"> · {update.kb}</span> : null}
                             </td>
-                            <td className="py-1.5 pr-2 align-top font-mono text-[11px] text-body">
+                            <td className="py-2 pr-3 align-top font-mono text-[11px] text-body">
                               {cves.length > 0 ? (
                                 cves.map((cve) => (
                                   <span key={cve} className="block whitespace-nowrap">
@@ -216,7 +216,7 @@ export default async function PatchReportPage({ searchParams }: PageProps) {
                                 "—"
                               )}
                             </td>
-                            <td className="py-1.5">
+                            <td className="py-2 align-top">
                               {update.severity ? (
                                 <StatusPill
                                   status={update.severity}

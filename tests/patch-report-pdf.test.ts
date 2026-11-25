@@ -41,6 +41,35 @@ function drawnText(bytes: Uint8Array): string {
     .join("\n");
 }
 
+/** Text with the point it was drawn at, so spacing can be measured. */
+type Placed = { text: string; x: number; y: number };
+
+function placedText(bytes: Uint8Array): Placed[] {
+  const drawn: Placed[] = [];
+  for (const stream of inflated(bytes)) {
+    let x = 0;
+    let y = 0;
+    for (const raw of stream.split("\n")) {
+      const line = raw.trim();
+      const move = /^1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm$/.exec(line);
+      if (move) {
+        x = Number(move[1]);
+        y = Number(move[2]);
+        continue;
+      }
+      const run = /^<([0-9A-Fa-f]+)> Tj$/.exec(line);
+      if (run) drawn.push({ text: Buffer.from(run[1], "hex").toString("latin1"), x, y });
+    }
+  }
+  return drawn;
+}
+
+function at(drawn: Placed[], text: string): Placed {
+  const found = drawn.find((entry) => entry.text === text);
+  assert.ok(found, `expected "${text}" on the sheet`);
+  return found;
+}
+
 function pageCount(bytes: Uint8Array): number {
   for (const stream of inflated(bytes)) {
     const match = /\/Type\s*\/Pages[\s\S]{0,120}?\/Count\s+(\d+)/.exec(stream);
@@ -250,4 +279,71 @@ test("a logo that cannot be embedded falls back to the wordmark", async () => {
   assert.match(content, /1407 364 m/);
   assert.doesNotMatch(raw, /\/Subtype\s*\/Image/);
   assert.match(drawnText(bytes), /Page 1 of 1/);
+});
+
+test("the sheet is spaced, not packed", async () => {
+  const bytes = await buildPatchReportPdf(model());
+  const drawn = placedText(bytes);
+
+  // A field's label sits clearly above its value rather than on top of it.
+  const label = at(drawn, "PLANNED DATE");
+  const value = at(drawn, "21 Nov 2026");
+  assert.ok(
+    label.y - value.y >= 9,
+    `label to value gap was ${label.y - value.y}pt, expected at least 9`,
+  );
+
+  // The table header has a band of air before the first row.
+  const header = at(drawn, "PATCH NAME");
+  const firstRow = at(drawn, "Cumulative Update for Windows Server 2019 (KB5063878)");
+  assert.ok(
+    header.y - firstRow.y >= 16,
+    `header to first row gap was ${header.y - firstRow.y}pt, expected at least 16`,
+  );
+
+  // And rows are taller than the text inside them, so nothing touches a rule.
+  const secondRow = at(drawn, "Security Intelligence Update for Defender");
+  assert.ok(firstRow.y - secondRow.y >= 16, "rows keep air between them");
+});
+
+test("the patch table keeps every value inside its own column", async () => {
+  const bytes = await buildPatchReportPdf(model());
+  const drawn = placedText(bytes);
+
+  const name = at(drawn, "Cumulative Update for Windows Server 2019 (KB5063878)");
+  const cve = at(drawn, "CVE-2025-1000");
+  const severity = at(drawn, "Critical");
+
+  // Patch name column is 280pt wide, CVE 122pt, severity 79pt.
+  assert.ok(cve.x - name.x >= 270, `CVE started ${cve.x - name.x}pt after the name column`);
+  assert.ok(severity.x - cve.x >= 115, `severity started ${severity.x - cve.x}pt after the CVE column`);
+  assert.ok(severity.x < 44 + 507, "severity stays inside the right margin");
+});
+
+test("several CVE ids are stacked with room between the lines", async () => {
+  const bytes = await buildPatchReportPdf(
+    model({
+      endpoints: [
+        endpoint({
+          updates: [
+            {
+              name: "Security Update for SQL Server 2019 (KB5040946)",
+              kb: "KB5040946",
+              cve: "CVE-2025-21178, CVE-2025-21179, CVE-2025-21200",
+              severity: "Important",
+            },
+          ],
+        }),
+      ],
+    }),
+  );
+
+  const drawn = placedText(bytes);
+  const [a, b, c] = ["CVE-2025-21178", "CVE-2025-21179", "CVE-2025-21200"].map((id) =>
+    at(drawn, id),
+  );
+
+  assert.ok(a.y - b.y >= 8, "first and second id keep their leading");
+  assert.ok(b.y - c.y >= 8, "second and third id keep their leading");
+  assert.equal(Math.round(a.x), Math.round(b.x), "the ids share one left edge");
 });

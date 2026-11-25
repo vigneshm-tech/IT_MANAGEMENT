@@ -327,31 +327,65 @@ export async function buildPatchReportPdf(
 
   /* -------------------------------------------------------------- sections */
 
+  /**
+   * Breathing room, in points.
+   *
+   * Every gap on the sheet comes from here rather than from numbers typed at the
+   * point of drawing, so the report reads as one rhythm: a little space inside a
+   * field, a little more between field rows, a clear band between the header of
+   * a section and its table.
+   */
+  const SPACE = {
+    /** Under an endpoint's name rule, before the first field label. */
+    afterHeading: 12,
+    /** Row top to the field label's baseline. */
+    fieldLabel: 7,
+    /** Row top to the first line of a field's value. */
+    fieldValue: 17.5,
+    fieldLeading: 10.8,
+    /** Between the bottom of one field row and the top of the next. */
+    fieldRowGap: 6,
+    beforeNote: 7,
+    beforeCounts: 3,
+    beforeTable: 13,
+    /** Table header's top to its baseline, and to the rule under it. */
+    header: 8,
+    headerRule: 3,
+    /** Column edge to the text inside it. */
+    cellX: 8,
+    /** Row top to the first baseline, and last baseline to the row's rule. */
+    cellTop: 8,
+    cellBottom: 6,
+    afterTable: 22,
+  };
+
   // The CVE column is wider than a single id needs: an update can name several
   // bulletins, and they are printed one per line rather than run together.
-  const TABLE_COLUMNS = [26, 286, 122, 73];
-  const TABLE_LEADING = 9.9;
-  const CVE_LEADING = 9.4;
+  const TABLE_COLUMNS = [26, 280, 122, 79];
+  const TABLE_LEADING = 10;
+  const CVE_LEADING = 9.8;
 
   function tableHeader(sheetRef: Sheet) {
     const base = sheetRef.y;
     let x = MARGIN.left;
     ["S.No", "Patch name", "CVE", "Severity"].forEach((label, index) => {
-      sheetRef.text(label.toUpperCase(), x + (index === 0 ? 0 : 2), base, {
+      // S.No is a two-character column, so it gets a smaller inset than the rest.
+      const inset = index === 0 ? 4 : SPACE.cellX;
+      sheetRef.text(label.toUpperCase(), x + inset, base + SPACE.header, {
         font: fonts.bold,
         size: 6.6,
         color: MUTED,
       });
       x += TABLE_COLUMNS[index];
     });
-    sheetRef.rule(base + 4.5);
-    sheetRef.y = base + 14;
+    sheetRef.rule(base + SPACE.header + SPACE.headerRule);
+    sheetRef.y = base + SPACE.header + 12;
   }
 
   model.endpoints.forEach((endpoint, index) => {
     // A section never starts at the very bottom of a page: keep its heading and
     // first rows together.
-    sheet.ensure(96);
+    sheet.ensure(110);
 
     const headingTop = sheet.y;
     sheet.text(`${index + 1}. ${endpoint.name}`, MARGIN.left, headingTop + 9, {
@@ -365,129 +399,133 @@ export async function buildPatchReportPdf(
       color: TONE_COLOR[endpoint.statusTone],
     });
     sheet.rule(headingTop + 15);
-    sheet.y = headingTop + 26;
+    sheet.y = headingTop + 15 + SPACE.afterHeading;
 
     // Fields: three to a row, label above value, as on the screen.
-    const gap = 16;
+    const gap = 18;
     const columnWidth = (CONTENT_WIDTH - gap * 2) / 3;
     for (let start = 0; start < endpoint.fields.length; start += 3) {
       const row = endpoint.fields.slice(start, start + 3);
       const heights = row.map((field) => {
         const lines = sheet.wrap(field.value || "—", fonts.regular, 8.8, columnWidth);
-        return 9 + Math.max(1, lines.length) * 10.4;
+        return (
+          SPACE.fieldValue + (Math.max(1, lines.length) - 1) * SPACE.fieldLeading + 4
+        );
       });
       const rowHeight = Math.max(...heights);
-      if (sheet.ensure(rowHeight + 4)) {
+      if (sheet.ensure(rowHeight + SPACE.fieldRowGap)) {
         // A field row is allowed to continue on the next page.
         sheet.text(`${index + 1}. ${endpoint.name} (continued)`, MARGIN.left, sheet.y + 8, {
           font: fonts.bold,
           size: 8.4,
           color: MUTED,
         });
-        sheet.y += 16;
+        sheet.y += 20;
       }
       const rowTop = sheet.y;
       row.forEach((field, column) => {
         const x = MARGIN.left + column * (columnWidth + gap);
-        sheet.text(field.label.toUpperCase(), x, rowTop + 6, {
+        sheet.text(field.label.toUpperCase(), x, rowTop + SPACE.fieldLabel, {
           font: fonts.bold,
           size: 6.4,
           color: MUTED,
         });
         const lines = sheet.wrap(field.value || "—", fonts.regular, 8.8, columnWidth);
         lines.forEach((line, lineIndex) => {
-          sheet.text(line, x, rowTop + 16 + lineIndex * 10.4, {
+          sheet.text(line, x, rowTop + SPACE.fieldValue + lineIndex * SPACE.fieldLeading, {
             font: fonts.regular,
             size: 8.8,
             color: field.tone ? TONE_COLOR[field.tone] : NAVY,
           });
         });
       });
-      sheet.y = rowTop + rowHeight;
+      sheet.y = rowTop + rowHeight + SPACE.fieldRowGap;
     }
 
-    sheet.y += 2;
     if (endpoint.note) {
-      const noteHeight = sheet.paragraph(endpoint.note, MARGIN.left, CONTENT_WIDTH, {
+      sheet.y += SPACE.beforeNote;
+      sheet.y += sheet.paragraph(endpoint.note, MARGIN.left, CONTENT_WIDTH, {
         font: fonts.regular,
         size: 8,
-        leading: 10,
+        leading: 10.6,
         color: MUTED,
       });
-      sheet.y += noteHeight;
     }
-    sheet.paragraph(endpoint.counts, MARGIN.left, CONTENT_WIDTH, {
+    sheet.y += SPACE.beforeCounts;
+    sheet.y += sheet.paragraph(endpoint.counts, MARGIN.left, CONTENT_WIDTH, {
       font: fonts.regular,
       size: 8,
-      leading: 10,
+      leading: 10.6,
       color: MUTED,
     });
-    sheet.y += 10;
+    sheet.y += SPACE.beforeTable;
 
     /* ---------------------------------------------------------- patch list */
 
     if (endpoint.listMessage) {
-      sheet.ensure(20);
-      sheet.fill(sheet.y, 16, WASH);
-      sheet.text(endpoint.listMessage, MARGIN.left + 6, sheet.y + 11, {
+      sheet.ensure(24);
+      sheet.fill(sheet.y, 18, WASH);
+      sheet.text(endpoint.listMessage, MARGIN.left + SPACE.cellX, sheet.y + 12, {
         font: fonts.regular,
         size: 8.2,
         color: MUTED,
       });
-      sheet.y += 24;
+      sheet.y += 30;
       return;
     }
 
     if (endpoint.updates.length === 0) {
-      sheet.ensure(16);
-      sheet.text("Action1 reports no missing updates for this endpoint.", MARGIN.left, sheet.y + 8, {
+      sheet.ensure(18);
+      sheet.text("Action1 reports no missing updates for this endpoint.", MARGIN.left, sheet.y + 9, {
         font: fonts.regular,
         size: 8.2,
         color: MUTED,
       });
-      sheet.y += 20;
+      sheet.y += 22;
       return;
     }
 
-    sheet.ensure(26);
+    sheet.ensure(46);
     tableHeader(sheet);
 
     endpoint.updates.forEach((update, row) => {
-      const nameLines = sheet.wrap(update.name, fonts.regular, 8.4, TABLE_COLUMNS[1] - 10);
+      const nameWidth = TABLE_COLUMNS[1] - SPACE.cellX * 2;
+      const nameLines = sheet.wrap(update.name, fonts.regular, 8.4, nameWidth);
       // One CVE id per line. Several ids in one run used to spill into the
       // severity column and throw the row out of shape.
       const cveIds = splitCveIds(update.cve);
       const cveLines = (cveIds.length > 0 ? cveIds : ["—"]).flatMap((id) =>
-        sheet.wrap(id, fonts.mono, 7.6, TABLE_COLUMNS[2] - 8),
+        sheet.wrap(id, fonts.mono, 7.6, TABLE_COLUMNS[2] - SPACE.cellX * 2),
       );
-      const rowHeight =
-        Math.max(
-          Math.max(1, nameLines.length) * TABLE_LEADING,
-          cveLines.length * CVE_LEADING,
-          9,
-        ) + 5.5;
+      const bodyHeight = Math.max(
+        Math.max(1, nameLines.length) * TABLE_LEADING,
+        cveLines.length * CVE_LEADING,
+        9,
+      );
+      const rowHeight = SPACE.cellTop + bodyHeight + SPACE.cellBottom;
 
-      if (sheet.ensure(rowHeight + 2)) {
+      if (sheet.ensure(rowHeight)) {
         sheet.text(
           `${index + 1}. ${endpoint.name} (continued)`,
           MARGIN.left,
           sheet.y + 8,
           { font: fonts.bold, size: 8.4, color: MUTED },
         );
-        sheet.y += 15;
+        sheet.y += 20;
         tableHeader(sheet);
       }
 
       const rowTop = sheet.y;
-      if (row % 2 === 1) sheet.fill(rowTop - 2.5, rowHeight, WASH);
+      const baseline = rowTop + SPACE.cellTop;
+      if (row % 2 === 1) sheet.fill(rowTop, rowHeight - 1, WASH);
 
-      sheet.text(String(row + 1), MARGIN.left + 2, rowTop + 6.5, {
+      sheet.text(String(row + 1), MARGIN.left + 4, baseline, {
         font: fonts.regular,
         size: 8,
         color: MUTED,
       });
       nameLines.forEach((line, lineIndex) => {
-        sheet.text(line, MARGIN.left + TABLE_COLUMNS[0] + 2, rowTop + 6.5 + lineIndex * TABLE_LEADING, {
+        sheet.text(line, MARGIN.left + TABLE_COLUMNS[0] + SPACE.cellX, baseline + lineIndex * TABLE_LEADING, {
           font: fonts.regular,
           size: 8.4,
           color: BODY,
@@ -498,18 +536,18 @@ export async function buildPatchReportPdf(
         const lastLine = nameLines[nameLines.length - 1] ?? "";
         const used = fonts.regular.widthOfTextAtSize(safe(lastLine), 8.4);
         const kb = fonts.regular.widthOfTextAtSize(safe(` · ${update.kb}`), 8.4);
-        if (used + kb <= TABLE_COLUMNS[1] - 10) {
+        if (used + kb <= nameWidth) {
           sheet.text(
             ` · ${update.kb}`,
-            MARGIN.left + TABLE_COLUMNS[0] + 2 + used,
-            rowTop + 6.5 + (nameLines.length - 1) * TABLE_LEADING,
+            MARGIN.left + TABLE_COLUMNS[0] + SPACE.cellX + used,
+            baseline + (nameLines.length - 1) * TABLE_LEADING,
             { font: fonts.regular, size: 8.4, color: MUTED },
           );
         }
       }
       const cveX = MARGIN.left + TABLE_COLUMNS[0] + TABLE_COLUMNS[1];
       cveLines.forEach((line, lineIndex) => {
-        sheet.text(line, cveX + 2, rowTop + 6.5 + lineIndex * CVE_LEADING, {
+        sheet.text(line, cveX + SPACE.cellX, baseline + lineIndex * CVE_LEADING, {
           font: fonts.mono,
           size: 7.6,
           color: BODY,
@@ -522,17 +560,17 @@ export async function buildPatchReportPdf(
           : update.severity.toLowerCase() === "important"
             ? "pending"
             : "neutral";
-      sheet.text(update.severity || "—", severityX + 2, rowTop + 6.5, {
+      sheet.text(update.severity || "—", severityX + SPACE.cellX, baseline, {
         font: fonts.regular,
         size: 8,
         color: TONE_COLOR[severityTone],
       });
 
-      sheet.rule(rowTop + rowHeight - 2.5, LINE, 0.5);
+      sheet.rule(rowTop + rowHeight - 1, LINE, 0.5);
       sheet.y = rowTop + rowHeight;
     });
 
-    sheet.y += 16;
+    sheet.y += SPACE.afterTable;
   });
 
   /* -------------------------------------------------------------- footers */
