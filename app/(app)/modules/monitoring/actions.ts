@@ -10,6 +10,7 @@ import {
   MIN_CHECK_INTERVAL_SECONDS,
   checkIntervalSeconds,
   formatInterval,
+  filterFromHttpEnabled,
   parseRecipients,
 } from "@/lib/monitoring/core";
 import { readMonitorSettings, saveMonitorSettings } from "@/lib/monitoring/store";
@@ -25,6 +26,7 @@ async function currentSettings() {
       recipientEmails: [] as string[],
       alertsEnabled: true,
       intervalSeconds: DEFAULT_CHECK_INTERVAL_SECONDS,
+      protocolFilter: "all" as const,
       updatedAt: null,
     };
   }
@@ -72,6 +74,7 @@ export async function saveAlertRecipientsAction(
       recipientEmails: recipients,
       alertsEnabled: enabled,
       intervalSeconds: settings.intervalSeconds,
+      protocolFilter: settings.protocolFilter,
     });
   } catch {
     return { error: "The alert settings could not be saved. Please try again." };
@@ -135,6 +138,7 @@ export async function saveCheckScheduleAction(
       recipientEmails: settings.recipientEmails,
       alertsEnabled: settings.alertsEnabled,
       intervalSeconds,
+      protocolFilter: settings.protocolFilter,
     });
   } catch {
     return { error: "The check interval could not be saved. Please try again." };
@@ -143,4 +147,46 @@ export async function saveCheckScheduleAction(
   revalidatePath(SETTINGS_PATH);
   revalidatePath("/modules/monitoring");
   return { ok: true, message: `Saved. Every site is checked every ${formatInterval(intervalSeconds)}.` };
+}
+
+/**
+ * Whether plain http URLs are watched.
+ *
+ * A switch rather than a list of exceptions: on, every published binding is
+ * probed; off, only the SSL-mapped ones. The IIS register remains the only place
+ * a site is described, and a binding that loses its certificate mapping leaves
+ * the board on its own.
+ */
+export async function saveHttpMonitoringAction(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  if (!can(user.role, "monitoring", "admin")) {
+    return { error: "Only the IT Manager or a super admin can change what is monitored." };
+  }
+
+  const monitorHttp =
+    formData.get("monitorHttp") === "on" || formData.get("monitorHttp") === "true";
+  const settings = await currentSettings();
+
+  try {
+    await saveMonitorSettings(user.id, {
+      recipientEmails: settings.recipientEmails,
+      alertsEnabled: settings.alertsEnabled,
+      intervalSeconds: settings.intervalSeconds,
+      protocolFilter: filterFromHttpEnabled(monitorHttp),
+    });
+  } catch {
+    return { error: "The monitoring setting could not be saved. Please try again." };
+  }
+
+  revalidatePath(SETTINGS_PATH);
+  revalidatePath("/modules/monitoring");
+  return {
+    ok: true,
+    message: monitorHttp
+      ? "Saved. HTTP and HTTPS bindings are both monitored."
+      : "Saved. Only HTTPS URLs are monitored; HTTP bindings are ignored.",
+  };
 }

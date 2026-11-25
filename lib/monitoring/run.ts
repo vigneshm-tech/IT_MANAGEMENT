@@ -111,8 +111,12 @@ export function newestAgeSeconds(checks: Iterable<StoredCheck>, now = Date.now()
 
 /** The board without probing: whatever the last check recorded. */
 export async function readBoard(): Promise<MonitorStatus[]> {
-  const [applications, checks] = await Promise.all([listApplications(true), readChecks()]);
-  return mergeStatuses(buildTargets(applications), checks);
+  const [applications, checks, settings] = await Promise.all([
+    listApplications(true),
+    readChecks(),
+    readMonitorSettings(),
+  ]);
+  return mergeStatuses(buildTargets(applications, settings.protocolFilter), checks);
 }
 
 function mergeStatuses(
@@ -146,7 +150,7 @@ export async function runChecks(): Promise<RunSummary> {
     readMonitorSettings(),
   ]);
 
-  const targets = buildTargets(applications);
+  const targets = buildTargets(applications, settings.protocolFilter);
   if (targets.length === 0) return { statuses: [], alerts: null };
 
   const results = await probeAll(targets);

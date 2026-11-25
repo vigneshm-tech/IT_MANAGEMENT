@@ -3,16 +3,22 @@ import Link from "next/link";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { AlertRecipientsForm } from "@/components/modules/alert-recipients-form";
 import { CheckScheduleForm } from "@/components/modules/check-schedule-form";
+import { HttpMonitoringForm } from "@/components/modules/http-monitoring-form";
 import { MonitoringTabs } from "@/components/modules/monitoring-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { can, canAccessModule } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { readSmtpForDisplay } from "@/lib/email/store";
-import { formatInterval } from "@/lib/monitoring/core";
+import { buildTargets, formatInterval, isHttpEnabled } from "@/lib/monitoring/core";
+import { listApplications } from "@/lib/iis/repository";
 import { readMonitorSettings } from "@/lib/monitoring/store";
 import { MODULE_BY_ID } from "@/lib/modules";
 import { formatDateTime } from "@/lib/format";
-import { saveAlertRecipientsAction, saveCheckScheduleAction } from "../actions";
+import {
+  saveAlertRecipientsAction,
+  saveCheckScheduleAction,
+  saveHttpMonitoringAction,
+} from "../actions";
 
 export const metadata: Metadata = { title: "Monitoring settings" };
 
@@ -33,8 +39,20 @@ export default async function MonitoringSettingsPage() {
     return <AccessDenied moduleTitle="Monitoring settings" />;
   }
 
-  const [settings, smtp] = await Promise.all([readMonitorSettings(), readSmtpForDisplay()]);
+  const [settings, smtp, applications] = await Promise.all([
+    readMonitorSettings(),
+    readSmtpForDisplay(),
+    listApplications(true),
+  ]);
   const mailReady = Boolean(smtp?.configured);
+
+  // The counts come from the same derivation the board uses, so the number on
+  // the card is the number of rows the switch would leave.
+  const counts = {
+    https: buildTargets(applications, "https").length,
+    http: buildTargets(applications, "http").length,
+  };
+  const watched = isHttpEnabled(settings.protocolFilter) ? counts.https + counts.http : counts.https;
 
   return (
     <div className="space-y-4">
@@ -67,14 +85,21 @@ export default async function MonitoringSettingsPage() {
         </Link>
       </section>
 
+      <HttpMonitoringForm
+        action={saveHttpMonitoringAction}
+        initialEnabled={isHttpEnabled(settings.protocolFilter)}
+        counts={counts}
+      />
+
       <CheckScheduleForm action={saveCheckScheduleAction} initialSeconds={settings.intervalSeconds} />
 
       <section className="border border-line bg-surface px-4 py-3 sm:px-5">
         <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">How it runs</p>
         <p className="mt-1 text-[12.5px] text-body">
-          Every {formatInterval(settings.intervalSeconds)} each URL is fetched once, with an 8 second
-          timeout. The board picks up the answer within a second while it is open; an external
-          scheduler keeps it fresh when nobody is looking.
+          Every {formatInterval(settings.intervalSeconds)} each watched URL is fetched once, with an 8
+          second timeout — {watched} {watched === 1 ? "URL" : "URLs"} at the moment. The board picks
+          up the answer within a second while it is open; an external scheduler keeps it fresh when
+          nobody is looking.
         </p>
       </section>
 

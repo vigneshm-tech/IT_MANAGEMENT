@@ -3,11 +3,13 @@
 import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  PROTOCOL_LABELS,
   describeAge,
   describeSince,
   formatInterval,
   statusTone,
   type MonitorStatus,
+  type ProtocolFilter,
   type StatusTone,
 } from "@/lib/monitoring/core";
 
@@ -17,6 +19,7 @@ type BoardState = {
   alertsEnabled: boolean;
   recipients: string[];
   intervalSeconds: number;
+  protocolFilter: ProtocolFilter;
 };
 
 /**
@@ -104,12 +107,14 @@ export function MonitoringBoard({
   alertsEnabled,
   recipients,
   intervalSeconds,
+  protocolFilter,
 }: {
   initial: MonitorStatus[];
   mailReady: boolean;
   alertsEnabled: boolean;
   recipients: string[];
   intervalSeconds: number;
+  protocolFilter: ProtocolFilter;
 }) {
   const [state, setState] = useState<BoardState>({
     statuses: initial,
@@ -117,6 +122,7 @@ export function MonitoringBoard({
     alertsEnabled,
     recipients,
     intervalSeconds,
+    protocolFilter,
   });
   const [now, setNow] = useState(() => Date.now());
   const [checking, setChecking] = useState(false);
@@ -216,7 +222,8 @@ export function MonitoringBoard({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
           </span>
-          Live · checked every {formatInterval(state.intervalSeconds)}
+          Live · {PROTOCOL_LABELS[state.protocolFilter]} · checked every{" "}
+          {formatInterval(state.intervalSeconds)}
           <span className="text-line-strong" aria-hidden>
             ·
           </span>
@@ -285,7 +292,12 @@ export function MonitoringBoard({
 
       {state.statuses.length === 0 ? (
         <p className="border border-dashed border-line-strong bg-surface px-4 py-8 text-center text-[12.5px] text-muted">
-          Nothing to watch yet. An IIS application with a binding host appears here on its own.
+          Nothing to watch.{" "}
+          {state.protocolFilter === "https"
+            ? "No binding is SSL-mapped yet, so only HTTPS monitoring leaves nothing to check. Turn on HTTP monitoring under Settings to watch the plain http sites too."
+            : state.protocolFilter === "http"
+              ? "No plain http binding is published — every site here is SSL-mapped."
+              : "An IIS application with a binding host appears here on its own."}
         </p>
       ) : (
         <div className="overflow-x-auto border border-line bg-surface">

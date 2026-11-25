@@ -121,17 +121,59 @@ export function bindingUrl(application: Pick<IisApplication, "bindingHost" | "bi
 }
 
 /**
+ * Which schemes to watch.
+ *
+ * A workspace that only cares about the secure endpoints can say so instead of
+ * watching every plain-http binding as well — and the filter applies to the IIS
+ * list, so nothing has to be maintained twice.
+ */
+export type ProtocolFilter = "all" | "https" | "http";
+
+export const PROTOCOL_LABELS: Record<ProtocolFilter, string> = {
+  all: "HTTP and HTTPS",
+  https: "HTTPS only",
+  http: "HTTP only",
+};
+
+export function isProtocolFilter(value: string): value is ProtocolFilter {
+  return value === "all" || value === "https" || value === "http";
+}
+
+/**
+ * The switch is a yes/no — "enable HTTP monitoring" — and the stored filter is
+ * what that means. Off leaves only the SSL-mapped bindings, which is the whole
+ * point: a workspace that publishes plain http does not have to watch it.
+ */
+export function filterFromHttpEnabled(enabled: boolean): ProtocolFilter {
+  return enabled ? "all" : "https";
+}
+
+export function isHttpEnabled(filter: ProtocolFilter): boolean {
+  return filter !== "https";
+}
+
+/** The scheme of a target's URL, as the filter sees it. */
+export function urlProtocol(url: string): "https" | "http" {
+  return /^https:/i.test(url) ? "https" : "http";
+}
+
+/**
  * Every active application that publishes a binding becomes a target.
  *
  * Inactive rows are skipped on purpose: an application someone retired last
- * month should not page anyone at three in the morning.
+ * month should not page anyone at three in the morning. A scheme filter then
+ * drops the URLs the workspace said it does not want watched.
  */
-export function buildTargets(applications: IisApplication[]): MonitorTarget[] {
+export function buildTargets(
+  applications: IisApplication[],
+  filter: ProtocolFilter = "all",
+): MonitorTarget[] {
   const targets: MonitorTarget[] = [];
   for (const application of applications) {
     if (!application.active) continue;
     const url = bindingUrl(application);
     if (!url) continue;
+    if (filter !== "all" && urlProtocol(url) !== filter) continue;
     targets.push({
       key: application.id,
       url,

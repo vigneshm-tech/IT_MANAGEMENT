@@ -1,5 +1,11 @@
 import { isSupabaseConfigured } from "../config";
-import { DEFAULT_CHECK_INTERVAL_SECONDS, MAX_CHECK_INTERVAL_SECONDS, MIN_CHECK_INTERVAL_SECONDS } from "./core";
+import {
+  DEFAULT_CHECK_INTERVAL_SECONDS,
+  MAX_CHECK_INTERVAL_SECONDS,
+  MIN_CHECK_INTERVAL_SECONDS,
+  isProtocolFilter,
+  type ProtocolFilter,
+} from "./core";
 import { createSupabaseServerClient } from "../supabase/server";
 
 /**
@@ -29,6 +35,8 @@ export type MonitorSettings = {
   alertsEnabled: boolean;
   /** How often the board checks by itself, in seconds. */
   intervalSeconds: number;
+  /** Which schemes are watched: the binding list filtered to https, http, or both. */
+  protocolFilter: ProtocolFilter;
   updatedAt: string | null;
 };
 
@@ -36,6 +44,7 @@ export const DEFAULT_MONITOR_SETTINGS: MonitorSettings = {
   recipientEmails: [],
   alertsEnabled: true,
   intervalSeconds: DEFAULT_CHECK_INTERVAL_SECONDS,
+  protocolFilter: "all",
   updatedAt: null,
 };
 
@@ -147,6 +156,7 @@ type SettingsRow = {
   recipient_emails: string[] | null;
   alerts_enabled: boolean | null;
   interval_seconds: number | null;
+  protocol_filter: string | null;
   updated_at: string | null;
 };
 
@@ -164,7 +174,7 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("monitoring_settings")
-      .select("recipient_emails,alerts_enabled,interval_seconds,updated_at")
+      .select("recipient_emails,alerts_enabled,interval_seconds,protocol_filter,updated_at")
       .eq("id", ROW_ID)
       .maybeSingle<SettingsRow>();
 
@@ -175,6 +185,7 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
       recipientEmails: data.recipient_emails ?? [],
       alertsEnabled: data.alerts_enabled ?? true,
       intervalSeconds: readInterval(data.interval_seconds),
+      protocolFilter: isProtocolFilter(data.protocol_filter ?? "") ? (data.protocol_filter as ProtocolFilter) : "all",
       updatedAt: data.updated_at,
     };
   } catch (error) {
@@ -185,7 +196,12 @@ export async function readMonitorSettings(): Promise<MonitorSettings> {
 
 export async function saveMonitorSettings(
   userId: string,
-  settings: { recipientEmails: string[]; alertsEnabled: boolean; intervalSeconds: number },
+  settings: {
+    recipientEmails: string[];
+    alertsEnabled: boolean;
+    intervalSeconds: number;
+    protocolFilter: ProtocolFilter;
+  },
 ): Promise<void> {
   const updatedAt = new Date().toISOString();
 
@@ -203,6 +219,7 @@ export async function saveMonitorSettings(
       recipient_emails: settings.recipientEmails,
       alerts_enabled: settings.alertsEnabled,
       interval_seconds: intervalSeconds,
+      protocol_filter: settings.protocolFilter,
       updated_by: userId,
       updated_at: updatedAt,
     },

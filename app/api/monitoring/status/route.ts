@@ -38,5 +38,6 @@ export async function GET() {
     recipients: settings.recipientEmails,
     mailReady: canMail,
     intervalSeconds: settings.intervalSeconds,
+    protocolFilter: settings.protocolFilter,
   });
 }

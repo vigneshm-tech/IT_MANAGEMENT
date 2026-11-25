@@ -45,6 +45,7 @@ export default async function MonitoringPage() {
         alertsEnabled={settings.alertsEnabled}
         recipients={settings.recipientEmails}
         intervalSeconds={settings.intervalSeconds}
+        protocolFilter={settings.protocolFilter}
       />
     </div>
   );

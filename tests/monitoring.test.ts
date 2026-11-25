@@ -16,6 +16,10 @@ import {
   readFailure,
   readResponse,
   statusTone,
+  isProtocolFilter,
+  filterFromHttpEnabled,
+  isHttpEnabled,
+  urlProtocol,
   type MonitorTarget,
 } from "../lib/monitoring/core";
 import { newestAgeSeconds } from "../lib/monitoring/run";
@@ -206,4 +210,39 @@ test("the scheduler measures from the newest answer", () => {
     { key: "b", ok: true, statusCode: 200, latencyMs: 90, error: null, checkedAt: "2026-11-19T09:58:30.000Z", since: "2026-11-19T09:00:00.000Z", alerted: false },
   ];
   assert.equal(newestAgeSeconds(rows, now), 60);
+});
+
+test("the filter watches only the scheme that was chosen", () => {
+  const register = [
+    application({ id: "secure", bindingHost: "portal.example.com", bindingPort: 443, sslMapped: true }),
+    application({ id: "secure-alt", bindingHost: "shop.example.com", bindingPort: 8443, sslMapped: true }),
+    application({ id: "plain", bindingHost: "legacy.example.com", bindingPort: 80, sslMapped: false }),
+    application({ id: "plain-alt", bindingHost: "intranet.example.com", bindingPort: 8080, sslMapped: false }),
+    application({ id: "retired", active: false, sslMapped: true }),
+  ];
+
+  const keys = (filter: "all" | "https" | "http") =>
+    buildTargets(register, filter).map((target) => target.key);
+
+  assert.deepEqual(keys("all"), ["plain-alt", "plain", "secure", "secure-alt"]);
+  assert.deepEqual(keys("https"), ["secure", "secure-alt"]);
+  assert.deepEqual(keys("http"), ["plain-alt", "plain"]);
+  // No filter argument keeps the old behaviour.
+  assert.equal(buildTargets(register).length, 4);
+
+  // A scheme written into the host is read by what it says, not by the SSL flag.
+  assert.equal(urlProtocol("https://shop.example.com"), "https");
+  assert.equal(urlProtocol("http://shop.example.com"), "http");
+
+  assert.equal(isProtocolFilter("https"), true);
+  assert.equal(isProtocolFilter("ftp"), false);
+
+  // The settings switch is a yes/no over the same stored filter.
+  assert.equal(filterFromHttpEnabled(true), "all");
+  assert.equal(filterFromHttpEnabled(false), "https");
+  assert.equal(isHttpEnabled("all"), true);
+  assert.equal(isHttpEnabled("http"), true);
+  assert.equal(isHttpEnabled("https"), false);
+  // Switching HTTP off leaves exactly the SSL-mapped bindings.
+  assert.equal(buildTargets(register, filterFromHttpEnabled(false)).length, 2);
 });

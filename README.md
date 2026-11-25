@@ -781,6 +781,13 @@ site is SSL-mapped, `http` when it is not, and the port is dropped when it is th
 scheme's own (80/443) and kept when it is not (`:8443`). A retired application,
 or one with a blank binding host, is not watched — there is no address to call.
 
+**Enable HTTP monitoring** (Monitoring → Settings) is the one switch over that
+list: on — the default — every published binding is checked; off, only the
+SSL-mapped `https` URLs are, and the plain `http` bindings are ignored. The card
+says how many bindings that leaves ("3 of 5 published bindings"). The filter is
+applied when the register is read, so a binding that gains or loses its SSL
+mapping moves in or out of the board on its own — nothing is maintained twice.
+
 A check is one `fetch` with an 8s timeout that never reads the body. Anything
 answering below 400 is up; a 4xx/5xx or a failed connection is down, with the
 reason written the way a person would say it ("That host name does not
