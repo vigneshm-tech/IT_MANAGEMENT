@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound, LogOut, ShieldCheck, Timer } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
+import { SessionTimeoutForm } from "@/components/modules/session-timeout-form";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,8 +12,14 @@ import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/auth/actions";
 import { listApiKeys } from "@/lib/api/keys";
 import { formatDateTime } from "@/lib/format";
+import { canManageSessionTimeout, sessionTimeoutLabel } from "@/lib/session-policy";
+import { readSessionPolicy } from "@/lib/settings/session";
+import { saveSessionTimeoutAction } from "./actions";
 
 export const metadata: Metadata = { title: "Security & sessions" };
+
+/** Past this, a date would be noise — the session simply does not end on its own. */
+const NO_EXPIRY_DAYS = 300;
 
 export default async function SecuritySettingsPage() {
   const user = await requireUser();
@@ -20,12 +27,14 @@ export default async function SecuritySettingsPage() {
     return <AccessDenied moduleTitle="Settings" />;
   }
 
-  const keys = await listApiKeys(user.id);
+  const [keys, policy] = await Promise.all([listApiKeys(user.id), readSessionPolicy()]);
   const activeKeys = keys.filter(
     (key) => !key.revokedAt && (!key.expiresAt || new Date(key.expiresAt) > new Date()),
   );
-  const expires = new Date(user.expiresAt * 1000);
   const issued = new Date(user.issuedAt * 1000);
+  const expires = new Date(user.expiresAt * 1000);
+  const daysLeft = (expires.getTime() - Date.now()) / 86_400_000;
+  const expiresLabel = daysLeft > NO_EXPIRY_DAYS ? "No expiry" : formatDateTime(expires);
 
   return (
     <div className="space-y-5">
@@ -40,15 +49,19 @@ export default async function SecuritySettingsPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 text-navy-soft" aria-hidden />
             <div>
-              <p className="text-[12.5px] text-body">
-                Signed in as <span className="font-medium text-navy">{user.email}</span>
-              </p>
-              <p className="mt-0.5 text-[11.5px] text-muted">
-                {user.email} · {user.title}
-              </p>
+              <p className="text-[12.5px] font-medium text-navy">{user.name}</p>
+              <p className="text-[11.5px] text-muted">{user.email}</p>
             </div>
           </div>
-          <StatusPill status="active" label="This session" />
+          <div className="flex items-center gap-2">
+            <StatusPill status="active" label="This session" />
+            <form action={logoutAction}>
+              <Button type="submit" variant="secondary" size="sm">
+                <LogOut className="h-3.5 w-3.5" aria-hidden />
+                Sign out
+              </Button>
+            </form>
+          </div>
         </div>
 
         <dl className="grid grid-cols-1 gap-x-10 gap-y-4 px-4 py-4 text-[12px] sm:grid-cols-3 sm:px-5">
@@ -65,48 +78,38 @@ export default async function SecuritySettingsPage() {
             <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
               Expires
             </dt>
-            <dd className="mt-1 text-body">{formatDateTime(expires)}</dd>
+            <dd className="mt-1 text-body">{expiresLabel}</dd>
           </div>
           <div>
             <dt className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
-              Sign-in method
+              Login timeout
             </dt>
-            <dd className="mt-1 text-body">
-              Email and password
-            </dd>
+            <dd className="mt-1 text-body">{sessionTimeoutLabel(policy.timeoutMinutes)}</dd>
           </div>
         </dl>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
-          <p className="text-[11.5px] text-muted">Signing out ends this session on this device.</p>
-          <form action={logoutAction}>
-            <Button type="submit" variant="secondary" size="sm">
-              <LogOut className="h-3.5 w-3.5" aria-hidden />
-              Sign out
-            </Button>
-          </form>
-        </div>
       </section>
 
-      <section className="border-y border-line bg-surface px-4 py-4 sm:px-5">
-        <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-navy">
-          <KeyRound className="h-3.5 w-3.5" aria-hidden />
-          Password
-        </h2>
-        <p className="mt-1 text-[11.5px] text-muted">
-          {user.provider === "supabase"
-            ? "A reset link is valid for one hour."
-            : "Password changes are not available for this account."}
-        </p>
-        {user.provider === "supabase" && (
+      {canManageSessionTimeout(user.role) && (
+        <SessionTimeoutForm
+          action={saveSessionTimeoutAction}
+          initialMinutes={policy.timeoutMinutes}
+        />
+      )}
+
+      {user.provider === "supabase" && (
+        <section className="border-y border-line bg-surface px-4 py-4 sm:px-5">
+          <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-navy">
+            <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            Password
+          </h2>
           <Link
             href="/login/forgot-password"
             className="mt-2 inline-block text-[11.5px] text-navy underline underline-offset-2"
           >
             Send a reset link
           </Link>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="border-y border-line bg-surface px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

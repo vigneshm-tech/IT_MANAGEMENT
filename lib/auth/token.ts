@@ -53,9 +53,11 @@ function sign(payload: string): string {
 export function encodeSession(
   user: Omit<SessionUser, "issuedAt" | "expiresAt">,
   now: Date = new Date(),
+  /** Seconds of life, from the workspace's login timeout. */
+  ttlSeconds: number = SESSION_TTL_SECONDS,
 ): string {
   const iat = Math.floor(now.getTime() / 1000);
-  const payload: TokenPayload = { ...user, iat, exp: iat + SESSION_TTL_SECONDS };
+  const payload: TokenPayload = { ...user, iat, exp: iat + ttlSeconds };
   const body = base64url(JSON.stringify(payload));
   return `${body}.${sign(body)}`;
 }

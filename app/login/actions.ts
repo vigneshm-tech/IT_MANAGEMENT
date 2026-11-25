@@ -10,6 +10,8 @@ import {
 } from "@/lib/auth/rate-limit";
 import { markIntroPending } from "@/lib/auth/intro";
 import { setSessionCookie } from "@/lib/auth/session";
+import { readSessionPolicy } from "@/lib/settings/session";
+import { sessionTtlSeconds } from "@/lib/session-policy";
 
 export type LoginState = {
   error?: string;
@@ -62,7 +64,9 @@ export async function loginAction(
   }
 
   clearLoginFailures(email, ip);
-  await setSessionCookie(result.user);
+  // The workspace chooses how long a sign-in lasts, including not at all.
+  const policy = await readSessionPolicy();
+  await setSessionCookie(result.user, sessionTtlSeconds(policy.timeoutMinutes));
   await markIntroPending();
   redirect(redirectTo);
 }

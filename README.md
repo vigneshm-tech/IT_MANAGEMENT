@@ -9,7 +9,7 @@ plans, approvals, renewals and settings — behind one sign-in.
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
 - Supabase Auth + Postgres row-level security (password reset by email)
 - Signed, HTTP-only session cookie; roles re-checked on every request
-- 428 unit tests covering the permission matrix, the task window, sessions and the pure helpers behind each module
+- 456 unit tests covering the permission matrix, the task window, sessions and the pure helpers behind each module
 
 ---
 
@@ -935,13 +935,20 @@ in production; the built-in mailer is rate-limited.
 
 ## 6. Security notes
 
-- Session cookie is HMAC-SHA256 signed, HTTP-only, SameSite=Lax, 12-hour TTL.
+- Session cookie is HMAC-SHA256 signed, HTTP-only, SameSite=Lax. Its life comes
+  from **Settings → Security & sessions → Login timeout** (`app_session_policy`,
+  one row, migration `0046`): an hour, 4/8/12/24 hours, 7 or 30 days, or *until
+  sign out* — which issues a 400-day cookie, the longest a browser keeps one.
+  The choice is applied when a session is issued, so changing it governs the
+  next sign-in rather than ending a session someone is in the middle of. Only
+  the IT Manager and the super admin may change it; everybody signed in may read
+  it on that page. Default 12 hours, unchanged from before the setting existed.
 - Login is throttled to 5 attempts per email + IP per 10 minutes (in-memory).
 - Every protected route calls `requireUser()`; module pages call
   `canAccessModule()` again before rendering and show a plain refusal otherwise.
   Supabase sessions are re-checked against `profiles.status` on each request, so
   a suspended or deleted account is signed out instead of waiting for the
-  12-hour cookie to expire.
+  cookie to reach its end.
 - Supabase RLS: users read only their own profile; admins (IT Manager,
   Management) can read all profiles; the audit log is insert-self/select-admin.
 - The SMTP password Monitoring alerts use is encrypted at rest like the

@@ -22,42 +22,36 @@ export default async function SettingsPage() {
       href: "/modules/settings/profile",
       icon: Fingerprint,
       title: "Profile",
-      summary: "Your details, access level and account settings",
     },
     {
       id: "security",
       href: "/modules/settings/security",
       icon: ShieldCheck,
       title: "Security & sessions",
-      summary: "Session, password and API keys",
     },
     {
       id: "integrations",
       href: "/modules/settings/integrations",
       icon: Plug,
       title: "Integrations",
-      summary: "Connect Redmine and Action1",
     },
     {
       id: "developers",
       href: "/modules/settings/developers",
       icon: KeyRound,
       title: "Developers",
-      summary: "API keys and connected apps",
     },
     {
       id: "email",
       href: "/modules/settings/email",
       icon: Mail,
       title: "Email & alerts",
-      summary: "The mail server Monitoring sends alerts through",
     },
     {
       id: "branding",
       href: "/modules/settings/branding",
       icon: ImageUp,
       title: "Report logo",
-      summary: "The logo printed on exported patching reports",
     },
   ];
 
@@ -77,11 +71,8 @@ export default async function SettingsPage() {
               className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-[#f4f7fc] focus-visible:bg-[#f4f7fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/70 sm:px-5"
             >
               <section.icon className="h-4 w-4 shrink-0 text-muted group-hover:text-navy" aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-semibold text-navy">{section.title}</span>
-                <span className="mt-1 block text-[12.5px] leading-relaxed text-muted">
-                  {section.summary}
-                </span>
+              <span className="min-w-0 flex-1 text-[14px] font-semibold text-navy">
+                {section.title}
               </span>
               <ChevronRight
                 aria-hidden

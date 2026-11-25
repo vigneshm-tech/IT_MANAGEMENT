@@ -13,16 +13,18 @@ export async function getSession(): Promise<SessionUser | null> {
 
 export async function setSessionCookie(
   user: Omit<SessionUser, "issuedAt" | "expiresAt">,
+  /** Seconds of life, from the workspace's login timeout. */
+  ttlSeconds: number = SESSION_TTL_SECONDS,
 ): Promise<void> {
   const store = await cookies();
   store.set({
     name: SESSION_COOKIE,
-    value: encodeSession(user),
+    value: encodeSession(user, new Date(), ttlSeconds),
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: ttlSeconds,
   });
 }
 
