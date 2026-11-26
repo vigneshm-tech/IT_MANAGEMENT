@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { KbFileUploader } from "@/components/modules/kb-file-uploader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   KB_FILE_KIND_LABELS,
@@ -30,6 +30,10 @@ export default async function TicketKbPage({
   searchParams: Promise<{ q?: string; delete?: string }>;
 }) {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "tickets", "kb")) {
+    return <AccessDenied moduleTitle="Knowledge base" />;
+  }
+
   if (!canAccessModule(user.role, "tickets")) {
     return <AccessDenied moduleTitle="Tickets" />;
   }

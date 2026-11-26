@@ -112,8 +112,11 @@ export function TicketsView({
   queues = [],
   overviews = [],
   activeOverviewId,
+  visiblePages,
 }: {
   user: SessionUser;
+  /** Ticket pages this role may open; omitted means the module decides. */
+  visiblePages?: string[];
   tickets: TicketRecord[];
   /** Checklist progress per ticket id — "2/3" in the list. */
   taskCounts?: Record<string, { done: number; total: number }>;
@@ -183,6 +186,7 @@ export function TicketsView({
           },
         }));
   const createdTicket = created ? tickets.find((ticket) => ticket.id === created) : undefined;
+  const mayOpen = (page: string) => !visiblePages || visiblePages.includes(page);
 
   return (
     <div className="space-y-5">
@@ -190,13 +194,15 @@ export function TicketsView({
         title="Tickets"
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              href="/modules/tickets/kb"
-              className={buttonClass({ variant: "secondary", size: "sm" })}
-            >
-              Knowledge base
-            </Link>
-            {agent && (
+            {mayOpen("kb") && (
+              <Link
+                href="/modules/tickets/kb"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                Knowledge base
+              </Link>
+            )}
+            {agent && mayOpen("reports") && (
               <Link
                 href="/modules/tickets/reports"
                 className={buttonClass({ variant: "secondary", size: "sm" })}
@@ -204,28 +210,30 @@ export function TicketsView({
                 Reports
               </Link>
             )}
-            {canReadTicketAdmin(user.role) && (
-              <>
-                <Link
-                  href="/modules/tickets/masters"
-                  className={buttonClass({ variant: "secondary", size: "sm" })}
-                >
-                  Masters
-                </Link>
-                <Link
-                  href="/modules/tickets/settings"
-                  className={buttonClass({ variant: "secondary", size: "sm" })}
-                >
-                  Settings
-                </Link>
-              </>
+            {canReadTicketAdmin(user.role) && mayOpen("masters") && (
+              <Link
+                href="/modules/tickets/masters"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                Masters
+              </Link>
             )}
-            <Link
-              href="/modules/tickets/redmine"
-              className={buttonClass({ variant: "secondary", size: "sm" })}
-            >
-              Redmine portal
-            </Link>
+            {canReadTicketAdmin(user.role) && mayOpen("settings") && (
+              <Link
+                href="/modules/tickets/settings"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                Settings
+              </Link>
+            )}
+            {mayOpen("redmine") && (
+              <Link
+                href="/modules/tickets/redmine"
+                className={buttonClass({ variant: "secondary", size: "sm" })}
+              >
+                Redmine portal
+              </Link>
+            )}
             <Link href="/modules/tickets/new" className={buttonClass({ size: "sm" })}>
               <Plus className="h-3.5 w-3.5" aria-hidden />
               New ticket

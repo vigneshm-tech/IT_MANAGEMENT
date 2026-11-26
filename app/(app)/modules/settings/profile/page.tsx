@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule, visibleModules } from "@/lib/access";
+import { canAccessModule, canAccessPage, visibleModules, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/auth/actions";
 import { roleOf } from "@/lib/roles";
@@ -23,6 +23,10 @@ function Field({ label, value }: { label: string; value: string }) {
 
 export default async function ProfileSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "profile")) {
+    return <AccessDenied moduleTitle="Profile" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -55,7 +59,7 @@ export default async function ProfileSettingsPage() {
     <div className="space-y-5">
       <PageHeader title="Profile">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="profile" />
+          <SettingsTabs active="profile" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

@@ -9,7 +9,7 @@ import { RenewalsView } from "@/components/modules/renewals-view";
 import { isServersFilter, ServersView } from "@/components/modules/servers-view";
 import { TasksView } from "@/components/modules/tasks-view";
 import { TicketsView } from "@/components/modules/tickets-view";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, visiblePageIds } from "@/lib/access";
 import { canSyncRedmineClients } from "@/lib/integrations/access";
 import { getIntegration } from "@/lib/integrations/store";
 import { approvalView } from "@/lib/approvals/views";
@@ -103,6 +103,7 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
           queues={queues}
           overviews={overviews}
           activeOverviewId={activeOverview?.id}
+          visiblePages={visiblePageIds(user.role, "tickets")}
         />
       );
     }

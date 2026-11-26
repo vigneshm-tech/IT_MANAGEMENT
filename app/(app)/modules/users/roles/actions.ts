@@ -8,6 +8,7 @@ import type { FormState } from "@/lib/forms";
 import { MODULES } from "@/lib/modules";
 import { isRoleId, roleSlug, type RoleGroup, type RoleLevel } from "@/lib/roles";
 import { isAccessLevel, type ModuleLevels } from "@/lib/roles/permissions";
+import { isPageOverride, pageKey, subPagesFor, type PageOverrides } from "@/lib/roles/pages";
 import {
   deleteRoleDefinition,
   findRoleDefinition,
@@ -47,14 +48,36 @@ function text(formData: FormData, field: string): string {
   return String(formData.get(field) ?? "").trim();
 }
 
-/** The grid always submits every module; anything missing or unrecognised is "none". */
+/**
+ * The grid submits two fields per module — the access switch and the permission
+ * — and one per page. Access off is `none`; access on is whichever permission
+ * was chosen. Anything missing or unrecognised is `none`.
+ */
 function readLevels(formData: FormData): ModuleLevels {
   return Object.fromEntries(
     MODULES.map((module) => {
-      const value = String(formData.get(`module:${module.id}`) ?? "none");
-      return [module.id, isAccessLevel(value) ? value : "none"];
+      const on = formData.get(`access:${module.id}`) === "on";
+      if (!on) {
+        // A grid saved by an older client still posts a single level.
+        const legacy = String(formData.get(`module:${module.id}`) ?? "none");
+        return [module.id, isAccessLevel(legacy) ? legacy : "none"];
+      }
+      const permission = String(formData.get(`perm:${module.id}`) ?? "read");
+      return [module.id, permission === "write" ? "write" : "read"];
     }),
   ) as ModuleLevels;
+}
+
+/** Only pages moved off "same as module" are stored, so the default stays cheap. */
+function readPageOverrides(formData: FormData): PageOverrides {
+  const overrides: PageOverrides = {};
+  for (const module of MODULES) {
+    for (const page of subPagesFor(module.id)) {
+      const value = String(formData.get(`page:${module.id}:${page.id}`) ?? "inherit");
+      if (isPageOverride(value)) overrides[pageKey(module.id, page.id)] = value;
+    }
+  }
+  return overrides;
 }
 
 function groupFrom(value: string): RoleGroup {
@@ -179,7 +202,7 @@ export async function saveRoleLevelsAction(
   const id = text(formData, "id");
   if (!findRoleDefinition(id)) return { error: "That role no longer exists." };
 
-  const error = await persistRoleLevels(id, readLevels(formData));
+  const error = await persistRoleLevels(id, readLevels(formData), readPageOverrides(formData));
   if (error) return { error };
 
   refresh(id);

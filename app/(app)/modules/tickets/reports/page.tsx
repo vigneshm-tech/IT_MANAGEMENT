@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { listTickets } from "@/lib/records/repository";
@@ -96,6 +96,10 @@ function BucketTable({
 
 export default async function TicketReportsPage() {
   const user = await requireUser();
+
+  if (!canAccessPage(user.role, "tickets", "reports")) {
+    return <AccessDenied moduleTitle="Ticket reports" />;
+  }
 
   if (!canAccessModule(user.role, "tickets")) {
     return <AccessDenied moduleTitle="Tickets" />;

@@ -1,5 +1,6 @@
 import type { ModuleId } from "../modules";
 import type { AccessLevel, ModuleLevels } from "./permissions";
+import { pageKey, type PageOverride, type PageOverrides } from "./pages";
 
 /**
  * The last role catalogue this process read.
@@ -20,19 +21,26 @@ import type { AccessLevel, ModuleLevels } from "./permissions";
  */
 
 let overrides: Record<string, Partial<ModuleLevels>> = {};
+let pages: Record<string, PageOverrides> = {};
 let known: string[] = [];
 
 export function setRoleCatalogue(
-  next: { id: string; modules: Partial<ModuleLevels> }[],
+  next: { id: string; modules: Partial<ModuleLevels>; pages?: PageOverrides }[],
 ): void {
   const nextOverrides: Record<string, Partial<ModuleLevels>> = {};
-  for (const role of next) nextOverrides[role.id] = role.modules;
+  const nextPages: Record<string, PageOverrides> = {};
+  for (const role of next) {
+    nextOverrides[role.id] = role.modules;
+    nextPages[role.id] = role.pages ?? {};
+  }
   overrides = nextOverrides;
+  pages = nextPages;
   known = next.map((role) => role.id);
 }
 
 export function clearRoleCatalogue(): void {
   overrides = {};
+  pages = {};
   known = [];
 }
 
@@ -51,4 +59,13 @@ export function roleAccessFor(roleId: string, moduleId: ModuleId): AccessLevel |
 
 export function roleOverrides(roleId: string): Partial<ModuleLevels> {
   return overrides[roleId] ?? {};
+}
+
+/** A page an administrator closed (or reopened) inside a module, if any. */
+export function rolePageFor(roleId: string, moduleId: string, pageId: string): PageOverride | undefined {
+  return pages[roleId]?.[pageKey(moduleId, pageId)];
+}
+
+export function rolePages(roleId: string): PageOverrides {
+  return pages[roleId] ?? {};
 }

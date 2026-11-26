@@ -8,7 +8,7 @@ import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { listApiKeys } from "@/lib/api/keys";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
@@ -39,6 +39,10 @@ export default async function DevelopersSettingsPage({
   searchParams: Promise<{ revoke?: string }>;
 }) {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "developers")) {
+    return <AccessDenied moduleTitle="Developers" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -71,7 +75,7 @@ export default async function DevelopersSettingsPage({
     <div className="space-y-5">
       <PageHeader title="Developers">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="developers" />
+          <SettingsTabs active="developers" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { TicketsPortalView } from "@/components/modules/tickets-portal-view";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { isTicketView, loadTickets } from "@/lib/tickets/portal";
 
@@ -15,6 +15,10 @@ export default async function RedminePortalPage({
   searchParams: Promise<{ view?: string; created?: string }>;
 }) {
   const user = await requireUser();
+
+  if (!canAccessPage(user.role, "tickets", "redmine")) {
+    return <AccessDenied moduleTitle="Redmine" />;
+  }
 
   if (!canAccessModule(user.role, "tickets")) {
     return <AccessDenied moduleTitle="Tickets" />;

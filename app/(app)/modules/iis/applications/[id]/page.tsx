@@ -6,7 +6,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { IisApplicationForm } from "@/components/modules/iis-form";
 import { IisTabs } from "@/components/modules/iis-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   ENVIRONMENT_LABELS,
@@ -43,7 +43,7 @@ export default async function EditIisApplicationPage({
     <div className="space-y-4">
       <PageHeader title={record.name}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-          <IisTabs active="applications" />
+          <IisTabs active="applications" visible={visiblePageIds(user.role, "iis")} />
           <Link
             href="/modules/iis/applications"
             className="inline-flex items-center gap-1 text-[11.5px] text-muted transition-colors hover:text-navy"

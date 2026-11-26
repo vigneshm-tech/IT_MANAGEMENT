@@ -1,6 +1,7 @@
 import type { ModuleId } from "../modules";
 import type { RoleGroup, RoleLevel } from "../roles";
 import type { AccessLevel } from "./permissions";
+import type { PageOverrides } from "./pages";
 
 /**
  * A role as it is stored: its name badge, its group, and whichever module
@@ -22,6 +23,8 @@ export type StoredRole = {
   builtin: boolean;
   unrestrictedTaskCreation: boolean;
   modules: Partial<Record<ModuleId, AccessLevel>>;
+  /** Pages closed or re-opened inside a module; an absent page follows its module. */
+  pages: PageOverrides;
   updatedAt: string | null;
 };
 

@@ -3,7 +3,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { MonitoringBoard } from "@/components/modules/monitoring-board";
 import { MonitoringTabs } from "@/components/modules/monitoring-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { mailReady } from "@/lib/email/smtp";
 import { readBoardView } from "@/lib/monitoring/run";
@@ -23,6 +23,10 @@ export const metadata: Metadata = { title: "Monitoring" };
  */
 export default async function MonitoringPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "monitoring", "board")) {
+    return <AccessDenied moduleTitle="Live status" />;
+  }
+
   if (!canAccessModule(user.role, "monitoring")) {
     return <AccessDenied moduleTitle={MODULE_BY_ID.monitoring.title} />;
   }
@@ -37,7 +41,11 @@ export default async function MonitoringPage() {
     <div className="space-y-4">
       <PageHeader title="Monitoring">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <MonitoringTabs active="board" canConfigure={can(user.role, "monitoring", "admin")} />
+          <MonitoringTabs
+            active="board"
+            canConfigure={can(user.role, "monitoring", "admin")}
+            visible={visiblePageIds(user.role, "monitoring")}
+          />
         </div>
       </PageHeader>
 

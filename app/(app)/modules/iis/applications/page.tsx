@@ -9,7 +9,7 @@ import { IisTabs } from "@/components/modules/iis-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { canIngestIis } from "@/lib/iis/automation";
 import {
@@ -34,6 +34,10 @@ export default async function IisApplicationsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "iis", "applications")) {
+    return <AccessDenied moduleTitle="Applications" />;
+  }
+
   if (!canAccessModule(user.role, "iis")) {
     return <AccessDenied moduleTitle={MODULE_BY_ID.iis.title} />;
   }
@@ -60,7 +64,7 @@ export default async function IisApplicationsPage({
     <div className="space-y-4">
       <PageHeader title="IIS Application">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-          <IisTabs active="applications" />
+          <IisTabs active="applications" visible={visiblePageIds(user.role, "iis")} />
           <IisCollectorPanel canIngest={canIngestIis(user.role)} />
           {canEdit && (
             <Link href="/modules/iis/applications/new" className={buttonClass({ size: "sm" })}>

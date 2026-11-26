@@ -9,7 +9,7 @@ plans, approvals, renewals and settings — behind one sign-in.
 - Next.js 16 (App Router, React 19, TypeScript, Tailwind CSS 4, Framer Motion)
 - Supabase Auth + Postgres row-level security (password reset by email)
 - Signed, HTTP-only session cookie; roles re-checked on every request
-- 456 unit tests covering the permission matrix, the task window, sessions and the pure helpers behind each module
+- 464 unit tests covering the permission matrix, the task window, sessions and the pure helpers behind each module
 
 ---
 
@@ -354,15 +354,39 @@ and on the edit page.
 
 The module registry lives in [`lib/modules.ts`](lib/modules.ts); the roles that
 every install starts with are in [`lib/roles.ts`](lib/roles.ts). Since migration
-`0039` a role is data, not code: **Users & Groups → Roles & access** lists every role,
-and each module is answered three ways — *Not allowed* (the module disappears
-from that role's navigation and its page refuses to open), *Read only* (it opens,
-nothing can be changed) and *Write* (add, edit and approve). A new role can be
-defined there and assigned in the directory beside it.
+`0039` a role is data, not code: **Users & Groups → Roles & access** lists every
+role, and a new one can be defined there and assigned in the directory beside it.
 
-`lib/access.ts` exposes `can()`, `canAccessModule()`, `visibleModules()` and
-`accessMap()`; `can()` reads the saved levels, and a role nobody has edited
-keeps the compiled rules exactly as before.
+Each module row carries **two separate fields**:
+
+| Field | Answers |
+| --- | --- |
+| **Access** | Is the module theirs at all? Off — the module leaves their navigation and its pages refuse them. |
+| **Permission** | Once inside, what may they do? *Read only* (look, nothing changes) or *Write* (add, edit, approve). |
+
+Keeping access apart from permission is deliberate: an auditor needs a module
+without ever needing to change it, and "grant this module, read only" is one
+decision, not two.
+
+Under each module sit its **pages** — Settings → Profile, Security, Integrations,
+Developers, Email & alerts, Report logo; Users → Directory, Groups, Roles;
+IIS → Applications, Databases, MySQL; Monitoring → Live status, Settings;
+Tickets → Masters, Settings, Knowledge base, Reports, Redmine. Each page is
+*Same as module* (the default), *Allowed* or *Not allowed*, and the page count
+beside the module says how many are closed. A page can only ever **narrow** its
+module: closing a page does nothing if the module is already closed, and a page
+never opens a module the role cannot see.
+
+A closed page is hidden from that module's tab strip and its URL answers the
+usual refusal — the same rule the module itself follows. The catalogue is in
+[`lib/roles/pages.ts`](lib/roles/pages.ts); overrides live in
+`access_roles.pages` (migration `0047`) as `{"settings/email":"none"}`, and an
+absent key follows the module, so an untouched workspace behaves exactly as it
+did before the column existed.
+
+`lib/access.ts` exposes `can()`, `canAccessModule()`, `canAccessPage()`,
+`visiblePageIds()`, `visibleModules()` and `accessMap()`; `can()` reads the saved
+levels, and a role nobody has edited keeps the compiled rules exactly as before.
 
 ### Patching Plans
 

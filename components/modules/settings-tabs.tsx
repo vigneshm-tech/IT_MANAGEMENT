@@ -25,11 +25,21 @@ const TABS: { id: SettingsTab; label: string; href: string }[] = [
  * reach the fourth. The strip is the split — the same shape the ticket
  * configuration uses, so the workspace behaves the same way twice.
  */
-export function SettingsTabs({ active }: { active: SettingsTab }) {
+export function SettingsTabs({
+  active,
+  visible,
+}: {
+  active: SettingsTab;
+  /** Page ids this role may open; omitted means every section. */
+  visible?: string[];
+}) {
+  // The overview is the module itself — it needs no page grant of its own.
+  const tabs = visible ? TABS.filter((tab) => tab.id === "hub" || visible.includes(tab.id)) : TABS;
+
   return (
     <nav aria-label="Settings sections" className="-mx-1 overflow-x-auto">
       <ul className="flex min-w-max items-center gap-1 px-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.id === active;
           return (
             <li key={tab.id}>

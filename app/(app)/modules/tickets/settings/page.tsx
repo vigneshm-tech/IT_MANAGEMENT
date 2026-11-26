@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   getTicketEmailSettings,
@@ -34,6 +34,10 @@ export const metadata: Metadata = { title: "Ticket settings" };
  */
 export default async function TicketSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "tickets", "settings")) {
+    return <AccessDenied moduleTitle="Ticket settings" />;
+  }
+
   if (!canAccessModule(user.role, "tickets")) {
     return <AccessDenied moduleTitle="Tickets" />;
   }

@@ -1,7 +1,8 @@
 import { isBuiltinRole, type RoleId } from "./roles";
 import { MODULES, MODULE_BY_ID, hasCapability, type Capability, type ModuleDefinition, type ModuleId } from "./modules";
 import { levelAllows } from "./roles/permissions";
-import { roleAccessFor } from "./roles/snapshot";
+import { roleAccessFor, rolePageFor } from "./roles/snapshot";
+import { allowedPageIds, pageKey, subPagesFor } from "./roles/pages";
 
 /**
  * Whether a role may do something inside a module.
@@ -30,6 +31,34 @@ export function can(
 
 export function canAccessModule(role: RoleId, moduleId: ModuleId): boolean {
   return can(role, moduleId, "view");
+}
+
+/**
+ * Whether one page inside a module is reachable.
+ *
+ * The module is the gate: a role that cannot see a module cannot reach any page
+ * in it. Inside a module that is open, an administrator may close individual
+ * pages (Settings → Email & alerts for everyone but IT, say). Pages follow the
+ * module's permission — read-only stays read-only.
+ */
+export function canAccessPage(role: RoleId, moduleId: ModuleId, pageId: string): boolean {
+  if (!canAccessModule(role, moduleId)) return false;
+  return rolePageFor(role, moduleId, pageId) !== "none";
+}
+
+/** The pages of a module this role can open — what a tab strip should show. */
+export function visiblePageIds(role: RoleId, moduleId: ModuleId): string[] {
+  if (!canAccessModule(role, moduleId)) return [];
+  return allowedPageIds(moduleId, "open", pagesFor(role, moduleId));
+}
+
+/** Only the overrides this role actually carries, so the tab strip can apply them. */
+function pagesFor(role: RoleId, moduleId: ModuleId) {
+  return Object.fromEntries(
+    subPagesFor(moduleId)
+      .map((page) => [pageKey(moduleId, page.id), rolePageFor(role, moduleId, page.id)] as const)
+      .filter(([, value]) => value !== undefined),
+  );
 }
 
 export function visibleModules(role: RoleId): ModuleDefinition[] {

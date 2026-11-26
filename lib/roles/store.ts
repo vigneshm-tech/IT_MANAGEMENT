@@ -28,6 +28,7 @@ function seed(): Map<string, StoredRole> {
         builtin: true,
         unrestrictedTaskCreation: role.unrestrictedTaskCreation,
         modules: {},
+        pages: {},
         updatedAt: null,
       } satisfies StoredRole,
     ]),

@@ -4,7 +4,7 @@ import { ChevronRight, Fingerprint, ImageUp, KeyRound, Mail, Plug, ShieldCheck }
 import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -55,16 +55,19 @@ export default async function SettingsPage() {
     },
   ];
 
+  const visible = visiblePageIds(user.role, "settings");
+  const open = sections.filter((section) => visible.includes(section.id));
+
   return (
     <div className="space-y-5">
       <PageHeader title="Settings">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="hub" />
+          <SettingsTabs active="hub" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 
       <ul className="divide-y divide-line border-y border-line bg-surface">
-        {sections.map((section) => (
+        {open.map((section) => (
           <li key={section.id}>
             <Link
               href={section.href}

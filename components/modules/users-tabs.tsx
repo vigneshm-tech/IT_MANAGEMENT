@@ -24,9 +24,12 @@ export function UsersTabs({
   canViewDirectory?: boolean;
   canViewRoles?: boolean;
 }) {
-  const tabs = TABS.filter((tab) =>
-    tab.audience === "directory" ? canViewDirectory : canViewRoles,
-  );
+  // Directory and groups follow the page grants; Roles keeps its own rule
+  // because a Settings administrator may hold it without the directory.
+  const tabs = TABS.filter((tab) => {
+    if (tab.audience === "roles") return canViewRoles;
+    return canViewDirectory;
+  });
 
   return (
     <nav aria-label="Users & Groups" className="-mb-px flex flex-wrap items-center gap-1">

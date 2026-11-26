@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { PageHeader } from "@/components/ui/page-header";
 import { TicketAdminTabs } from "@/components/modules/ticket-admin-tabs";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { canReadTicketAdmin } from "@/lib/tickets/admin";
 import {
@@ -28,6 +28,10 @@ export const metadata: Metadata = { title: "Ticket masters" };
  */
 export default async function TicketMastersPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "tickets", "masters")) {
+    return <AccessDenied moduleTitle="Ticket masters" />;
+  }
+
   if (!canAccessModule(user.role, "tickets")) {
     return <AccessDenied moduleTitle="Tickets" />;
   }

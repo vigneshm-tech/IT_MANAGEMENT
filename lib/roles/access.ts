@@ -1,4 +1,4 @@
-import { canAccessModule, can } from "../access";
+import { canAccessModule, can, canAccessPage } from "../access";
 import type { RoleId } from "../roles";
 
 /**
@@ -10,7 +10,10 @@ import type { RoleId } from "../roles";
  * move, so relocating the pages changed nothing about who holds them.
  */
 export function canReadRoles(role: RoleId): boolean {
-  return canAccessModule(role, "users") || can(role, "settings", "admin");
+  // Settings administration is its own route to the catalogue; otherwise the
+  // page has to be granted inside Users & Groups.
+  if (can(role, "settings", "admin")) return true;
+  return canAccessPage(role, "users", "roles");
 }
 
 /** Who may change what a role can do — never the same as "may open Settings". */

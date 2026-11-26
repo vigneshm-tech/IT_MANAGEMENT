@@ -11,6 +11,7 @@ import {
   type ModuleLevels,
 } from "./permissions";
 import { countAllRoleMembers, readRoles, removeRole, writeRole, writeRoleModules } from "./repository";
+import { countPages, type PageOverrides } from "./pages";
 import { clearRoleLabels, setRoleLabels } from "./labels";
 import { clearRoleCatalogue, roleOverrides, setRoleCatalogue } from "./snapshot";
 import type { StoredRole } from "./types";
@@ -33,7 +34,10 @@ export type RoleDefinition = Role & {
   modules: ModuleLevels;
   /** Only what an administrator has saved; empty means "still on defaults". */
   explicit: Partial<ModuleLevels>;
+  /** Pages closed (or reopened) inside a module; an absent page follows its module. */
+  pages: PageOverrides;
   counts: LevelCounts;
+  pageCounts: { open: number; total: number };
   members: number;
   updatedAt: string | null;
 };
@@ -76,7 +80,9 @@ function decorate(
     hidden: stored.hidden,
     modules,
     explicit: stored.modules,
+    pages: stored.pages ?? {},
     counts: countLevels(modules),
+    pageCounts: countPages(modules, stored.pages ?? {}),
     members,
     updatedAt: stored.updatedAt,
   };
@@ -92,6 +98,8 @@ function builtinRegistry(): RoleRegistry {
       hidden: role.hidden === true,
       unrestrictedTaskCreation: role.unrestrictedTaskCreation,
       modules,
+      pages: {},
+      pageCounts: countPages(modules, {}),
       explicit: {},
       counts: countLevels(modules),
       members: 0,
@@ -137,7 +145,9 @@ async function load(): Promise<RoleRegistry> {
 
   rememberKnownRoles(roles.map((role) => role.id));
   setRoleLabels(roles.map((role) => ({ id: role.id, label: role.label })));
-  setRoleCatalogue(roles.map((role) => ({ id: role.id, modules: role.explicit })));
+  setRoleCatalogue(
+    roles.map((role) => ({ id: role.id, modules: role.explicit, pages: role.pages })),
+  );
 
   return {
     roles,
@@ -220,6 +230,7 @@ export async function persistRoleMeta(input: RoleMetaInput): Promise<string | nu
     accent: input.accent,
     hidden: input.hidden,
     builtin: current?.builtin ?? false,
+    pages: current?.pages ?? {},
     unrestrictedTaskCreation: input.unrestrictedTaskCreation,
     modules: current ? { ...current.explicit } : {},
     updatedAt: new Date().toISOString(),
@@ -231,8 +242,9 @@ export async function persistRoleMeta(input: RoleMetaInput): Promise<string | nu
 export async function persistRoleLevels(
   roleId: string,
   levels: ModuleLevels,
+  pages: PageOverrides = {},
 ): Promise<string | null> {
-  const error = await writeRoleModules(roleId, levels);
+  const error = await writeRoleModules(roleId, levels, pages);
   if (!error) invalidateRoleRegistry();
   return error;
 }

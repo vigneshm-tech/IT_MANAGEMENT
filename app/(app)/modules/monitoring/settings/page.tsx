@@ -8,7 +8,7 @@ import { MaintenanceForm } from "@/components/modules/maintenance-form";
 import { MonitoringTabs } from "@/components/modules/monitoring-tabs";
 import { ProbePolicyForm } from "@/components/modules/probe-policy-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { readSmtpForDisplay } from "@/lib/email/store";
 import { buildTargets, formatInterval, inMaintenance, isHttpEnabled } from "@/lib/monitoring/core";
@@ -35,6 +35,10 @@ export const metadata: Metadata = { title: "Monitoring settings" };
  */
 export default async function MonitoringSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "monitoring", "settings")) {
+    return <AccessDenied moduleTitle="Monitoring settings" />;
+  }
+
   if (!canAccessModule(user.role, "monitoring")) {
     return <AccessDenied moduleTitle={MODULE_BY_ID.monitoring.title} />;
   }
@@ -60,7 +64,11 @@ export default async function MonitoringSettingsPage() {
     <div className="space-y-4">
       <PageHeader title="Monitoring settings">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <MonitoringTabs active="settings" canConfigure />
+          <MonitoringTabs
+            active="settings"
+            canConfigure
+            visible={visiblePageIds(user.role, "monitoring")}
+          />
         </div>
       </PageHeader>
 

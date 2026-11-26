@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { IisTabs } from "@/components/modules/iis-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   backupOverdue,
@@ -96,7 +96,7 @@ export default async function IisPage() {
     <div className="space-y-5">
       <PageHeader title="IIS & Database">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <IisTabs active="hub" />
+          <IisTabs active="hub" visible={visiblePageIds(user.role, "iis")} />
         </div>
       </PageHeader>
 

@@ -3,6 +3,7 @@ import { isSupabaseConfigured, supabaseServiceKey, supabaseUrl } from "../config
 import type { ModuleId } from "../modules";
 import { createSupabaseServerClient } from "../supabase/server";
 import { levelsFromRows, type AccessLevel } from "./permissions";
+import { sanitisePageOverrides, type PageOverrides } from "./pages";
 import type { RoleGroup, RoleLevel } from "../roles";
 import {
   listMemoryRoles,
@@ -32,6 +33,7 @@ type RoleRow = {
   hidden: boolean | null;
   builtin: boolean | null;
   unrestricted_task_creation: boolean | null;
+  pages: unknown;
   updated_at: string | null;
 };
 
@@ -76,7 +78,10 @@ function asLevel(value: string): RoleLevel {
   return LEVELS.includes(value as RoleLevel) ? (value as RoleLevel) : "engineer";
 }
 
-function mapRole(row: RoleRow, modules: Partial<Record<ModuleId, AccessLevel>>): StoredRole {
+function mapRole(
+  row: RoleRow,
+  modules: Partial<Record<ModuleId, AccessLevel>>,
+): StoredRole {
   return {
     id: row.id,
     label: row.label,
@@ -88,6 +93,7 @@ function mapRole(row: RoleRow, modules: Partial<Record<ModuleId, AccessLevel>>):
     builtin: row.builtin === true,
     unrestrictedTaskCreation: row.unrestricted_task_creation === true,
     modules,
+    pages: sanitisePageOverrides(row.pages),
     updatedAt: row.updated_at,
   };
 }
@@ -105,7 +111,7 @@ export async function readRoles(): Promise<RolesResult> {
       supabase
         .from("access_roles")
         .select(
-          "id, label, description, group_key, level, accent, hidden, builtin, unrestricted_task_creation, updated_at",
+          "id, label, description, group_key, level, accent, hidden, builtin, unrestricted_task_creation, pages, updated_at",
         )
         .order("label", { ascending: true }),
       supabase.from("access_role_modules").select("role_id, module_id, access"),
@@ -185,18 +191,37 @@ export async function writeRole(role: StoredRole): Promise<string | null> {
 export async function writeRoleModules(
   roleId: string,
   levels: Partial<Record<ModuleId, AccessLevel>>,
+  pages: PageOverrides = {},
 ): Promise<string | null> {
   const entries = Object.entries(levels) as [ModuleId, AccessLevel][];
+  const pageOverrides = sanitisePageOverrides(pages);
 
   if (!isSupabaseConfigured) {
     const current = readMemoryRole(roleId);
     if (!current) return "That role no longer exists.";
-    writeMemoryRole({ ...current, modules: Object.fromEntries(entries), updatedAt: new Date().toISOString() });
+    writeMemoryRole({
+      ...current,
+      modules: Object.fromEntries(entries),
+      pages: pageOverrides,
+      updatedAt: new Date().toISOString(),
+    });
     return null;
   }
 
   try {
     const supabase = await roleClient();
+
+    // The page overrides ride on the role row: a handful of keys, and a second
+    // table would be a second thing to keep in step.
+    const pageWrite = await supabase
+      .from("access_roles")
+      .update({ pages: pageOverrides })
+      .eq("id", roleId);
+    if (pageWrite.error) {
+      console.error("[roles] page overrides write failed", pageWrite.error);
+      return "The page access could not be saved.";
+    }
+
     const cleared = await supabase.from("access_role_modules").delete().eq("role_id", roleId);
     if (cleared.error) {
       console.error("[roles] clearing module levels failed", cleared.error);

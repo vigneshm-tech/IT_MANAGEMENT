@@ -3,7 +3,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { SmtpForm } from "@/components/modules/smtp-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { readSmtpForDisplay } from "@/lib/email/store";
 import { formatDateTime } from "@/lib/format";
@@ -20,6 +20,10 @@ export const metadata: Metadata = { title: "Email & alerts" };
  */
 export default async function EmailSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "email")) {
+    return <AccessDenied moduleTitle="Email & alerts" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -31,7 +35,7 @@ export default async function EmailSettingsPage() {
     <div className="space-y-4">
       <PageHeader title="Email & alerts">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="email" />
+          <SettingsTabs active="email" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

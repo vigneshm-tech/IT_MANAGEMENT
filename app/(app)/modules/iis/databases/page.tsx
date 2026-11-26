@@ -7,7 +7,7 @@ import { IisTabs } from "@/components/modules/iis-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import {
   ENGINE_LABELS,
@@ -32,6 +32,10 @@ export default async function IisDatabasesPage({
   searchParams: Promise<{ edit?: string; delete?: string }>;
 }) {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "iis", "databases")) {
+    return <AccessDenied moduleTitle="Databases" />;
+  }
+
   if (!canAccessModule(user.role, "iis")) {
     return <AccessDenied moduleTitle={MODULE_BY_ID.iis.title} />;
   }
@@ -49,7 +53,7 @@ export default async function IisDatabasesPage({
     <div className="space-y-5">
       <PageHeader title="Database">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <IisTabs active="databases" />
+          <IisTabs active="databases" visible={visiblePageIds(user.role, "iis")} />
           {overdue.length > 0 && (
             <span className="inline-flex items-center gap-1.5 border border-[#ecd9b6] bg-warning-soft px-2 py-0.5 text-[11px] text-[#7b5c1d]">
               <AlertTriangle className="h-3 w-3" aria-hidden />

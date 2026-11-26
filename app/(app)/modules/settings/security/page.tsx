@@ -7,7 +7,7 @@ import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/auth/actions";
 import { listApiKeys } from "@/lib/api/keys";
@@ -23,6 +23,10 @@ const NO_EXPIRY_DAYS = 300;
 
 export default async function SecuritySettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "security")) {
+    return <AccessDenied moduleTitle="Security & sessions" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -40,7 +44,7 @@ export default async function SecuritySettingsPage() {
     <div className="space-y-5">
       <PageHeader title="Security & sessions">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="security" />
+          <SettingsTabs active="security" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

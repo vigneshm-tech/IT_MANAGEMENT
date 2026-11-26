@@ -10,11 +10,20 @@ const TABS: { id: IisTab; label: string; href: string }[] = [
 ];
 
 /** The same strip the ticket configuration and Settings use. */
-export function IisTabs({ active }: { active: IisTab }) {
+export function IisTabs({
+  active,
+  visible,
+}: {
+  active: IisTab;
+  /** Page ids this role may open; omitted means every section. */
+  visible?: string[];
+}) {
+  const tabs = visible ? TABS.filter((tab) => tab.id === "hub" || visible.includes(tab.id)) : TABS;
+
   return (
     <nav aria-label="IIS sections" className="-mx-1 overflow-x-auto">
       <ul className="flex min-w-max items-center gap-1 px-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.id === active;
           return (
             <li key={tab.id}>

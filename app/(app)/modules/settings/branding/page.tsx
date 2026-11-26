@@ -4,7 +4,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { ReportLogoForm } from "@/components/modules/report-logo-form";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { can, canAccessModule } from "@/lib/access";
+import { can, canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { readReportLogo, reportLogoDataUrl } from "@/lib/branding/store";
 import { removeReportLogoAction, uploadReportLogoAction } from "./actions";
@@ -20,6 +20,10 @@ export const metadata: Metadata = { title: "Report logo" };
  */
 export default async function BrandingSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "branding")) {
+    return <AccessDenied moduleTitle="Report logo" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -31,7 +35,7 @@ export default async function BrandingSettingsPage() {
     <div className="space-y-4">
       <PageHeader title="Report logo">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="branding" />
+          <SettingsTabs active="branding" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

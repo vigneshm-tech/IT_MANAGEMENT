@@ -3,7 +3,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { IntegrationForm } from "@/components/modules/integration-form";
 import { SettingsTabs } from "@/components/modules/settings-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { canManageAction1 } from "@/lib/integrations/access";
 import { CLIENT_FIELD_ID, CLIENT_PROJECT_ID } from "@/lib/integrations/redmine-clients";
@@ -23,6 +23,10 @@ const DEFAULT_ACTION1_ADDRESS = "https://app.na-2.action1.com";
  */
 export default async function IntegrationsSettingsPage() {
   const user = await requireUser();
+  if (!canAccessPage(user.role, "settings", "integrations")) {
+    return <AccessDenied moduleTitle="Integrations" />;
+  }
+
   if (!canAccessModule(user.role, "settings")) {
     return <AccessDenied moduleTitle="Settings" />;
   }
@@ -37,7 +41,7 @@ export default async function IntegrationsSettingsPage() {
     <div className="space-y-5">
       <PageHeader title="Integrations">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-4">
-          <SettingsTabs active="integrations" />
+          <SettingsTabs active="integrations" visible={visiblePageIds(user.role, "settings")} />
         </div>
       </PageHeader>
 

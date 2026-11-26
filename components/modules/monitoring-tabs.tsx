@@ -6,13 +6,19 @@ export type MonitoringTab = "board" | "settings";
 export function MonitoringTabs({
   active,
   canConfigure,
+  visible,
 }: {
   active: MonitoringTab;
   canConfigure: boolean;
+  /** Page ids this role may open; omitted means the module decides. */
+  visible?: string[];
 }) {
+  const allowed = (id: MonitoringTab) => !visible || visible.includes(id);
   const tabs: { id: MonitoringTab; label: string; href: string }[] = [
-    { id: "board", label: "Live status", href: "/modules/monitoring" },
-    ...(canConfigure
+    ...(allowed("board")
+      ? [{ id: "board" as const, label: "Live status", href: "/modules/monitoring" }]
+      : []),
+    ...(canConfigure && allowed("settings")
       ? [{ id: "settings" as const, label: "Settings", href: "/modules/monitoring/settings" }]
       : []),
   ];
