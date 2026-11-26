@@ -20,10 +20,10 @@ import type { StoredRole } from "./types";
  * The live role catalogue.
  *
  * Reading it costs one query pair, and access checks happen on every page, so
- * the result is held for a minute and refreshed explicitly whenever somebody
- * saves a role. A permission change therefore takes effect on the next request
- * in the instance that made it, and within a minute everywhere else — which is
- * the right trade for a screen that changes a handful of times a year.
+ * the result is held briefly and refreshed explicitly whenever somebody saves a
+ * role. A permission change therefore takes effect on the next request in the
+ * instance that made it, and within ten seconds everywhere else — including for
+ * somebody who signs in, whose catalogue is loaded fresh at the door.
  */
 
 export type RoleDefinition = Role & {
@@ -50,7 +50,7 @@ export type RoleRegistry = {
   error: string | null;
 };
 
-const TTL_MS = 60_000;
+const TTL_MS = 10_000;
 
 const globalForRegistry = globalThis as unknown as {
   __taskTornadoRoleRegistry?: { registry: RoleRegistry; expiresAt: number };
@@ -159,9 +159,9 @@ async function load(): Promise<RoleRegistry> {
 }
 
 /** Load (or reuse) the catalogue. Call before rendering anything that checks access. */
-export async function ensureRoleRegistry(): Promise<RoleRegistry> {
+export async function ensureRoleRegistry(force = false): Promise<RoleRegistry> {
   const cached = globalForRegistry.__taskTornadoRoleRegistry;
-  if (cached && cached.expiresAt > Date.now()) return cached.registry;
+  if (!force && cached && cached.expiresAt > Date.now()) return cached.registry;
 
   if (!globalForRegistry.__taskTornadoRoleLoad) {
     globalForRegistry.__taskTornadoRoleLoad = load()

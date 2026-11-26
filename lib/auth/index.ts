@@ -8,6 +8,7 @@ import { createSupabaseServerClient } from "../supabase/server";
 import { readCache, writeCache } from "../cache/ttl";
 import { findDemoDirectoryUser } from "../users/store";
 import { ensureRoleRegistry } from "../roles/registry";
+import { resolveRole } from "./role";
 import { getSession, type SessionUser } from "./session";
 
 export type AuthResult =
@@ -80,8 +81,10 @@ export async function authenticate(
       }
 
       // A workspace-defined role is only "real" once the catalogue has been
-      // read, so sign-in has to load it before judging the profile.
-      await ensureRoleRegistry();
+      // read, so sign-in has to load it before judging the profile — and it is
+      // loaded fresh, so the person who just signed in gets the permissions an
+      // administrator saved a moment ago rather than this instance's copy.
+      await ensureRoleRegistry(true);
 
       if (!isRoleId(profile.role)) {
         await supabase.auth.signOut();
@@ -167,29 +170,40 @@ export const requireUser = cache(async (): Promise<SessionUser> => {
   await ensureRoleRegistry();
 
   if (isSupabaseConfigured && user.provider === "supabase") {
-    const key = `profile-status:${user.id}`;
-    let status: string | null | undefined = readCache<string | null>(key);
+    // One read answers both questions: is the account still allowed in, and is
+    // it still holding the role the cookie says it holds.
+    const key = `profile-access:${user.id}`;
+    let profile = readCache<{ status: string | null; role: string | null }>(key);
 
-    if (status === undefined) {
+    if (profile === undefined) {
       try {
         const supabase = await createSupabaseServerClient();
         const { data } = await supabase
           .from("profiles")
-          .select("status")
+          .select("status, role")
           .eq("id", user.id)
           .maybeSingle();
-        status = data?.status ?? null;
-        if (status) writeCache(key, status, STATUS_TTL_MS);
+        profile = { status: data?.status ?? null, role: data?.role ?? null };
+        writeCache(key, profile, STATUS_TTL_MS);
       } catch (error) {
-        console.error("[auth] profile status check failed", error);
-        status = null;
+        console.error("[auth] profile check failed", error);
+        profile = { status: null, role: null };
       }
     }
 
-    if (status && status !== "active") {
+    if (profile.status && profile.status !== "active") {
       redirect("/logout?reason=suspended");
     }
+
+    // The cookie records how somebody signed in, not the last word on what they
+    // may do. Without this, changing a person's Access level in Users & Groups
+    // would not reach them until they signed out — which, with a login timeout of
+    // up to a month, could be a month.
+    const resolved = resolveRole(user.role, profile.role);
+    if (resolved !== user.role) return { ...user, role: resolved };
   }
 
   return user;
 });
+
+export { resolveRole };
