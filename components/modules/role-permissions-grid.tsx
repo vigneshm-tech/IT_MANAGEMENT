@@ -32,6 +32,7 @@ export type GridGroup = { id: string; label: string; modules: GridModule[] };
 function GridSelect({
   name,
   value,
+  onChange,
   disabled,
   label,
   options,
@@ -39,6 +40,7 @@ function GridSelect({
 }: {
   name: string;
   value: string;
+  onChange: (value: string) => void;
   disabled?: boolean;
   label: string;
   options: { value: string; label: string }[];
@@ -48,7 +50,8 @@ function GridSelect({
     <span className={wide ? "relative inline-block w-44" : "relative block w-full"}>
       <select
         name={name}
-        defaultValue={value}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
         aria-label={label}
         className="field h-8 w-full cursor-pointer appearance-none py-0 pl-2.5 pr-7 text-[13px] font-medium text-navy disabled:cursor-default disabled:bg-[#eef1f6] disabled:text-body"
@@ -75,6 +78,13 @@ function GridSelect({
  * once inside: read, or read and change. Keeping them apart is the point: an
  * auditor needs a module without ever needing to change it.
  *
+ * The two follow each other on screen. Switching access on hands over the
+ * permission straight away, and switching it off says *Not allowed* rather than
+ * leaving a locked "Read only" where a value should be — a module nobody may
+ * open is not read only, it is not theirs. Both fields live in state for the
+ * same reason: a decision made on this page shows up on this page, without a
+ * save and a reload in between.
+ *
  * Inside each module, its pages are listed. Each one follows the module unless
  * an administrator says otherwise, and a page can only narrow the module — a
  * closed page is closed even when the module is open.
@@ -98,6 +108,37 @@ export function RolePermissionsGrid({
       for (const module of group.modules) {
         const closed = Object.values(module.pageOverrides).some((value) => value === "none");
         if (closed) initial[module.id] = true;
+      }
+    }
+    return initial;
+  });
+
+  // Access and permission per module, and every page's answer, held here so the
+  // row reacts as it is edited instead of only after a save.
+  const [access, setAccess] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const group of groups) {
+      for (const module of group.modules) initial[module.id] = module.level !== "none";
+    }
+    return initial;
+  });
+  const [permission, setPermission] = useState<Record<string, "read" | "write">>(() => {
+    const initial: Record<string, "read" | "write"> = {};
+    for (const group of groups) {
+      for (const module of group.modules) {
+        initial[module.id] = module.level === "write" ? "write" : "read";
+      }
+    }
+    return initial;
+  });
+  const [pages, setPages] = useState<Record<string, PageOverride>>(() => {
+    const initial: Record<string, PageOverride> = {};
+    for (const group of groups) {
+      for (const module of group.modules) {
+        for (const page of module.pages) {
+          const key = pageKey(module.id, page.id);
+          initial[key] = module.pageOverrides[key] ?? "inherit";
+        }
       }
     }
     return initial;
@@ -137,10 +178,10 @@ export function RolePermissionsGrid({
               {group.label}
             </p>
             {group.modules.map((module) => {
-              const accessible = module.level !== "none";
+              const accessible = access[module.id] ?? module.level !== "none";
               const expanded = open[module.id] === true;
               const closedPages = module.pages.filter(
-                (page) => module.pageOverrides[pageKey(module.id, page.id)] === "none",
+                (page) => pages[pageKey(module.id, page.id)] === "none",
               ).length;
 
               return (
@@ -174,7 +215,13 @@ export function RolePermissionsGrid({
                         <input
                           type="checkbox"
                           name={`access:${module.id}`}
-                          defaultChecked={accessible}
+                          checked={accessible}
+                          onChange={(event) =>
+                            setAccess((current) => ({
+                              ...current,
+                              [module.id]: event.target.checked,
+                            }))
+                          }
                           disabled={readOnly}
                           className="peer sr-only"
                           aria-label={`${module.title}: access`}
@@ -185,17 +232,27 @@ export function RolePermissionsGrid({
                       </label>
                     </div>
 
-                    <div className="flex justify-center">
-                      <GridSelect
-                        name={`perm:${module.id}`}
-                        value={module.level === "write" ? "write" : "read"}
-                        disabled={readOnly || !accessible}
-                        label={`${module.title}: permission`}
-                        options={[
-                          { value: "read", label: "Read only" },
-                          { value: "write", label: "Write" },
-                        ]}
-                      />
+                    <div className="flex items-center justify-center">
+                      {accessible ? (
+                        <GridSelect
+                          name={`perm:${module.id}`}
+                          value={permission[module.id] ?? "read"}
+                          onChange={(value) =>
+                            setPermission((current) => ({
+                              ...current,
+                              [module.id]: value === "write" ? "write" : "read",
+                            }))
+                          }
+                          disabled={readOnly}
+                          label={`${module.title}: permission`}
+                          options={[
+                            { value: "read", label: "Read only" },
+                            { value: "write", label: "Write" },
+                          ]}
+                        />
+                      ) : (
+                        <span className="text-[13px] font-medium text-navy-soft">Not allowed</span>
+                      )}
                     </div>
 
                     <span className="hidden sm:block" aria-hidden />
@@ -214,26 +271,35 @@ export function RolePermissionsGrid({
                           : "hidden"
                       }
                     >
-                      {module.pages.map((page) => (
-                        <li
-                          key={page.id}
-                          className="flex flex-wrap items-center justify-between gap-2 py-1.5"
-                        >
-                          <span className="text-[12px] text-body">{page.label}</span>
-                          <GridSelect
-                            name={`page:${module.id}:${page.id}`}
-                            value={module.pageOverrides[pageKey(module.id, page.id)] ?? "inherit"}
-                            disabled={readOnly || !accessible}
-                            label={`${module.title} → ${page.label}`}
-                            wide
-                            options={[
-                              { value: "inherit", label: "Same as module" },
-                              { value: "allow", label: "Allowed" },
-                              { value: "none", label: "Not allowed" },
-                            ]}
-                          />
-                        </li>
-                      ))}
+                      {module.pages.map((page) => {
+                        const key = pageKey(module.id, page.id);
+                        return (
+                          <li
+                            key={page.id}
+                            className="flex flex-wrap items-center justify-between gap-2 py-1.5"
+                          >
+                            <span className="text-[12px] text-body">{page.label}</span>
+                            <GridSelect
+                              name={`page:${module.id}:${page.id}`}
+                              value={pages[key] ?? "inherit"}
+                              onChange={(value) =>
+                                setPages((current) => ({
+                                  ...current,
+                                  [key]: value as PageOverride,
+                                }))
+                              }
+                              disabled={readOnly || !accessible}
+                              label={`${module.title} → ${page.label}`}
+                              wide
+                              options={[
+                                { value: "inherit", label: "Same as module" },
+                                { value: "allow", label: "Allowed" },
+                                { value: "none", label: "Not allowed" },
+                              ]}
+                            />
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
@@ -244,10 +310,7 @@ export function RolePermissionsGrid({
       </div>
 
       {!readOnly && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[11.5px] text-muted">
-            Access opens the module. A page set to <em>Not allowed</em> stays closed even then.
-          </p>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Button type="submit" size="sm" disabled={pending}>
             {pending ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />

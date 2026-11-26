@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { UserGroupsView } from "@/components/modules/user-groups-view";
 import { canAccessModule, canAccessPage } from "@/lib/access";
+import { canManageGroups } from "@/lib/roles/access";
 import { requireUser } from "@/lib/auth";
 import { getModule } from "@/lib/modules";
 import { listDirectory, listGroups } from "@/lib/users/repository";
@@ -28,7 +29,7 @@ export default async function UserGroupsPage() {
       groups={groups.groups}
       error={groups.error}
       people={directory.users.map((person) => ({ id: person.id, name: person.name }))}
-      canManage={user.role === "super_admin"}
+      canManage={canManageGroups(user.role)}
     />
   );
 }

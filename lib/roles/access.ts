@@ -20,3 +20,22 @@ export function canReadRoles(role: RoleId): boolean {
 export function canEditRoles(role: RoleId): boolean {
   return can(role, "users", "admin") || can(role, "settings", "admin");
 }
+
+/**
+ * Who may change the directory itself: add an account, suspend one, delete one.
+ *
+ * This used to be a literal `role === "super_admin"`. Once an administrator can
+ * grant Users & Groups through the role grid, that literal is a trap: the screen
+ * hands out buttons that the server then refuses, and a role holding Write sees
+ * a directory it can never change. Write on the module is the answer, and the
+ * directory page has to be open — a role that was given only the groups page
+ * gets groups, not accounts.
+ */
+export function canManageDirectory(role: RoleId): boolean {
+  return can(role, "users", "admin") && canAccessPage(role, "users", "directory");
+}
+
+/** Who may change access groups and their members. Same rule, other page. */
+export function canManageGroups(role: RoleId): boolean {
+  return can(role, "users", "admin") && canAccessPage(role, "users", "groups");
+}

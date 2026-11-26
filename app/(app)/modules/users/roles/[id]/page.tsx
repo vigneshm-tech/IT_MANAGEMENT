@@ -72,12 +72,6 @@ export default async function RoleDetailPage({
         </p>
       )}
 
-      {role.id === "super_admin" && (
-        <p className="border border-line bg-surface px-4 py-2.5 text-[11.5px] text-muted">
-          The super admin always keeps the user directory.
-        </p>
-      )}
-
       {isAdmin && !role.builtin ? (
         <RoleMetaForm
           mode="edit"

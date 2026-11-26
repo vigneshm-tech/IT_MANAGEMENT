@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { isSupabaseConfigured } from "@/lib/config";
 import { requireUser } from "@/lib/auth";
+import { canManageGroups } from "@/lib/roles/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { FormState } from "@/lib/forms";
 import {
@@ -38,8 +39,8 @@ export async function createGroupAction(
 ): Promise<FormState> {
   const user = await requireUser();
 
-  if (user.role !== "super_admin") {
-    return { error: "Only a super admin can manage groups." };
+  if (!canManageGroups(user.role)) {
+    return { error: "You cannot change access groups." };
   }
 
   const name = normalizeGroupName(String(formData.get("name") ?? ""));
@@ -81,7 +82,7 @@ export async function createGroupAction(
 /** Delete a group. Its member links go with it. */
 export async function deleteGroupAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (user.role !== "super_admin") return;
+  if (!canManageGroups(user.role)) return;
 
   const id = String(formData.get("id") ?? "");
   if (!id) return;
@@ -104,7 +105,7 @@ export async function deleteGroupAction(formData: FormData): Promise<void> {
 
 export async function addGroupMemberAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (user.role !== "super_admin") return;
+  if (!canManageGroups(user.role)) return;
 
   const groupId = String(formData.get("groupId") ?? "");
   const userId = String(formData.get("userId") ?? "");
@@ -133,7 +134,7 @@ export async function addGroupMemberAction(formData: FormData): Promise<void> {
 
 export async function removeGroupMemberAction(formData: FormData): Promise<void> {
   const user = await requireUser();
-  if (user.role !== "super_admin") return;
+  if (!canManageGroups(user.role)) return;
 
   const groupId = String(formData.get("groupId") ?? "");
   const userId = String(formData.get("userId") ?? "");

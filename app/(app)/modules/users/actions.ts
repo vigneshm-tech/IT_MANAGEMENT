@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/config";
 import { EMAIL_PATTERN, type FormState } from "@/lib/forms";
 import { requireUser } from "@/lib/auth";
 import { isAssignableRole, roleOf } from "@/lib/roles";
+import { canManageDirectory } from "@/lib/roles/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createDemoUser,
@@ -37,8 +38,8 @@ export async function createUserAction(
 ): Promise<FormState> {
   const user = await requireUser();
 
-  if (user.role !== "super_admin") {
-    return { error: "Only a super admin can add users." };
+  if (!canManageDirectory(user.role)) {
+    return { error: "You cannot add accounts." };
   }
 
   const fullName = String(formData.get("fullName") ?? "").trim();
@@ -143,7 +144,7 @@ export async function createUserAction(
 export async function updateUserAction(formData: FormData): Promise<void> {
   const user = await requireUser();
 
-  if (user.role !== "super_admin") {
+  if (!canManageDirectory(user.role)) {
     return;
   }
 

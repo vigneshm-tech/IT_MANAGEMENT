@@ -4,6 +4,7 @@ import { UsersView } from "@/components/modules/users-view";
 import { canAccessModule, canAccessPage } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getModule } from "@/lib/modules";
+import { canManageDirectory } from "@/lib/roles/access";
 import { assignableRoleDefinitions } from "@/lib/roles/registry";
 import { listDirectory, listGroups } from "@/lib/users/repository";
 
@@ -31,6 +32,7 @@ export default async function UsersPage() {
       roles={assignableRoleDefinitions().map((role) => ({ id: role.id, label: role.label }))}
       error={directory.error}
       currentUserId={user.id}
+      canManage={canManageDirectory(user.role)}
     />
   );
 }

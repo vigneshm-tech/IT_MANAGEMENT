@@ -53,12 +53,15 @@ export function UsersView({
   roles,
   error,
   currentUserId,
+  canManage,
 }: {
   users: DirectoryUser[];
   groups: Pick<UserGroup, "id" | "name" | "members">[];
   roles: RoleOption[];
   error: string | null;
   currentUserId: string;
+  /** Write on Users & Groups. Without it the directory is a list, not a tool. */
+  canManage: boolean;
 }) {
   const roleLabel = (role: DirectoryUser["role"]): string => {
     if (!role) return "Unassigned";
@@ -87,7 +90,7 @@ export function UsersView({
         const self = user.id === currentUserId;
         const actions: RowAction[] = [];
 
-        if (!self) {
+        if (!self && canManage) {
           actions.push(
             user.status === "suspended"
               ? { label: "Reactivate", value: "activate", tone: "primary" }
@@ -114,7 +117,7 @@ export function UsersView({
           actions,
         };
       }),
-    [users, currentUserId, roles],
+    [users, currentUserId, roles, canManage],
   );
 
   return (
@@ -122,19 +125,21 @@ export function UsersView({
       <PageHeader
         title="Users & Groups"
         actions={
-          <button
-            type="button"
-            onClick={() => setAdding((value) => !value)}
-            className={buttonClass({ size: "sm" })}
-          >
-            Add user
-          </button>
+          canManage ? (
+            <button
+              type="button"
+              onClick={() => setAdding((value) => !value)}
+              className={buttonClass({ size: "sm" })}
+            >
+              Add user
+            </button>
+          ) : undefined
         }
       >
         <UsersTabs active="users" />
       </PageHeader>
 
-      {adding && (
+      {adding && canManage && (
         <UserForm groups={groupOptions} roles={roles} onClose={() => setAdding(false)} />
       )}
 
@@ -144,7 +149,7 @@ export function UsersView({
         tableId="users"
         exportName="tasktornado-users"
         pageSize={10}
-        rowAction={updateUserAction}
+        rowAction={canManage ? updateUserAction : undefined}
         searchPlaceholder="Search people, emails or access levels"
         renderRowExtras={(row) => {
           const user = users.find((entry) => entry.id === row.id);
