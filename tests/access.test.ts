@@ -7,10 +7,11 @@ import {
   isAssignableRole,
   type RoleId,
 } from "../lib/roles";
-import { can, canAccessModule, visibleModules } from "../lib/access";
+import { can, canAccessModule, canAccessPage, visibleModules } from "../lib/access";
 import { canSyncRedmineClients } from "../lib/integrations/access";
 import { canEditRoles, canReadRoles } from "../lib/roles/access";
 import { MODULES } from "../lib/modules";
+import { clearRoleCatalogue, setRoleCatalogue } from "../lib/roles/snapshot";
 
 const ALL_ROLES = [...ROLE_IDS] as RoleId[];
 const ENGINEERS = ALL_ROLES.filter((role) => ROLE_BY_ID[role].level === "engineer");
@@ -176,20 +177,52 @@ test("the Redmine client scan follows either the tickets or the clients right", 
   );
 });
 
-test("roles moved to Users & Groups without changing who may change them", () => {
+test("Roles & access answers to its own page, and to nothing else", () => {
   for (const role of ALL_ROLES) {
-    // Editing is the same set as before the move: a Settings administrator.
+    // The page decides, exactly as it does for every other page inside a module.
+    assert.equal(canReadRoles(role), canAccessPage(role, "users", "roles"), role);
+    // Writing needs both: Write on Users & Groups, and the page itself open.
     assert.equal(
       canEditRoles(role),
-      can(role, "settings", "admin"),
-      `${role} should keep the role-editing right it had`,
+      can(role, "users", "admin") && canAccessPage(role, "users", "roles"),
+      role,
     );
-    // Reading follows the directory now, with the same Settings administrator.
-    assert.equal(canReadRoles(role), canAccessModule(role, "users") || can(role, "settings", "admin"));
-    // Nothing widened: whoever may edit may also read.
-    if (canEditRoles(role)) assert.equal(canReadRoles(role), true);
+    // Nobody may write what they cannot read.
+    if (canEditRoles(role)) assert.equal(canReadRoles(role), true, role);
   }
 
   assert.equal(canReadRoles("super_admin"), true);
   assert.equal(canEditRoles("super_admin"), true);
+});
+
+test("a Settings administrator cannot reach a Roles page set to Not allowed", () => {
+  // The case that made a closed page still open: IT Manager keeps Settings as
+  // Write, has Users & Groups as Write, and has closed Users & Groups → Roles.
+  assert.equal(can("it_manager", "settings", "admin"), true, "the old second door");
+
+  setRoleCatalogue([
+    {
+      id: "it_manager",
+      modules: { settings: "write", users: "write" },
+      pages: { "users/roles": "none" },
+    },
+  ]);
+
+  assert.equal(can("it_manager", "settings", "admin"), true);
+  assert.equal(canReadRoles("it_manager"), false);
+  assert.equal(canEditRoles("it_manager"), false);
+
+  // Re-opening the page hands both rights back, with no other change.
+  setRoleCatalogue([
+    {
+      id: "it_manager",
+      modules: { settings: "write", users: "write" },
+      pages: { "users/roles": "allow" },
+    },
+  ]);
+
+  assert.equal(canReadRoles("it_manager"), true);
+  assert.equal(canEditRoles("it_manager"), true);
+
+  clearRoleCatalogue();
 });

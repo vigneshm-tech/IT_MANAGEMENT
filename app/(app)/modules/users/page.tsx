@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AccessDenied } from "@/components/modules/access-denied";
 import { UsersView } from "@/components/modules/users-view";
-import { canAccessModule, canAccessPage } from "@/lib/access";
+import { canAccessModule, canAccessPage, visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { getModule } from "@/lib/modules";
 import { canManageDirectory } from "@/lib/roles/access";
@@ -33,6 +33,7 @@ export default async function UsersPage() {
       error={directory.error}
       currentUserId={user.id}
       canManage={canManageDirectory(user.role)}
+      visibleTabs={visiblePageIds(user.role, "users")}
     />
   );
 }

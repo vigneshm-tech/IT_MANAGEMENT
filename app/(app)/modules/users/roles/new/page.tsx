@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { RoleMetaForm } from "@/components/modules/role-meta-form";
 import { UsersTabs } from "@/components/modules/users-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { visiblePageIds } from "@/lib/access";
 import { canEditRoles, canReadRoles } from "@/lib/roles/access";
 import { requireUser } from "@/lib/auth";
 import { createRoleAction } from "../actions";
@@ -30,10 +30,7 @@ export default async function NewRolePage() {
       <div className="space-y-4">
         <PageHeader title="New role">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-            <UsersTabs
-              active="roles"
-              canViewDirectory={canAccessModule(user.role, "users")}
-            />
+            <UsersTabs active="roles" visible={visiblePageIds(user.role, "users")} />
           </div>
         </PageHeader>
         <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
@@ -47,10 +44,7 @@ export default async function NewRolePage() {
     <div className="space-y-4">
       <PageHeader title="New role">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-          <UsersTabs
-            active="roles"
-            canViewDirectory={canAccessModule(user.role, "users")}
-          />
+          <UsersTabs active="roles" visible={visiblePageIds(user.role, "users")} />
           <Link
             href="/modules/users/roles"
             className="inline-flex items-center gap-1 text-[11.5px] text-muted transition-colors hover:text-navy"

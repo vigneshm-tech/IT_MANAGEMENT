@@ -5,7 +5,7 @@ import { AccessDenied } from "@/components/modules/access-denied";
 import { UsersTabs } from "@/components/modules/users-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
-import { canAccessModule } from "@/lib/access";
+import { visiblePageIds } from "@/lib/access";
 import { requireUser } from "@/lib/auth";
 import { canEditRoles, canReadRoles } from "@/lib/roles/access";
 import { summariseLevels } from "@/lib/roles/grid";
@@ -61,10 +61,7 @@ export default async function RolesPage({
     <div className="space-y-4">
       <PageHeader title="Roles & access">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-          <UsersTabs
-            active="roles"
-            canViewDirectory={canAccessModule(user.role, "users")}
-          />
+          <UsersTabs active="roles" visible={visiblePageIds(user.role, "users")} />
           {isAdmin && (
             <Link href="/modules/users/roles/new" className={buttonClass({ size: "sm" })}>
               <Plus className="h-3.5 w-3.5" aria-hidden />

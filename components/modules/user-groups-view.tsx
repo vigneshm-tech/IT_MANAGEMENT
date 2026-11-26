@@ -32,11 +32,14 @@ export function UserGroupsView({
   error,
   people,
   canManage,
+  visibleTabs,
 }: {
   groups: UserGroup[];
   error: string | null;
   people: { id: string; name: string }[];
   canManage: boolean;
+  /** The Users & Groups pages this role was granted — the tabs to draw. */
+  visibleTabs: string[];
 }) {
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -67,7 +70,7 @@ export function UserGroupsView({
           ) : undefined
         }
       >
-        <UsersTabs active="groups" />
+        <UsersTabs active="groups" visible={visibleTabs} />
       </PageHeader>
 
       {creating && canManage && (

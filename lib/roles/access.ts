@@ -1,35 +1,41 @@
-import { canAccessModule, can, canAccessPage } from "../access";
+import { can, canAccessPage } from "../access";
 import type { RoleId } from "../roles";
 
 /**
- * Who may open the role catalogue, now that it lives in Users & Groups.
+ * Roles & access is a page inside Users & Groups, and answers to it.
  *
- * Roles are about people, so the pages sit with the directory; they grant
- * access to every module, which is why a Settings administrator still reaches
- * them. Both rights are the same set that could read and change roles before the
- * move, so relocating the pages changed nothing about who holds them.
+ * It used to be a Settings screen, so "may administer Settings" was kept as a
+ * second door in when the pages moved to where the people are. That door is
+ * what made a closed page still open: an IT Manager holding Settings as Write
+ * reached the catalogue with Users & Groups → Roles set to Not allowed, because
+ * the module answer was never asked. There is one answer now — the page's own
+ * grant — and it is the same one the tab and the navigation read.
+ *
+ * Super admin keeps it, not as an exception here but because its Users & Groups
+ * module is forced open when the catalogue loads.
  */
 export function canReadRoles(role: RoleId): boolean {
-  // Settings administration is its own route to the catalogue; otherwise the
-  // page has to be granted inside Users & Groups.
-  if (can(role, "settings", "admin")) return true;
   return canAccessPage(role, "users", "roles");
 }
 
-/** Who may change what a role can do — never the same as "may open Settings". */
+/**
+ * Who may change what a role can do.
+ *
+ * Reading and writing are two separate grants, so this asks for both: Write on
+ * Users & Groups (the level that means "may change things here") and the page
+ * itself, which has to be open for the button to mean anything.
+ */
 export function canEditRoles(role: RoleId): boolean {
-  return can(role, "users", "admin") || can(role, "settings", "admin");
+  return can(role, "users", "admin") && canAccessPage(role, "users", "roles");
 }
 
 /**
  * Who may change the directory itself: add an account, suspend one, delete one.
  *
- * This used to be a literal `role === "super_admin"`. Once an administrator can
- * grant Users & Groups through the role grid, that literal is a trap: the screen
- * hands out buttons that the server then refuses, and a role holding Write sees
- * a directory it can never change. Write on the module is the answer, and the
- * directory page has to be open — a role that was given only the groups page
- * gets groups, not accounts.
+ * Write on the module — never a literal `role === "super_admin"`, which is what
+ * this used to be and which handed a granted role a screen full of controls the
+ * server then refused. The page has to be open too: a role given only the
+ * groups page gets groups, not accounts.
  */
 export function canManageDirectory(role: RoleId): boolean {
   return can(role, "users", "admin") && canAccessPage(role, "users", "directory");

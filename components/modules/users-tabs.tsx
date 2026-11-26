@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const TABS = [
-  { id: "users", label: "Manage Users", href: "/modules/users", audience: "directory" },
-  { id: "groups", label: "Manage Groups", href: "/modules/users/groups", audience: "directory" },
-  { id: "roles", label: "Roles & access", href: "/modules/users/roles", audience: "roles" },
+  { id: "users", label: "Manage Users", href: "/modules/users", page: "directory" },
+  { id: "groups", label: "Manage Groups", href: "/modules/users/groups", page: "groups" },
+  { id: "roles", label: "Roles & access", href: "/modules/users/roles", page: "roles" },
 ] as const;
 
 export type UsersTabId = (typeof TABS)[number]["id"];
@@ -11,25 +11,18 @@ export type UsersTabId = (typeof TABS)[number]["id"];
 /**
  * Sub-module tabs; the underline sits on the header's bottom rule.
  *
- * The audience flags exist because a Settings administrator may reach Roles
- * without holding the directory itself — offering them "Manage Users" would be
- * a tab that only answers Access denied.
+ * `visible` is the page ids this role was granted inside Users & Groups, from
+ * `visiblePageIds`. A tab is drawn for exactly the pages that will open: a
+ * closed page must not leave behind a tab whose only answer is "no access".
  */
 export function UsersTabs({
   active,
-  canViewDirectory = true,
-  canViewRoles = true,
+  visible,
 }: {
   active: UsersTabId;
-  canViewDirectory?: boolean;
-  canViewRoles?: boolean;
+  visible: string[];
 }) {
-  // Directory and groups follow the page grants; Roles keeps its own rule
-  // because a Settings administrator may hold it without the directory.
-  const tabs = TABS.filter((tab) => {
-    if (tab.audience === "roles") return canViewRoles;
-    return canViewDirectory;
-  });
+  const tabs = TABS.filter((tab) => visible.includes(tab.page));
 
   return (
     <nav aria-label="Users & Groups" className="-mb-px flex flex-wrap items-center gap-1">

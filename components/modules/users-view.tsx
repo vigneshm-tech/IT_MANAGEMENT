@@ -54,6 +54,7 @@ export function UsersView({
   error,
   currentUserId,
   canManage,
+  visibleTabs,
 }: {
   users: DirectoryUser[];
   groups: Pick<UserGroup, "id" | "name" | "members">[];
@@ -62,6 +63,8 @@ export function UsersView({
   currentUserId: string;
   /** Write on Users & Groups. Without it the directory is a list, not a tool. */
   canManage: boolean;
+  /** The Users & Groups pages this role was granted — the tabs to draw. */
+  visibleTabs: string[];
 }) {
   const roleLabel = (role: DirectoryUser["role"]): string => {
     if (!role) return "Unassigned";
@@ -136,7 +139,7 @@ export function UsersView({
           ) : undefined
         }
       >
-        <UsersTabs active="users" />
+        <UsersTabs active="users" visible={visibleTabs} />
       </PageHeader>
 
       {adding && canManage && (

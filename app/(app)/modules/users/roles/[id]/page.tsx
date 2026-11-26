@@ -7,7 +7,7 @@ import { RoleMetaForm } from "@/components/modules/role-meta-form";
 import { RolePermissionsGrid } from "@/components/modules/role-permissions-grid";
 import { UsersTabs } from "@/components/modules/users-tabs";
 import { PageHeader } from "@/components/ui/page-header";
-import { canAccessModule } from "@/lib/access";
+import { visiblePageIds } from "@/lib/access";
 import { canEditRoles, canReadRoles } from "@/lib/roles/access";
 import { requireUser } from "@/lib/auth";
 import { buildGridGroups } from "@/lib/roles/grid";
@@ -39,10 +39,7 @@ export default async function RoleDetailPage({
     <div className="space-y-4">
       <PageHeader title={role.label}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-4">
-          <UsersTabs
-            active="roles"
-            canViewDirectory={canAccessModule(user.role, "users")}
-          />
+          <UsersTabs active="roles" visible={visiblePageIds(user.role, "users")} />
           <Link
             href="/modules/users/roles"
             className="inline-flex items-center gap-1 text-[11.5px] text-muted transition-colors hover:text-navy"
