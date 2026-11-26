@@ -21,6 +21,53 @@ export type GridModule = {
 export type GridGroup = { id: string; label: string; modules: GridModule[] };
 
 /**
+ * A select whose value is always readable.
+ *
+ * A native `<select>` paints its own value text on several platforms, which is
+ * how a perfectly legible stylesheet can still produce a pale grey "Write". So
+ * the appearance is removed, the chevron is drawn here, and the colour is stated
+ * outright: navy at full strength, and a readable body tone when disabled rather
+ * than a faded one.
+ */
+function GridSelect({
+  name,
+  value,
+  disabled,
+  label,
+  options,
+  wide = false,
+}: {
+  name: string;
+  value: string;
+  disabled?: boolean;
+  label: string;
+  options: { value: string; label: string }[];
+  wide?: boolean;
+}) {
+  return (
+    <span className={wide ? "relative inline-block w-44" : "relative block w-full"}>
+      <select
+        name={name}
+        defaultValue={value}
+        disabled={disabled}
+        aria-label={label}
+        className="field h-8 w-full cursor-pointer appearance-none py-0 pl-2.5 pr-7 text-[13px] font-medium text-navy disabled:cursor-default disabled:bg-[#eef1f6] disabled:text-body"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-navy-soft"
+        aria-hidden
+      />
+    </span>
+  );
+}
+
+/**
  * Access and permission, as two fields.
  *
  * *Access* is whether the module is theirs at all — off means it disappears from
@@ -139,16 +186,16 @@ export function RolePermissionsGrid({
                     </div>
 
                     <div className="flex justify-center">
-                      <select
+                      <GridSelect
                         name={`perm:${module.id}`}
-                        defaultValue={module.level === "write" ? "write" : "read"}
+                        value={module.level === "write" ? "write" : "read"}
                         disabled={readOnly || !accessible}
-                        aria-label={`${module.title}: permission`}
-                        className="field h-7 w-full px-1.5 text-[11.5px] disabled:opacity-55"
-                      >
-                        <option value="read">Read only</option>
-                        <option value="write">Write</option>
-                      </select>
+                        label={`${module.title}: permission`}
+                        options={[
+                          { value: "read", label: "Read only" },
+                          { value: "write", label: "Write" },
+                        ]}
+                      />
                     </div>
 
                     <span className="hidden sm:block" aria-hidden />
@@ -173,17 +220,18 @@ export function RolePermissionsGrid({
                           className="flex flex-wrap items-center justify-between gap-2 py-1.5"
                         >
                           <span className="text-[12px] text-body">{page.label}</span>
-                          <select
+                          <GridSelect
                             name={`page:${module.id}:${page.id}`}
-                            defaultValue={module.pageOverrides[pageKey(module.id, page.id)] ?? "inherit"}
+                            value={module.pageOverrides[pageKey(module.id, page.id)] ?? "inherit"}
                             disabled={readOnly || !accessible}
-                            aria-label={`${module.title} → ${page.label}`}
-                            className="field h-7 w-40 px-1.5 text-[11.5px] disabled:opacity-55"
-                          >
-                            <option value="inherit">Same as module</option>
-                            <option value="allow">Allowed</option>
-                            <option value="none">Not allowed</option>
-                          </select>
+                            label={`${module.title} → ${page.label}`}
+                            wide
+                            options={[
+                              { value: "inherit", label: "Same as module" },
+                              { value: "allow", label: "Allowed" },
+                              { value: "none", label: "Not allowed" },
+                            ]}
+                          />
                         </li>
                       ))}
                     </ul>
