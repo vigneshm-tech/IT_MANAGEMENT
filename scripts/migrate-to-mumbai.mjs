@@ -118,8 +118,21 @@ const PAGE = 1000;
 const summary = [];
 let failures = 0;
 
+if (!SOURCE_URL || !SOURCE_URL.includes("cfzdnykihcajhwvqkybo")) {
+  // never wipe the target unless the source really is the Tokyo project
+  throw new Error(`refusing to run: unexpected source ${SOURCE_URL}`);
+}
+
 await client.query("begin");
 await client.query("set local session_replication_role = replica");
+
+// the source is authoritative: drop the migration seed rows in the target so
+// production values (edited roles, settings, KB text) win over seed defaults
+const truncateList = tables.map((t) => `public."${t}"`).join(", ");
+if (truncateList) {
+  await client.query(`truncate table ${truncateList} cascade`);
+  console.log("[migrate] truncated target tables before copy");
+}
 
 for (const table of tables) {
   const cols = columnsByTable.get(table) || [];
