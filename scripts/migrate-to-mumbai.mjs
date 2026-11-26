@@ -150,10 +150,14 @@ for (const table of tables) {
   }
 }
 
-// keep sequences ahead of the copied ids
+await client.query("commit");
+
+// keep sequences ahead of the copied ids (outside the copy transaction so a
+// bad relation can never roll the copy back)
 const { rows: seqRows } = await client.query(`
   select s.relname as seq, t.relname as tbl, a.attname as col
   from pg_class s
+  join pg_namespace sn on sn.oid = s.relnamespace and sn.nspname = 'public'
   join pg_depend d on d.objid = s.oid and d.classid = 'pg_class'::regclass and d.deptype in ('a','i')
   join pg_class t on t.oid = d.refobjid
   join pg_attribute a on a.attrelid = t.oid and a.attnum = d.refobjsubid
@@ -169,16 +173,19 @@ for (const row of seqRows) {
   }
 }
 
-await client.query("commit");
-
 console.log("[migrate] row counts:", summary.join(" "));
 
 const { rows: after } = await client.query(`
-  select c.relname as name, greatest(c.reltuples, 0)::bigint as approx
-  from pg_class c join pg_namespace n on n.oid = c.relnamespace
-  where n.nspname='public' and c.relkind='r' order by 1
+  select
+    (select count(*) from public.iis_applications) as iis,
+    (select count(*) from public.monitoring_checks) as checks,
+    (select count(*) from public.profiles) as profiles,
+    (select count(*) from public.access_roles) as roles,
+    (select count(*) from public.app_branding) as branding,
+    (select count(*) from public.monitoring_history) as history,
+    (select count(*) from public.redmine_clients) as redmine
 `);
-console.log("[migrate] target table count:", after.length, "failures:", failures);
+console.log("[migrate] committed counts:", after[0], "failures:", failures);
 await client.end();
 
 if (failures > 0) {
