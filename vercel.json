@@ -1,5 +1,6 @@
 {
   "$schema": "https://open-api.vercel.com/vercel.json",
+  "regions": ["bom1"],
   "crons": [
     {
       "path": "/api/tickets/sweep",
