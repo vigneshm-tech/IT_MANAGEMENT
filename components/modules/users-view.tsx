@@ -16,6 +16,7 @@ import { UsersTabs } from "@/components/modules/users-tabs";
 import { UserForm } from "@/components/modules/user-form";
 import { buttonClass } from "@/components/ui/button";
 import { roleOf } from "@/lib/roles";
+import { formatClock } from "@/lib/task-window";
 import type { RoleOption } from "@/lib/roles/types";
 import type { DirectoryUser } from "@/lib/users/repository";
 import type { UserGroup } from "@/lib/users/groups";
@@ -27,6 +28,7 @@ const COLUMNS: Column[] = [
   { key: "email", label: "Work email", type: "muted", width: "24%" },
   { key: "title", label: "Designation", type: "muted", width: "16%" },
   { key: "role", label: "Access level", width: "14%" },
+  { key: "taskWindow", label: "Task window", type: "muted", width: "12%" },
   { key: "status", label: "Status", type: "status", width: "10%" },
 ];
 
@@ -51,12 +53,15 @@ export function UsersView({
   users,
   groups,
   roles,
+  taskRoles,
   error,
   currentUserId,
   canManage,
   visibleTabs,
 }: {
   users: DirectoryUser[];
+  /** Access levels whose role can open Tasks — only they carry a task window. */
+  taskRoles: string[];
   groups: Pick<UserGroup, "id" | "name" | "members">[];
   roles: RoleOption[];
   error: string | null;
@@ -72,6 +77,14 @@ export function UsersView({
     if (entry) return entry.label;
     const known = roleOf(role);
     return known.hidden ? "Unassigned" : known.label;
+  };
+  /* Only a role that can open Tasks carries a window; "Office hours" is the
+   * rule everybody else in the module follows. */
+  const windowLabel = (user: DirectoryUser): string => {
+    if (user.taskWindow) {
+      return `${formatClock(user.taskWindow.startMinute)}–${formatClock(user.taskWindow.endMinute)}`;
+    }
+    return user.role && taskRoles.includes(user.role) ? "Office hours" : "—";
   };
   const [viewing, setViewing] = useState<DirectoryUser | null>(null);
   const [adding, setAdding] = useState(false);
@@ -115,12 +128,13 @@ export function UsersView({
             email: user.email,
             title: user.title || "—",
             role: roleLabel(user.role),
+            taskWindow: windowLabel(user),
             status: user.status,
           },
           actions,
         };
       }),
-    [users, currentUserId, roles, canManage],
+    [users, currentUserId, roles, canManage, taskRoles],
   );
 
   return (
@@ -143,7 +157,12 @@ export function UsersView({
       </PageHeader>
 
       {adding && canManage && (
-        <UserForm groups={groupOptions} roles={roles} onClose={() => setAdding(false)} />
+        <UserForm
+          groups={groupOptions}
+          roles={roles}
+          taskRoles={taskRoles}
+          onClose={() => setAdding(false)}
+        />
       )}
 
       <DataTable
@@ -209,6 +228,7 @@ export function UsersView({
                 <StatusPill status={viewing.status} label={humanise(viewing.status)} />
               </dd>
             </div>
+            <Detail label="Task window" value={windowLabel(viewing)} />
             <Detail label="Last sign-in" value={lastSeen(viewing.lastLoginAt)} />
           </dl>
         )}

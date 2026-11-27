@@ -36,6 +36,8 @@ import {
   listTickets,
 } from "@/lib/records/repository";
 import { listTasks } from "@/lib/tasks/repository";
+import { taskWindowFor } from "@/lib/task-window";
+import { taskWindowSettingsFor } from "@/lib/users/task-window";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -73,8 +75,19 @@ export default async function ModulePage({ params, searchParams }: PageProps) {
 
   switch (module.id) {
     case "tasks": {
-      const [{ view }, tasks] = await Promise.all([searchParams, listTasks()]);
-      return <TasksView user={user} tasks={tasks} view={view} />;
+      const [{ view }, tasks, windowSettings] = await Promise.all([
+        searchParams,
+        listTasks(),
+        taskWindowSettingsFor(user),
+      ]);
+      return (
+        <TasksView
+          user={user}
+          tasks={tasks}
+          view={view}
+          taskWindow={taskWindowFor(user.role, new Date(), windowSettings)}
+        />
+      );
     }
 
     case "tickets": {

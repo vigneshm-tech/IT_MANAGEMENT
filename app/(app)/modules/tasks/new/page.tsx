@@ -16,6 +16,7 @@ import { clientChoices } from "@/lib/clients";
 import { peopleOptions } from "@/lib/tasks/options";
 import { listServerOptions } from "@/lib/servers/inventory";
 import { taskWindowFor } from "@/lib/task-window";
+import { taskWindowSettingsFor } from "@/lib/users/task-window";
 import { readClientCatalogue } from "@/lib/tickets/redmine-clients";
 
 export const metadata: Metadata = { title: "New task" };
@@ -24,7 +25,7 @@ export default async function NewTaskPage() {
   const user = await requireUser();
   if (!can(user.role, "tasks", "create")) redirect("/modules/tasks");
 
-  const window = taskWindowFor(user.role);
+  const window = taskWindowFor(user.role, new Date(), await taskWindowSettingsFor(user));
 
   if (!window.canCreate) {
     return (

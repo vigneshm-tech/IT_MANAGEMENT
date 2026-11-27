@@ -24,12 +24,16 @@ export default async function UsersPage() {
   }
 
   const [directory, groups] = await Promise.all([listDirectory(), listGroups()]);
+  const assignable = assignableRoleDefinitions();
 
   return (
     <UsersView
       users={directory.users}
       groups={groups.groups}
-      roles={assignableRoleDefinitions().map((role) => ({ id: role.id, label: role.label }))}
+      roles={assignable.map((role) => ({ id: role.id, label: role.label }))}
+      taskRoles={assignable
+        .filter((role) => canAccessModule(role.id, "tasks"))
+        .map((role) => role.id)}
       error={directory.error}
       currentUserId={user.id}
       canManage={canManageDirectory(user.role)}

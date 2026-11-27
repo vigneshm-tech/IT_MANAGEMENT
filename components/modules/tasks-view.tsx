@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { buttonClass } from "@/components/ui/button";
 import { can } from "@/lib/access";
 import { roleOf } from "@/lib/roles";
-import { taskWindowFor } from "@/lib/task-window";
+import type { TaskWindow } from "@/lib/task-window";
 import type { SessionUser } from "@/lib/auth/token";
 import type { TaskRecord } from "@/lib/tasks/repository";
 import { TaskActions } from "@/components/modules/task-actions";
@@ -40,13 +40,19 @@ export function TasksView({
   user,
   tasks,
   view = "requested",
+  taskWindow,
 }: {
   user: SessionUser;
   tasks: TaskRecord[];
   /** Sub-module selected in the tab strip; unknown values fall back to the queue. */
   view?: string;
+  /**
+   * Resolved on the server, because it depends on the person's own enrolment
+   * window as well as their role — the browser must never decide this.
+   */
+  taskWindow: TaskWindow;
 }) {
-  const window = taskWindowFor(user.role);
+  const window = taskWindow;
   const canEdit = can(user.role, "tasks", "edit");
   const canCreate = window.canCreate;
 
@@ -111,7 +117,7 @@ export function TasksView({
             <button
               type="button"
               disabled
-              title={`Tasks can be raised from ${window.message}`}
+              title={window.message}
               className={buttonClass({ variant: "secondary", className: "opacity-55" })}
             >
               <Lock className="h-3.5 w-3.5" aria-hidden />
@@ -152,7 +158,7 @@ export function TasksView({
         <div className="flex items-start gap-3 rounded-md border border-[#ecd9b6] bg-warning-soft px-4 py-3">
           <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
           <div className="text-[12.5px] leading-relaxed text-[#7b5c1d]">
-            <span className="font-medium text-[#6a4d12]">Task creation opens at 09:00 IST.</span>{" "}
+            <span className="font-medium text-[#6a4d12]">{window.message}</span>{" "}
             You can still pick up and close existing work outside the window.
           </div>
         </div>

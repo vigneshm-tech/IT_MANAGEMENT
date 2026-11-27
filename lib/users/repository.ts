@@ -3,6 +3,7 @@ import { listDemoGroups } from "./groups-store";
 import type { UserGroup, UserGroupMember } from "./groups";
 import { listDemoDirectory } from "./store";
 import { isRoleId, type RoleId } from "../roles";
+import { taskWindowSettings, type TaskWindowSettings } from "../task-window";
 import { createSupabaseServerClient } from "../supabase/server";
 
 export type DirectoryUser = {
@@ -14,6 +15,8 @@ export type DirectoryUser = {
   role: RoleId | null;
   status: "active" | "inactive" | "pending" | "suspended";
   lastLoginAt: string | null;
+  /** The person's own task enrolment window, when one was saved at creation. */
+  taskWindow: TaskWindowSettings | null;
 };
 
 export type DirectoryResult = {
@@ -46,7 +49,9 @@ export async function listDirectory(): Promise<DirectoryResult> {
       const supabase = await createSupabaseServerClient();
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, employee_id, email, full_name, title, role, status, last_login_at")
+        .select(
+          "id, employee_id, email, full_name, title, role, status, last_login_at, task_window_start, task_window_end",
+        )
         .order("full_name", { ascending: true });
 
       if (error) {
@@ -65,6 +70,7 @@ export async function listDirectory(): Promise<DirectoryResult> {
           role: isRoleId(row.role) ? row.role : null,
           status: statusOf(row.status),
           lastLoginAt: row.last_login_at ?? null,
+          taskWindow: taskWindowSettings(row.task_window_start, row.task_window_end),
         }));
 
       return { users, error: null };

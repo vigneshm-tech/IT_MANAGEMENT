@@ -1,5 +1,6 @@
 import { DEMO_USERS } from "../demo-users";
 import type { RoleId } from "../roles";
+import type { TaskWindowSettings } from "../task-window";
 import type { DirectoryUser } from "./repository";
 
 /**
@@ -22,6 +23,7 @@ function seed(): DirectoryUser[] {
     role: user.role,
     status: "active",
     lastLoginAt: null,
+    taskWindow: null,
   }));
 }
 
@@ -54,6 +56,7 @@ export function createDemoUser(input: {
   email: string;
   title: string;
   role: RoleId;
+  taskWindow?: TaskWindowSettings | null;
 }): DirectoryUser {
   counter += 1;
   const user: DirectoryUser = {
@@ -65,6 +68,7 @@ export function createDemoUser(input: {
     role: input.role,
     status: "active",
     lastLoginAt: null,
+    taskWindow: input.taskWindow ?? null,
   };
   users().unshift(user);
   return { ...user };

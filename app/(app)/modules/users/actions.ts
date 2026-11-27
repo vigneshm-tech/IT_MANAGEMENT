@@ -5,7 +5,13 @@ import { clearCache } from "@/lib/cache/ttl";
 import { isSupabaseConfigured } from "@/lib/config";
 import { EMAIL_PATTERN, type FormState } from "@/lib/forms";
 import { requireUser } from "@/lib/auth";
-import { isAssignableRole, roleOf } from "@/lib/roles";
+import { isAssignableRole, roleOf, type RoleId } from "@/lib/roles";
+import { canAccessModule } from "@/lib/access";
+import {
+  formatClock,
+  taskWindowSettings,
+  type TaskWindowSettings,
+} from "@/lib/task-window";
 import { canManageDirectory } from "@/lib/roles/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -49,6 +55,8 @@ export async function createUserAction(
   const role = String(formData.get("role") ?? "");
   const groupId = String(formData.get("groupId") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const taskWindowStart = String(formData.get("taskWindowStart") ?? "").trim();
+  const taskWindowEnd = String(formData.get("taskWindowEnd") ?? "").trim();
 
   if (fullName.length < 2) {
     return { error: "Enter the employee name." };
@@ -72,6 +80,24 @@ export async function createUserAction(
     return { error: "The temporary password needs at least 8 characters." };
   }
 
+  // The enrolment window is a Tasks-module setting, so an access level that
+  // cannot open Tasks never stores one — even if a stale form posts the fields.
+  const tasksAllowed = canAccessModule(role as RoleId, "tasks");
+  let window: TaskWindowSettings | null = null;
+  if (tasksAllowed && (taskWindowStart || taskWindowEnd)) {
+    window = taskWindowSettings(taskWindowStart, taskWindowEnd);
+    if (!window) {
+      return {
+        error:
+          "The task enrolment window needs both times, and it must end after it starts — for example 09:00 to 18:00.",
+      };
+    }
+  }
+
+  const windowNote = window
+    ? ` Task creation ${formatClock(window.startMinute)}–${formatClock(window.endMinute)} IST.`
+    : "";
+
   if (!isSupabaseConfigured) {
     if (demoEmailTaken(email)) {
       return { error: "An account already uses this email address." };
@@ -83,7 +109,14 @@ export async function createUserAction(
       return { error: "That access group no longer exists." };
     }
 
-    const created = createDemoUser({ name: fullName, employeeId, email, title: designation, role });
+    const created = createDemoUser({
+      name: fullName,
+      employeeId,
+      email,
+      title: designation,
+      role,
+      taskWindow: window,
+    });
     addDemoGroupMember(groupId, created.id);
     clearCache("assignable-users");
     clearCache("assignable-users");
@@ -91,7 +124,7 @@ export async function createUserAction(
     revalidatePath("/modules/users/groups");
     return {
       ok: true,
-      message: `${fullName} was added as ${roleOf(role).label}.`,
+      message: `${fullName} was added as ${roleOf(role).label}.${windowNote}`,
     };
   }
 
@@ -104,6 +137,8 @@ export async function createUserAction(
       p_title: designation,
       p_role: role,
       p_employee_id: employeeId,
+      p_task_window_start: window ? `${formatClock(window.startMinute)}:00` : null,
+      p_task_window_end: window ? `${formatClock(window.endMinute)}:00` : null,
     });
 
     if (error) {
@@ -129,7 +164,7 @@ export async function createUserAction(
     revalidatePath("/modules/users/groups");
     return {
       ok: true,
-      message: `${fullName} was added as ${roleOf(role).label}.`,
+      message: `${fullName} was added as ${roleOf(role).label}.${windowNote}`,
     };
   } catch (error) {
     console.error("[users] create threw", error);

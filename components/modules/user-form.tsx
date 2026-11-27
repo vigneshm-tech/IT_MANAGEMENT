@@ -156,18 +156,29 @@ function GroupPicker({ groups }: { groups: Pick<UserGroup, "id" | "name">[] }) {
   );
 }
 
-/** Inline add-user panel — seven fields, no dialog. */
+/**
+ * Inline add-user panel — no dialog.
+ *
+ * The task enrolment window only appears for an access level that can open the
+ * Tasks module (`taskRoles`), because the window decides *when* somebody who
+ * may already raise tasks is allowed to — it never grants the module.
+ */
 export function UserForm({
   groups,
   roles,
+  taskRoles,
   onClose,
 }: {
   groups: Pick<UserGroup, "id" | "name">[];
   /** Every role a person may be given, including ones this workspace defined. */
   roles: RoleOption[];
+  /** The access levels whose role can open Tasks. */
+  taskRoles: string[];
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(createUserAction, {});
+  const [role, setRole] = useState("");
+  const tasksAllowed = taskRoles.includes(role);
 
   useEffect(() => {
     if (state.ok) onClose();
@@ -211,13 +222,19 @@ export function UserForm({
         </Field>
 
         <Field label="Access level" required>
-          <select name="role" required defaultValue="" className={inputClass}>
+          <select
+            name="role"
+            required
+            value={role}
+            onChange={(event) => setRole(event.target.value)}
+            className={inputClass}
+          >
             <option value="" disabled>
               Select an access level
             </option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.label}
+            {roles.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -235,6 +252,43 @@ export function UserForm({
             </span>
           )}
         </Field>
+
+        {tasksAllowed && (
+          <div className="rounded-md border border-line bg-canvas px-3 py-2.5 sm:col-span-2 lg:col-span-3">
+            <span className="block text-[10.5px] font-medium uppercase tracking-[0.09em] text-muted">
+              Task enrolment window
+            </span>
+            <div className="mt-1.5 flex flex-wrap items-end gap-2">
+              <div className="w-[124px]">
+                <Field label="From" plain>
+                  <input
+                    name="taskWindowStart"
+                    type="time"
+                    step={60}
+                    aria-label="Task enrolment from"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <span className="pb-2 text-[12px] text-muted">to</span>
+              <div className="w-[124px]">
+                <Field label="To" plain>
+                  <input
+                    name="taskWindowEnd"
+                    type="time"
+                    step={60}
+                    aria-label="Task enrolment to"
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+              This person may raise tasks only between these times. Leave both blank to
+              keep the office-hours rule (09:00–18:00 IST).
+            </p>
+          </div>
+        )}
 
         <Field label="Temporary password" required hint="At least 8 characters.">
           <input

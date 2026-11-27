@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { can } from "@/lib/access";
 import { isRoleId, type RoleId } from "@/lib/roles";
 import { assertCanCreateTask } from "@/lib/task-window";
+import { taskWindowSettingsFor } from "@/lib/users/task-window";
 import {
   appendTaskNote,
   createTask,
@@ -132,7 +133,7 @@ export async function createTaskAction(
 
   // Authoritative window check — the client clock is never trusted.
   try {
-    assertCanCreateTask(user.role);
+    assertCanCreateTask(user.role, new Date(), await taskWindowSettingsFor(user));
   } catch (error) {
     return {
       error:
