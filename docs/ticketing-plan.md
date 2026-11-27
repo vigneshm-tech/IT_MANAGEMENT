@@ -1,0 +1,279 @@
+# Native ticketing — build plan (Zammad parity)
+
+The ticketing module started life as a Redmine proxy: it read issues from a
+personal Redmine API key and wrote new ones back there. Nothing was ours — no
+queue, no state machine, no SLA, no history — so the module could only ever be a
+window onto a system we do not control.
+
+This is the plan to make ticketing our own, using the Zammad admin
+documentation (<https://admin-docs.zammad.org/en/latest/index.html>) as the
+feature map. It is deliberately shaped like the rest of TaskTornado: Postgres
+tables with RLS, master registers for admin-managed lists, server actions for
+writes, and one module page per concern.
+
+---
+
+## 1. Module map
+
+Every module in the Zammad admin docs, and where it lands here.
+
+| Zammad module | What it does | TaskTornado home | Phase |
+| --- | --- | --- | --- |
+| **Tickets** | The agent workspace: list, detail, articles, reply, note | `/modules/tickets`, `/modules/tickets/[id]` | **1 — shipped** |
+| **States / Priorities** | Ticket state machine and priority scale | Fixed ladder in `lib/tickets/core.ts` (no admin surface needed) | **1 — shipped** |
+| **Groups** (queues) | Team inbox a ticket belongs to | Existing `user_groups` (Users → Groups) — the queue picker reads them | **1 — shipped** |
+| **Tags** | Free-text labels on a ticket | `tickets.tags`, editable on the detail page | **1 — shipped** |
+| **Time Accounting** | Hours booked against a ticket | `ticket_articles.time_minutes` + per-ticket total | **1 — shipped** |
+| **Users** | Agents and customers | `profiles` directory (already exists) | **1 — shipped** |
+| **Roles / permissions** | Who may see and change what | `lib/access.ts` capability matrix on the `tickets` module | **1 — shipped** |
+| **Organizations** | Customer company records | `tickets.client_id` → `clients`, picker on create and in the sidebar | **2 — shipped** |
+| **Overviews** | Saved list filters ("My assigned", "Unassigned", …) | Four tabs + filter bar (queue/state/priority/tag/owner) + per-person saved overviews | **2 — shipped** |
+| **Checklist** | Sub-items inside one ticket | `ticket_tasks` + sidebar panel + `2/3` in the list | **2 — shipped** |
+| **Links / merge** | Related, parent/child, duplicate | `ticket_links`, `merged` state, merge action | **2 — shipped** |
+| **Macros** | One-click bundle of changes | `ticket_macros`, Tickets → Masters → Macros, apply action | **2 — shipped** |
+| **Text Modules** | Snippets inserted into replies | Tickets → Masters → Text modules + picker in the reply box | **2 — shipped** |
+| **Triggers** | If-this-then-that on ticket events | `ticket_triggers` evaluated on create and reply | **3 — shipped** |
+| **SLAs** | First-response / solution targets per queue+priority | `ticket_slas` + `due_at`/`first_response_at` | **3 — shipped** |
+| **Calendars** | Business hours used by SLA maths | `ticket_calendars` (Mon–Fri 09:00–18:00 IST default) | **3 — shipped** |
+| **Scheduler** | Time-based jobs (auto-close, reminders) | `/api/tickets/sweep` + `vercel.json` cron | **3 — shipped** |
+| **Report Profiles / Reporting** | Counts by queue, agent, state over time | `/modules/tickets/reports` + CSV | **3 — shipped** |
+| **Knowledge Base** | Public + internal articles | `/modules/kb` (agent), `/support/kb` (public) | 4 |
+| **Channels: Web** | Agent-created ticket (already) | Phase 1 | **1 — shipped** |
+| **Channels: Form** | Public web form → ticket | `/support/new` (no sign-in, rate limited) | 4 |
+| **Channels: Email** | IMAP/Graph inbox → ticket | Integration + inbound route | 4 |
+| **Channels: Chat / SMS / WhatsApp / Telegram / Facebook** | Messaging channels | Out of scope until a provider is contracted | — |
+| **AI: summary, writing assistant, KB assistant** | LLM helpers on a ticket | `/api/tickets/summarise` behind a setting | 5 |
+| **Webhook / Public Links / Security / Branding** | Admin plumbing | Mostly covered by existing Settings; public links in 4 | 2 / 4 |
+
+Phases are cumulative: each one ships on its own and leaves the module usable.
+
+---
+
+## 2. Phase 1 — the ticket itself (this build)
+
+Goal: a ticket exists in our database, moves through our states, and keeps its
+own history.
+
+**Schema** (`0024_tickets.sql`)
+
+- `tickets` — id `TT-<n>` from a sequence, subject, state, priority, queue
+  (`user_groups`), owner, requester, channel, tags, `due_at`, `closed_at`.
+- `ticket_articles` — the conversation. One row per message: `web` (public
+  reply), `note` (internal), `system` (state/assignment changes written by the
+  app), `email`/`phone`. Carries author, body and optional `time_minutes`.
+- RLS: every signed-in user reads; an agent creates a ticket as themselves and
+  can append articles; leadership can delete.
+
+**Behaviour**
+
+- State ladder `new → open → pending → closed`, where closing stamps
+  `closed_at` and reopening clears it; `pending` means "waiting on the
+  requester" and is not counted as work in progress.
+- Priority ladder `low → normal → high → urgent`.
+- 4-ticket list views: **Assigned to me**, **Unassigned**, **All open**,
+  **Closed** — the Overviews module in embryo.
+- Detail page: full article thread (internal notes styled apart), reply box,
+  internal-note box, and a sidebar for state, priority, queue, owner, tags.
+- Every state/priority/owner/queue change writes a `system` article, so the
+  thread is the audit trail — no separate log to drift.
+- Time booked on a reply is summed per ticket and shown in the header.
+
+**Permissions** — `tickets` module capabilities: `view` all; `create` all (any
+signed-in user may raise); `edit` IT, IT engineer and leadership (agents);
+`admin` IT. Non-agents see their own tickets and the queues they raised in —
+never internal notes.
+
+**Acceptance**
+
+1. A ticket raised in the app appears in **Assigned to me** for its owner and
+   in **Unassigned** until one is set.
+2. Closing a ticket moves it out of the open views and stamps a close date;
+   reopening it restores it.
+3. An internal note is invisible to a non-agent; a public reply is visible to
+   the requester.
+4. Renaming or deleting a queue (Users → Groups) leaves existing tickets
+   readable — the ticket keeps its own copy of the queue name.
+5. The Redmine portal stays reachable at `/modules/tickets/redmine` for the
+   teams that still use it.
+
+---
+
+## 3. Phase 2 — make it an agent tool
+
+Shipped in migration `0025_ticket_tools.sql`:
+
+- **Checklists** — `ticket_tasks` per ticket, ticked off in the sidebar; each
+  tick writes a `system` line and the list shows `2/3` in its own column.
+- **Macros** — `ticket_macros`, four seeded (escalate, waiting on requester,
+  close as duplicate, resolved), maintained in **Tickets → Masters → Macros** and
+  applied from a picker on the ticket. A macro applies state, priority, queue
+  and a tag in one go and leaves one `system` line saying what changed.
+- **Text modules** — `ticket_text_modules`, maintained in **Tickets → Masters →
+  Text modules** (add, edit, deactivate, delete) and inserted into the reply box from
+  a picker; the snippet is appended to whatever has been typed.
+- **Links and merges** — `ticket_links` (related / parent / child / duplicate)
+  shown both ways on both tickets; **Merge** moves the source to the `merged`
+  state, writes the duplicate link and a `system` line on both threads. Nothing
+  is deleted, and merged tickets leave the open views but stay in Closed.
+- **Organizations** — `tickets.client_id` + `client_name` snapshot, chosen when
+  raising a ticket or in the sidebar, against the client register.
+
+- **Overviews** — `ticket_overviews`: a filter bar (queue, state, priority, tag,
+  owner) on the ticket list, and any filtered view can be saved under a name and
+  pinned above the list as a chip. Overviews are per person (RLS is
+  `user_id = auth.uid()`), and a chip applies its saved filters to the current
+  tab without changing it.
+
+Phase 2 is complete.
+
+## 4. Phase 3 — promises and reporting
+
+Shipped in migration `0027_ticket_sla.sql`.
+
+- **Calendars** — `ticket_calendars`: working days, opening and closing time,
+  and a fixed UTC offset (330 for IST; India has no daylight saving, so an
+  offset is exact and needs no timezone database). Seeded with **India business
+  hours** (Mon–Fri 09:00–18:00) and **India extended hours** (Mon–Sat
+  08:00–20:00). Tickets → Masters → Targets & shifts.
+- **SLAs** — `ticket_slas`: first-response and resolution targets in business
+  minutes, scoped to a queue, a priority, both, or neither. The most specific
+  rule wins, then sort order. Seeded urgent 30/240, security 60/480,
+  infrastructure 120/1440, everything else 480/2880 minutes.
+- **The promise is cut once** — at creation the matching rule is resolved and
+  `sla_id`, `first_response_due_at` and `due_at` are written onto the ticket.
+  Changing the rules later does not rewrite a promise already made; changing the
+  ticket's queue or priority does, because that is a new promise.
+- **Counting on the clock** — `lib/tickets/sla.ts` walks the calendar, so 17:00
+  on Friday plus four hours is 12:00 on Monday. The list has an SLA column with
+  the countdown ("2d 10h left", "At risk · 45m left", "1st reply late 2h"), the
+  detail sidebar has the panel, and a requester sees "Overdue" rather than the
+  internal SLA wording.
+- **First response** — the first public agent reply stamps
+  `first_response_at` once. An internal note does not stop the clock, because
+  the requester never saw it.
+- **Breaches** — recorded by the sweep (`first_response_breached_at`,
+  `resolve_breached_at`) and written into the thread as a `system` article, once
+  per promise.
+- **Triggers** — `ticket_triggers`: one condition (event × field × operator ×
+  value) and a bundle of changes (state, priority, queue, tag) plus a note.
+  Evaluated on `ticket.created` and `article.created`; the first rule to set a
+  field wins, tags add up, and every firing leaves one `system` line. Seeded
+  outage, phishing, leadership and "still not working".
+- **Scheduler** — `/api/tickets/sweep`, called daily by the cron in
+  `vercel.json`. Closes tickets pending for `TICKET_AUTO_CLOSE_DAYS` (7),
+  writes one reminder at `TICKET_REMINDER_DAYS` (2), and logs missed promises.
+  Guarded by `CRON_SECRET` / `TICKET_SWEEP_SECRET`; with no secret it answers
+  503 rather than running for whoever finds the URL. `planSweep` is pure, so
+  every rule is tested without a database.
+- **Reports** — `/modules/tickets/reports`: totals, median first reply, reopen
+  rate, SLA breaches and at-risk work, six Monday-to-Sunday weeks, by queue, by
+  owner and by state, with a CSV export at `/modules/tickets/reports/export`.
+  Everything is derived from the tickets, so there is no roll-up to drift.
+
+Phase 3 is complete.
+
+## 5. Phase 4 — channels and self-service — **complete**
+
+Shipped in migration `0028_ticket_channels.sql` and the build that follows it.
+
+- **Web form** at `/support/new`: the queues flagged `is_public` are offered, the
+  visitor needs no login, and the form is guarded by a five-an-hour throttle per
+  address, a honeypot field and a minimum fill time. Validation lives in
+  `lib/tickets/public-form.ts`; the visitor sees a ticket number immediately.
+- **Knowledge base**: `kb_categories` and `kb_articles` with `public` and
+  `internal` visibility, search across `/support/kb` (no account) and
+  `/modules/kb` (agents), categories in Tickets → Masters → KB categories, and a
+  "suggest an article"
+  panel inside the reply box driven by `suggestKbArticles` — public articles
+  only, because the requester will read whatever is inserted.
+- **Email channel**: `ticket_email_settings` records the address, the way the
+  mailbox is read (IMAP poller, Microsoft 365 Graph or a generic relay), the
+  folder, the destination queue and the outbound relay. `POST
+  /api/tickets/inbound` creates tickets and appends replies (matched on
+  `[TT-1001]` plus the sender address, idempotent by `messageId`);
+  agent replies are written to `ticket_outbox` and delivered
+  immediately or by `POST /api/tickets/outbox` on retry.
+- **Session-less work needs the service role.** The inbound hook, the dispatcher
+  and the nightly sweep run without a session; under `anon`, RLS returns no
+  rows at all, so all three now run inside `runWithServiceRole`
+  (`lib/supabase/server.ts`) and require `SUPABASE_SERVICE_ROLE_KEY`.
+
+Known constraint, documented rather than worked around: Vercel rejects
+fourth-level subdomains, so a per-tenant host such as `tenant.tasktornado.app`
+is not possible — a per-organization public desk has to be a path
+(`tasktornado.app/<org>`) or a custom domain per tenant.
+
+## 5a. Configuration lives inside Tickets — **complete**
+
+Everything above that used to be maintained under `/modules/masters` has moved,
+because a service manager configuring the desk should not have to leave it:
+
+- **Tickets → Masters** (`/modules/tickets/masters`) — six registers with counts
+  and a tab strip: queues, targets & shifts, triggers, macros, text modules and
+  KB categories. Every register adds *and* edits: an edit reuses the same form
+  with the row in it (`?edit=<id>`, or `/<id>` for a snippet), writes through
+  `updateTicketSla` / `updateTicketCalendar` / `updateTicketTrigger` /
+  `updateTicketMacro` / `updateTicketQueue` / `updateKbCategory`, and keeps the
+  id so tickets that already point at the row keep their history.
+- **Tickets → Settings** (`/modules/tickets/settings`) — the channels: the public
+  form and the queues it offers, the knowledge base's public/internal split, the
+  email channel's state and address, the recent outbox, and the email form at
+  `/modules/tickets/settings/email`. Which queues are offered publicly is the
+  `is_public` switch on the queue register, so that decision has exactly one
+  home.
+- **Deletes that would strand records are refused.** A queue with tickets and a
+  shelf with articles answer `{ ok: false, reason }` and the screen says so;
+  deactivating is the documented alternative.
+- **Guards** — reading needs `tickets:view` plus `canReadTicketAdmin`; writing
+  needs `canConfigureTickets` (`masters:edit` or `tickets:admin`), both in
+  `lib/tickets/admin.ts`. The old routes are redirects.
+
+## 6. Phase 5 — AI (optional)
+
+Summary of a long thread on demand, a writing assistant for replies grounded in
+the knowledge base, and a KB assistant. All behind a setting and off by default
+— no ticket text leaves the system unless an admin configures a provider.
+
+---
+
+## 7. Data model (phase 1)
+
+```text
+tickets                                ticket_articles
+  id            text  TT-1001            id            uuid
+  subject       text                     ticket_id     → tickets.id (cascade)
+  state         text  new|open|pending   kind          web|note|system|email|phone
+  priority      text  low|normal|high|urgent  internal  boolean
+  queue_id      → user_groups.id         author_id     → auth.users.id
+  queue_name    text (snapshot)          author_name   text
+  owner_id      → auth.users.id          author_role   text
+  owner_name    text                     body          text
+  requester_id  → auth.users.id          time_minutes  int
+  requester_name/email  text             created_at    timestamptz
+  channel       web|email|phone|chat
+  tags          text[]
+  due_at / closed_at / created_at / updated_at
+```
+
+`queue_name` and the two `*_name` columns are snapshots on purpose: a ticket
+must still read correctly after a queue is renamed or a person leaves.
+
+Phase 3 adds `sla_id`, `first_response_at`, `first_response_due_at`,
+`first_response_breached_at`, `resolve_breached_at`, `reminder_sent_at` and
+`reopen_count` to the same table, plus `ticket_calendars`, `ticket_slas` and
+`ticket_triggers`. Phase 4 adds `ticket_queues.is_public`, `kb_categories`,
+`kb_articles`, `ticket_email_settings`, `ticket_outbox` and
+`ticket_articles.external_id` (unique where not null, so a mail retry cannot
+file the same message twice).
+
+---
+
+## 8. Explicit non-goals
+
+- Telephony, chat widgets, SMS, WhatsApp, Telegram and Facebook channels — no
+  provider contracts, and they would each add a webhook surface we cannot test
+  from here.
+- A visual form designer for the public web form. The form is a fixed set of
+  fields over the queue register.
+- Replacing Supabase Auth with Zammad's user model. Tickets reference
+  `profiles`; customers without an account exist only as `requester_*` fields.

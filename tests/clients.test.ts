@@ -1,0 +1,308 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  CLIENT_TABS,
+  clientChoices,
+  clientCodeError,
+  clientFormError,
+  clientNameError,
+  clientTimestamps,
+  deriveClientCode,
+  isClientTab,
+  normaliseClientCode,
+  resolveClientTab,
+} from "../lib/clients";
+import {
+  COUNTRIES,
+  countryByDial,
+  countryByIso,
+  countryIsoError,
+  formatPhone,
+  mobileError,
+  searchCountries,
+} from "../lib/countries";
+
+/* -------------------------------------------------------------------------- */
+/*  Country codes                                                             */
+/* -------------------------------------------------------------------------- */
+
+test("the country list is complete, sorted and keyed by ISO code", () => {
+  assert.ok(COUNTRIES.length > 200, `expected a full list, got ${COUNTRIES.length}`);
+  assert.equal(new Set(COUNTRIES.map((country) => country.iso)).size, COUNTRIES.length);
+
+  const india = countryByIso("in");
+  assert.equal(india?.dial, "+91");
+  assert.equal(india?.name, "India");
+  assert.equal(countryByDial("+44")?.dial, "+44");
+  assert.equal(countryByIso("zz"), undefined);
+  // Multi-line rows in the source data must not be skipped.
+  assert.equal(countryByIso("AE")?.dial, "+971");
+  assert.equal(countryByIso("SA")?.dial, "+966");
+  assert.equal(countryByIso("US")?.dial, "+1");
+  assert.equal(countryIsoError(""), "Choose the country code for the mobile number.");
+  assert.equal(countryIsoError("ZZ"), "Choose a country code from the list.");
+  assert.equal(countryIsoError("IN"), null);
+});
+
+test("searching matches name, ISO code and dial code", () => {
+  assert.equal(searchCountries("india")[0].iso, "IN");
+  assert.equal(searchCountries("IN").some((country) => country.iso === "IN"), true);
+  assert.ok(searchCountries("+971").some((country) => country.iso === "AE"));
+  assert.ok(searchCountries("971").some((country) => country.iso === "AE"));
+  assert.deepEqual(searchCountries("zzzzz"), []);
+  // An empty query still opens with options rather than a blank list.
+  assert.ok(searchCountries("", 10).length === 10);
+});
+
+test("mobile numbers keep digits only and are formatted with the dial code", () => {
+  assert.equal(mobileError(""), null);
+  assert.equal(mobileError("   "), null);
+  assert.match(String(mobileError("12345")), /at least 6 digits/);
+  assert.match(String(mobileError("1".repeat(16))), /at most 15 digits/);
+  assert.equal(mobileError("+91 98400-12345"), null);
+  assert.equal(formatPhone("IN", "9840012345"), "+91 98400 12345");
+  assert.equal(formatPhone("IN", ""), "");
+  assert.equal(formatPhone("ZZ", "9840012345"), "9840012345");
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Client fields                                                             */
+/* -------------------------------------------------------------------------- */
+
+const GOOD = {
+  name: "Acme Manufacturing",
+  code: "ACME",
+  industry: "Manufacturing",
+  primary: { name: "Ritu Shah", email: "ritu@acme.com", mobileCountry: "IN", mobile: "9840012345" },
+  secondary: { name: "", email: "", mobileCountry: "IN", mobile: "" },
+};
+
+test("short codes are upper-cased and can be derived from the name", () => {
+  assert.equal(normaliseClientCode(" acme "), "ACME");
+  assert.equal(normaliseClientCode("acme/in-01"), "ACME/IN-01");
+  assert.equal(normaliseClientCode("acme corp!"), "ACMECORP");
+  assert.equal(deriveClientCode("Northwind Logistics"), "NORTHW");
+  assert.equal(deriveClientCode("  Acme  "), "ACME");
+  assert.equal(normaliseClientCode("x".repeat(40)).length, 20);
+});
+
+test("the client name and code rules match the form limits", () => {
+  assert.match(String(clientNameError("A")), /at least 2 characters/);
+  assert.match(String(clientNameError("x".repeat(161))), /under 160/);
+  assert.equal(clientNameError("Acme Manufacturing"), null);
+  assert.equal(clientCodeError(""), null);
+  assert.equal(clientCodeError("ACME-01"), null);
+  assert.match(String(clientCodeError("ACME CORP")), /letters, digits/);
+});
+
+test("a complete client passes and each bad field is caught", () => {
+  assert.equal(clientFormError(GOOD), null);
+
+  assert.match(String(clientFormError({ ...GOOD, name: "A" })), /client name/);
+  assert.match(
+    String(
+      clientFormError({
+        ...GOOD,
+        primary: { ...GOOD.primary, email: "ritu@" },
+      }),
+    ),
+    /Primary contact: enter a valid email address/,
+  );
+  assert.match(
+    String(
+      clientFormError({
+        ...GOOD,
+        secondary: { name: "Vikram", email: "", mobileCountry: "IN", mobile: "12" },
+      }),
+    ),
+    /Secondary contact: enter a mobile number/,
+  );
+  assert.match(
+    String(
+      clientFormError({
+        ...GOOD,
+        primary: { ...GOOD.primary, mobileCountry: "ZZ" },
+      }),
+    ),
+    /choose a country code from the list/,
+  );
+});
+
+test("contacts are optional, but a half-filled one is still checked", () => {
+  assert.equal(
+    clientFormError({
+      ...GOOD,
+      primary: { name: "", email: "", mobileCountry: "IN", mobile: "" },
+      secondary: { name: "", email: "", mobileCountry: "IN", mobile: "" },
+    }),
+    null,
+  );
+});
+
+test("created and last-update stamps read the same until something changes", () => {
+  const created = "2026-11-01T10:00:00Z";
+  const fresh = clientTimestamps(created, created);
+  assert.equal(fresh.touched, false);
+  assert.match(fresh.created, /01 Nov 2026/);
+
+  const edited = clientTimestamps(created, "2026-11-09T15:30:00Z");
+  assert.equal(edited.touched, true);
+  assert.notEqual(edited.created, edited.updated);
+  assert.match(clientTimestamps("nope", "nope").created, /—/);
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Repository                                                                */
+/* -------------------------------------------------------------------------- */
+
+test("a client is stored with both contacts and automatic timestamps", async () => {
+  const { createClientRecord, listClients } = await import("../lib/records/repository");
+  const user = {
+    id: "test-user",
+    name: "Test Manager",
+    email: "test.manager@tasktornado.dev",
+    role: "it_manager",
+  } as never;
+
+  const created = await createClientRecord(user, {
+    name: "Bluewave Marine",
+    code: "BWM",
+    industry: "Shipping",
+    primary: {
+      name: "Latha Menon",
+      email: "latha@bluewave.example",
+      mobileCountry: "IN",
+      mobile: "9876500011",
+    },
+    secondary: {
+      name: "Kiran Das",
+      email: "kiran@bluewave.example",
+      mobileCountry: "AE",
+      mobile: "501234567",
+    },
+    ownerRole: "l2_support_lead",
+    assignedUserId: "u-l2-engineer",
+    assignedUserName: "Nisha Verma",
+  });
+
+  assert.match(created.id, /^CL-\d+$/);
+  assert.equal(created.name, "Bluewave Marine");
+  assert.equal(created.code, "BWM");
+  assert.equal(created.status, "active");
+  assert.equal(created.primary.mobile, "9876500011");
+  assert.equal(created.secondary.mobileCountry, "AE");
+  assert.equal(created.assignedUserName, "Nisha Verma");
+  assert.ok(created.createdAt);
+  assert.equal(created.createdAt, created.updatedAt);
+
+  const stored = (await listClients()).find((client) => client.id === created.id);
+  assert.equal(stored?.primary.name, "Latha Menon");
+  assert.equal(stored?.secondary.email, "kiran@bluewave.example");
+  assert.equal(clientTimestamps(created.createdAt, created.updatedAt).touched, false);
+});
+
+test("assignable users come from the directory without the hidden account", async () => {
+  const { listAssignableUsers } = await import("../lib/records/repository");
+  const people = await listAssignableUsers();
+
+  assert.ok(people.length > 5);
+  assert.ok(people.every((person) => person.id && person.name));
+  assert.ok(!people.some((person) => person.id === "u-super-admin"));
+  assert.ok(people.some((person) => person.name === "Meera Raghavan"));
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Which list the Clients module opens on                                    */
+/* -------------------------------------------------------------------------- */
+
+test("the clients module opens the register unless only the captured list has rows", () => {
+  // Nothing asked for: the register, when it has anything in it.
+  assert.equal(resolveClientTab(undefined, 3, 68), "register");
+  assert.equal(resolveClientTab(undefined, 3, 0), "register");
+  // An empty register with a captured list must not show an empty module.
+  assert.equal(resolveClientTab(undefined, 0, 68), "redmine");
+  // Nothing anywhere: the register, where clients are added.
+  assert.equal(resolveClientTab(undefined, 0, 0), "register");
+  // An explicit tab always wins, even when its list is empty.
+  assert.equal(resolveClientTab("redmine", 5, 0), "redmine");
+  assert.equal(resolveClientTab("register", 0, 68), "register");
+  // Anything else in the address is not a tab.
+  assert.equal(resolveClientTab("bogus", 0, 68), "redmine");
+  assert.equal(resolveClientTab("", 2, 0), "register");
+});
+
+test("the client tabs are exactly the two lists, with their addresses", () => {
+  assert.equal(isClientTab("register"), true);
+  assert.equal(isClientTab("redmine"), true);
+  assert.equal(isClientTab("mine"), false);
+  assert.equal(isClientTab(undefined), false);
+
+  assert.deepEqual(
+    CLIENT_TABS.map((tab) => [tab.id, tab.href]),
+    [
+      ["register", "/modules/clients"],
+      ["redmine", "/modules/clients?view=redmine"],
+    ],
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The client picker on the task form                                        */
+/* -------------------------------------------------------------------------- */
+
+test("the task client picker offers the register first, then the Redmine capture", () => {
+  const choices = clientChoices(
+    [
+      { name: "Zeta Industries", code: "ZT", industry: "Manufacturing" },
+      { name: "Acme Manufacturing", code: "ACME", industry: "Manufacturing" },
+    ],
+    [
+      { name: "Skin", codes: ["SK"] },
+      { name: "Delta", codes: [] },
+    ],
+  );
+
+  assert.deepEqual(
+    choices.map((choice) => [choice.label, choice.hint]),
+    [
+      ["Acme Manufacturing", "Client register · ACME · Manufacturing"],
+      ["Delta", "Redmine"],
+      ["Skin", "Redmine · SK"],
+      ["Zeta Industries", "Client register · ZT · Manufacturing"],
+    ],
+  );
+  // The submitted value is the name, because that is what a task stores.
+  assert.equal(choices[0].value, "Acme Manufacturing");
+});
+
+test("the picker keeps one row per name and drops what cannot be chosen", () => {
+  const choices = clientChoices(
+    [
+      { name: "Acme Manufacturing", code: "ACME" },
+      // Same name, different case and spacing — the register row already covers it.
+      { name: "  acme   manufacturing ", code: "ACM" },
+      // Retired accounts are not offered.
+      { name: "Old Co", code: "OLD", status: "inactive" },
+      { name: "   ", code: "" },
+    ],
+    [
+      { name: "ACME Manufacturing", codes: ["ACME"] },
+      { name: "  ", codes: [] },
+      { name: "Skin", codes: ["SK"] },
+    ],
+  );
+
+  assert.deepEqual(
+    choices.map((choice) => choice.label),
+    ["Acme Manufacturing", "Skin"],
+  );
+  assert.match(choices[0].hint, /Client register/);
+});
+
+test("a register client with no code or industry still reads as the register", () => {
+  assert.deepEqual(clientChoices([{ name: "Acme" }]), [
+    { value: "Acme", label: "Acme", hint: "Client register" },
+  ]);
+  // Nothing anywhere is an empty picker, not a crash.
+  assert.deepEqual(clientChoices([], []), []);
+});

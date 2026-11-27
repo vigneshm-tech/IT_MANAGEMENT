@@ -1,0 +1,721 @@
+"use client";
+
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Loader2, Plus, Save, X } from "lucide-react";
+import { useActionState } from "react";
+import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import type { FormState } from "@/lib/forms";
+import {
+  APP_STATUSES,
+  DB_STATUSES,
+  ENGINES,
+  ENGINE_LABELS,
+  DEFAULT_MYSQL_PORT,
+  DIRECTORY_BROWSING,
+  ENVIRONMENTS,
+  ENVIRONMENT_LABELS,
+  MYSQL_STATUSES,
+  type AppStatus,
+  type DbStatus,
+  type DirectoryBrowsing,
+  type Engine,
+  type Environment,
+  type IisApplication,
+  type IisDatabase,
+  type IisMysqlInstance,
+  type MysqlStatus,
+} from "@/lib/iis/constants";
+
+const APP_STATUS_LABEL: Record<AppStatus, string> = {
+  running: "Running",
+  stopped: "Stopped",
+  degraded: "Degraded",
+  maintenance: "Maintenance",
+};
+
+const DB_STATUS_LABEL: Record<DbStatus, string> = {
+  online: "Online",
+  offline: "Offline",
+  maintenance: "Maintenance",
+};
+
+const MYSQL_STATUS_LABEL: Record<MysqlStatus, string> = {
+  running: "Running",
+  stopped: "Stopped",
+  degraded: "Degraded",
+  maintenance: "Maintenance",
+};
+
+type Action = (state: FormState, formData: FormData) => Promise<FormState>;
+
+const GRID = "grid gap-4 px-4 py-4 sm:grid-cols-2 lg:grid-cols-3 sm:px-5";
+
+function Field({
+  prefix,
+  name,
+  label,
+  children,
+  hint,
+  required,
+}: {
+  prefix: string;
+  name: string;
+  label: string;
+  children: ReactNode;
+  hint?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor={`${prefix}-${name}`} className="field-label">
+        {label}
+        {required && <span className="ml-0.5 text-danger">*</span>}
+      </label>
+      {children}
+      {hint && <p className="mt-1 text-[11px] text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/** The add/edit panel for one IIS application. */
+export function IisApplicationForm({
+  action,
+  record,
+  canEdit,
+  cancelHref = "/modules/iis/applications",
+}: {
+  action: Action;
+  record?: IisApplication;
+  canEdit: boolean;
+  cancelHref?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+  const prefix = record ? `app-${record.id}` : "app-new";
+
+  if (!canEdit) {
+    return (
+      <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
+        Read only — you cannot change applications.
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="border border-line bg-surface">
+      {record && <input type="hidden" name="id" value={record.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {record ? `Editing “${record.name}”` : "New application"}
+        </p>
+        {record && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
+
+      <div className={GRID}>
+        <Field prefix={prefix} name="name" label="Application name" required>
+          <input
+            id={`${prefix}-name`}
+            name="name"
+            required
+            minLength={2}
+            maxLength={80}
+            defaultValue={record?.name ?? ""}
+            placeholder="e.g. Portal"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="server" label="Server host name">
+          <input
+            id={`${prefix}-server`}
+            name="server"
+            maxLength={80}
+            defaultValue={record?.server ?? ""}
+            placeholder="e.g. WEB01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="appPool" label="Application pool">
+          <input
+            id={`${prefix}-appPool`}
+            name="appPool"
+            maxLength={80}
+            defaultValue={record?.appPool ?? ""}
+            placeholder="e.g. PortalPool"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="bindingHost" label="Binding host name">
+          <input
+            id={`${prefix}-bindingHost`}
+            name="bindingHost"
+            maxLength={200}
+            defaultValue={record?.bindingHost ?? ""}
+            placeholder="e.g. portal.example.com"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="bindingPort" label="Binding port" hint="80, 443, 8080…">
+          <input
+            id={`${prefix}-bindingPort`}
+            name="bindingPort"
+            type="number"
+            min={1}
+            max={65535}
+            step={1}
+            defaultValue={record?.bindingPort ?? 443}
+            placeholder="443"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="sslMapped" label="SSL mapped">
+          <label className="flex h-9 items-center gap-2 border border-line bg-surface px-2.5">
+            <input
+              id={`${prefix}-sslMapped`}
+              name="sslMapped"
+              type="checkbox"
+              defaultChecked={record?.sslMapped ?? false}
+              className="h-3.5 w-3.5 accent-navy"
+            />
+            <span className="text-[12px] text-ink">This binding serves https</span>
+          </label>
+        </Field>
+        <Field
+          prefix={prefix}
+          name="sslCertificate"
+          label="SSL certificate"
+          hint="The name on the certificate, e.g. *.eshopaid.com"
+        >
+          <input
+            id={`${prefix}-sslCertificate`}
+            name="sslCertificate"
+            maxLength={200}
+            defaultValue={record?.sslCertificate ?? ""}
+            placeholder="*.example.com"
+            className="field"
+          />
+        </Field>
+        <Field
+          prefix={prefix}
+          name="sslThumbprint"
+          label="Certificate thumbprint"
+          hint="Pins the exact certificate"
+        >
+          <input
+            id={`${prefix}-sslThumbprint`}
+            name="sslThumbprint"
+            maxLength={64}
+            defaultValue={record?.sslThumbprint ?? ""}
+            placeholder="A1B2C3…"
+            className="field font-mono text-[11.5px]"
+          />
+        </Field>
+        <Field prefix={prefix} name="sslExpiresAt" label="Certificate expiry" hint="YYYY-MM-DD">
+          <input
+            id={`${prefix}-sslExpiresAt`}
+            name="sslExpiresAt"
+            type="date"
+            defaultValue={record?.sslExpiresAt ?? ""}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="directoryBrowsing" label="Directory browsing">
+          <select
+            id={`${prefix}-directoryBrowsing`}
+            name="directoryBrowsing"
+            defaultValue={record?.directoryBrowsing ?? "disabled"}
+            className="field"
+          >
+            {DIRECTORY_BROWSING.map((value: DirectoryBrowsing) => (
+              <option key={value} value={value}>
+                {value === "enabled" ? "Enabled" : "Disabled"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="appRoot" label="Application root path">
+          <input
+            id={`${prefix}-appRoot`}
+            name="appRoot"
+            maxLength={260}
+            defaultValue={record?.appRoot ?? ""}
+            placeholder="C:\\inetpub\\portal"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="environment" label="Environment">
+          <select
+            id={`${prefix}-environment`}
+            name="environment"
+            defaultValue={record?.environment ?? "production"}
+            className="field"
+          >
+            {ENVIRONMENTS.map((value: Environment) => (
+              <option key={value} value={value}>
+                {ENVIRONMENT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="owner" label="Owner">
+          <input
+            id={`${prefix}-owner`}
+            name="owner"
+            maxLength={80}
+            defaultValue={record?.owner ?? ""}
+            placeholder="Who answers for it"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="status" label="State">
+          <select
+            id={`${prefix}-status`}
+            name="status"
+            defaultValue={record?.status ?? "running"}
+            className="field"
+          >
+            {APP_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {APP_STATUS_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="notes" label="Notes">
+          <input
+            id={`${prefix}-notes`}
+            name="notes"
+            maxLength={500}
+            defaultValue={record?.notes ?? ""}
+            placeholder="Anything the next person should know"
+            className="field"
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
+        <div aria-live="polite" className="min-h-[18px]">
+          {state.error && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-danger">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+              {state.error}
+            </p>
+          )}
+          {state.ok && state.message && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+              {state.message}
+            </p>
+          )}
+        </div>
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : record ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {record ? "Save changes" : "Add application"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The add/edit panel for one database instance. */
+export function IisDatabaseForm({
+  action,
+  record,
+  canEdit,
+  cancelHref = "/modules/iis/databases",
+}: {
+  action: Action;
+  record?: IisDatabase;
+  canEdit: boolean;
+  cancelHref?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+  const prefix = record ? `db-${record.id}` : "db-new";
+
+  if (!canEdit) {
+    return (
+      <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
+        Read only — you cannot change databases.
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="border border-line bg-surface">
+      {record && <input type="hidden" name="id" value={record.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {record ? `Editing “${record.name}”` : "New database"}
+        </p>
+        {record && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
+
+      <div className={GRID}>
+        <Field prefix={prefix} name="name" label="Database" required>
+          <input
+            id={`${prefix}-name`}
+            name="name"
+            required
+            minLength={2}
+            maxLength={80}
+            defaultValue={record?.name ?? ""}
+            placeholder="e.g. ORDERS_DB"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="server" label="Instance">
+          <input
+            id={`${prefix}-server`}
+            name="server"
+            maxLength={60}
+            defaultValue={record?.server ?? ""}
+            placeholder="e.g. SQL01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="engine" label="Engine">
+          <select
+            id={`${prefix}-engine`}
+            name="engine"
+            defaultValue={record?.engine ?? "sql_server"}
+            className="field"
+          >
+            {ENGINES.map((value: Engine) => (
+              <option key={value} value={value}>
+                {ENGINE_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="environment" label="Environment">
+          <select
+            id={`${prefix}-environment`}
+            name="environment"
+            defaultValue={record?.environment ?? "production"}
+            className="field"
+          >
+            {ENVIRONMENTS.map((value) => (
+              <option key={value} value={value}>
+                {ENVIRONMENT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="sizeGb" label="Size (GB)">
+          <input
+            id={`${prefix}-sizeGb`}
+            name="sizeGb"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={record?.sizeGb ?? ""}
+            placeholder="e.g. 42.5"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="recoveryModel" label="Recovery model">
+          <input
+            id={`${prefix}-recoveryModel`}
+            name="recoveryModel"
+            maxLength={20}
+            defaultValue={record?.recoveryModel ?? ""}
+            placeholder="e.g. FULL"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="lastBackupAt" label="Last backup" hint="Leave blank if it has never been backed up.">
+          <input
+            id={`${prefix}-lastBackupAt`}
+            name="lastBackupAt"
+            type="date"
+            defaultValue={record?.lastBackupAt ?? ""}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="owner" label="Owner">
+          <input
+            id={`${prefix}-owner`}
+            name="owner"
+            maxLength={80}
+            defaultValue={record?.owner ?? ""}
+            placeholder="Who answers for it"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="status" label="State">
+          <select
+            id={`${prefix}-status`}
+            name="status"
+            defaultValue={record?.status ?? "online"}
+            className="field"
+          >
+            {DB_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {DB_STATUS_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="notes" label="Notes">
+          <input
+            id={`${prefix}-notes`}
+            name="notes"
+            maxLength={500}
+            defaultValue={record?.notes ?? ""}
+            placeholder="Anything the next person should know"
+            className="field"
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
+        <div aria-live="polite" className="min-h-[18px]">
+          {state.error && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-danger">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+              {state.error}
+            </p>
+          )}
+          {state.ok && state.message && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+              {state.message}
+            </p>
+          )}
+        </div>
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : record ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {record ? "Save changes" : "Add database"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The add/edit panel for one MySQL instance. */
+export function IisMysqlForm({
+  action,
+  record,
+  canEdit,
+  cancelHref = "/modules/iis/mysql",
+}: {
+  action: Action;
+  record?: IisMysqlInstance;
+  canEdit: boolean;
+  cancelHref?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {} as FormState);
+  const prefix = record ? `mysql-${record.id}` : "mysql-new";
+
+  if (!canEdit) {
+    return (
+      <p className="border border-line bg-surface px-4 py-3 text-[12.5px] text-muted">
+        Read only — you cannot change MySQL instances.
+      </p>
+    );
+  }
+
+  return (
+    <form action={formAction} className="border border-line bg-surface">
+      {record && <input type="hidden" name="id" value={record.id} />}
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5 sm:px-5">
+        <p className="text-[12.5px] font-medium text-navy">
+          {record ? `Editing “${record.name}”` : "New MySQL instance"}
+        </p>
+        {record && (
+          <Link
+            href={cancelHref}
+            className="inline-flex items-center gap-1 text-[11.5px] text-muted hover:text-navy"
+          >
+            <X className="h-3 w-3" aria-hidden />
+            Cancel
+          </Link>
+        )}
+      </div>
+
+      <div className={GRID}>
+        <Field prefix={prefix} name="name" label="Instance" required hint="How the team refers to it, e.g. orders-mysql-01.">
+          <input
+            id={`${prefix}-name`}
+            name="name"
+            required
+            minLength={2}
+            maxLength={80}
+            defaultValue={record?.name ?? ""}
+            placeholder="e.g. orders-mysql-01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="host" label="Host">
+          <input
+            id={`${prefix}-host`}
+            name="host"
+            maxLength={80}
+            defaultValue={record?.host ?? ""}
+            placeholder="e.g. DB-MY01"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="port" label="Port">
+          <input
+            id={`${prefix}-port`}
+            name="port"
+            type="number"
+            min={1}
+            max={65535}
+            defaultValue={record?.port ?? DEFAULT_MYSQL_PORT}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="version" label="Version">
+          <input
+            id={`${prefix}-version`}
+            name="version"
+            maxLength={40}
+            defaultValue={record?.version ?? ""}
+            placeholder="e.g. 8.0.36"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="environment" label="Environment">
+          <select
+            id={`${prefix}-environment`}
+            name="environment"
+            defaultValue={record?.environment ?? "production"}
+            className="field"
+          >
+            {ENVIRONMENTS.map((value) => (
+              <option key={value} value={value}>
+                {ENVIRONMENT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="sizeGb" label="Size (GB)">
+          <input
+            id={`${prefix}-sizeGb`}
+            name="sizeGb"
+            type="number"
+            min={0}
+            step="0.01"
+            defaultValue={record?.sizeGb ?? ""}
+            placeholder="e.g. 96.4"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="charset" label="Charset / collation">
+          <input
+            id={`${prefix}-charset`}
+            name="charset"
+            maxLength={80}
+            defaultValue={record?.charset ?? ""}
+            placeholder="e.g. utf8mb4 / utf8mb4_0900_ai_ci"
+            className="field"
+          />
+        </Field>
+        <Field
+          prefix={prefix}
+          name="lastBackupAt"
+          label="Last backup"
+          hint="Leave blank if it has never been backed up."
+        >
+          <input
+            id={`${prefix}-lastBackupAt`}
+            name="lastBackupAt"
+            type="date"
+            defaultValue={record?.lastBackupAt ?? ""}
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="owner" label="Owner">
+          <input
+            id={`${prefix}-owner`}
+            name="owner"
+            maxLength={80}
+            defaultValue={record?.owner ?? ""}
+            placeholder="Who answers for it"
+            className="field"
+          />
+        </Field>
+        <Field prefix={prefix} name="status" label="State">
+          <select
+            id={`${prefix}-status`}
+            name="status"
+            defaultValue={record?.status ?? "running"}
+            className="field"
+          >
+            {MYSQL_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {MYSQL_STATUS_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field prefix={prefix} name="notes" label="Notes">
+          <input
+            id={`${prefix}-notes`}
+            name="notes"
+            maxLength={500}
+            defaultValue={record?.notes ?? ""}
+            placeholder="Replication, upgrade plans, anything the next person should know"
+            className="field"
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
+        <div aria-live="polite" className="min-h-[18px]">
+          {state.error && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-danger">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+              {state.error}
+            </p>
+          )}
+          {state.ok && state.message && (
+            <p className="flex items-center gap-1.5 text-[12px] font-medium text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+              {state.message}
+            </p>
+          )}
+        </div>
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : record ? (
+            <Save className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+          )}
+          {record ? "Save changes" : "Add instance"}
+        </Button>
+      </div>
+    </form>
+  );
+}
